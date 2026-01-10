@@ -96,10 +96,18 @@ struct LogView: View {
                             .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
                     }
                     .foregroundStyle(Theme.textPrimary)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.black)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                    )
                 }
-                .glassButtonStyle(prominent: true)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("log.hero.cta")
             }
             .padding(22)
