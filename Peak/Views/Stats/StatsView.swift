@@ -1,0 +1,107 @@
+import SwiftUI
+import SwiftData
+
+struct StatsView: View {
+    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @State private var showContent = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background.ignoresSafeArea()
+
+                if sessions.isEmpty {
+                    EmptyStateView(
+                        title: "No stats yet",
+                        message: "Log sessions to see your totals and patterns.",
+                        systemImage: "chart.bar.xaxis"
+                    )
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            summaryCards
+
+                            StatListSection(title: "Top spots", items: summary.topSpots)
+                            StatListSection(title: "Most-used gear", items: summary.topGear)
+                            StatListSection(title: "Surf buddies", items: summary.topBuddies)
+                        }
+                        .padding()
+                        .opacity(showContent ? 1 : 0)
+                        .offset(y: showContent ? 0 : 12)
+                        .animation(.easeOut(duration: 0.6), value: showContent)
+                    }
+                    .onAppear {
+                        showContent = true
+                    }
+                }
+            }
+            .navigationTitle("Stats")
+        }
+    }
+
+    private var summary: StatsSummary {
+        StatsCalculator.summarize(sessions: sessions)
+    }
+
+    private var summaryCards: some View {
+        GlassContainer(spacing: 12) {
+            HStack(spacing: 12) {
+                StatCardView(title: "Sessions", value: "\(summary.totalSessions)", subtitle: "All time")
+                StatCardView(title: "Avg rating", value: averageRatingLabel, subtitle: "Rated sessions")
+            }
+        }
+    }
+
+    private var averageRatingLabel: String {
+        if summary.averageRating == 0 {
+            return "-"
+        }
+        return String(format: "%.1f", summary.averageRating)
+    }
+}
+
+private struct StatListSection: View {
+    let title: String
+    let items: [CountedItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+            if items.isEmpty {
+                Text("Not enough data yet")
+                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.textMuted)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(items) { item in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.name)
+                                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                                    .foregroundStyle(Theme.textPrimary)
+                                if let detail = item.detail {
+                                    Text(detail)
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+                                }
+                            }
+                            Spacer()
+                            Text("\(item.count)")
+                                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                        .padding(12)
+                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+#Preview {
+    StatsView()
+        .modelContainer(PreviewData.container)
+}

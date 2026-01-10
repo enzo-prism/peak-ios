@@ -6,19 +6,35 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            LogView()
+                .tabItem {
+                    Label("Log", systemImage: "wave.3.right")
+                }
+
+            HistoryView()
+                .tabItem {
+                    Label("History", systemImage: "clock.arrow.circlepath")
+                }
+
+            StatsView()
+                .tabItem {
+                    Label("Stats", systemImage: "chart.bar")
+                }
         }
-        .padding()
+        .tint(Theme.textPrimary)
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(Theme.oceanDeep.opacity(0.95), for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
+        .font(.custom("Avenir Next", size: 16, relativeTo: .body))
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(PreviewData.container)
 }

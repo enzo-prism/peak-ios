@@ -1,0 +1,116 @@
+import SwiftUI
+import SwiftData
+
+struct SessionDetailView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    let session: SurfSession
+    @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        detailRow(title: "Date", value: session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+                        detailRow(title: "Spot", value: session.spot?.name ?? "Unknown spot")
+                        if session.rating > 0 {
+                            detailRow(title: "Rating", value: "\(session.rating) / 5")
+                        }
+                    }
+                    .padding(16)
+                    .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+
+                    if !session.gear.isEmpty {
+                        infoCard(title: "Gear", items: session.gear.sorted(by: { $0.name < $1.name }).map { "\($0.name) (\($0.kind.label))" })
+                    }
+
+                    if !session.buddies.isEmpty {
+                        infoCard(title: "Buddies", items: session.buddies.sorted(by: { $0.name < $1.name }).map { $0.name })
+                    }
+
+                    if !session.notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            sectionTitle("Notes")
+                            Text(session.notes)
+                                .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        .padding(16)
+                        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Label("Delete Session", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .glassButtonStyle(prominent: false)
+                }
+                .padding()
+            }
+        }
+        .navigationTitle("Session")
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showEdit = true
+                } label: {
+                    Text("Edit")
+                }
+            }
+        }
+        .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                modelContext.delete(session)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showEdit) {
+            SessionEditorView(mode: .edit(session))
+        }
+    }
+
+    @ViewBuilder
+    private func detailRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .foregroundStyle(Theme.textMuted)
+            Spacer()
+            Text(value)
+                .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    @ViewBuilder
+    private func infoCard(title: String, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionTitle(title)
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .foregroundStyle(Theme.textPrimary)
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+            .foregroundStyle(Theme.textMuted)
+    }
+}
+
+#Preview {
+    SessionDetailView(session: SurfSession(date: Date(), spot: Spot(name: "Trestles"), rating: 4, notes: "Fun peaks."))
+        .modelContainer(PreviewData.container)
+}
