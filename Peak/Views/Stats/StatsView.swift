@@ -74,26 +74,28 @@ private struct StatListSection: View {
                     .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(items) { item in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.name)
-                                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
-                                    .foregroundStyle(Theme.textPrimary)
-                                if let detail = item.detail {
-                                    Text(detail)
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
+                GlassContainer(spacing: 10) {
+                    VStack(spacing: 8) {
+                        ForEach(items) { item in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.name)
+                                        .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                                        .foregroundStyle(Theme.textPrimary)
+                                    if let detail = item.detail {
+                                        Text(detail)
+                                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                            .foregroundStyle(Theme.textMuted)
+                                    }
                                 }
+                                Spacer()
+                                Text("\(item.count)")
+                                    .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
+                                    .foregroundStyle(Theme.textPrimary)
                             }
-                            Spacer()
-                            Text("\(item.count)")
-                                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
-                                .foregroundStyle(Theme.textPrimary)
+                            .padding(12)
+                            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
                         }
-                        .padding(12)
-                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
                     }
                 }
             }

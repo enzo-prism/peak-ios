@@ -31,6 +31,11 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
   `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' -only-testing:PeakUITests test`
 - UI tests seed in-memory data when `UITESTS=1` is set (handled by the test target)
 
+## Privacy and support
+- Privacy policy: `PRIVACY.md`
+- Support contact: `SUPPORT.md`
+- Data stays on-device; no accounts, analytics, or network calls
+
 ## Acceptance criteria
 - Users can log a session in under 60 seconds
 - Sessions can be filtered by spot, gear, or buddy

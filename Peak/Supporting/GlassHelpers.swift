@@ -28,8 +28,10 @@ extension View {
             self.glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
         } else {
             self.background(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(tint)
+                GlassFallbackSurface(
+                    shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                    tint: tint
+                )
             )
         }
     }
@@ -41,7 +43,7 @@ extension View {
             self.glassEffect(glass, in: .capsule)
         } else {
             self.background(
-                Capsule().fill(tint)
+                GlassFallbackSurface(shape: Capsule(), tint: tint)
             )
         }
     }
@@ -61,5 +63,46 @@ extension View {
                 self.buttonStyle(.bordered)
             }
         }
+    }
+
+    @ViewBuilder
+    func glassInput(cornerRadius: CGFloat = 14, tint: Color = Theme.glassDimTint) -> some View {
+        self.glassCard(cornerRadius: cornerRadius, tint: tint, isInteractive: true)
+    }
+
+    @ViewBuilder
+    func glassUnion(id: String, namespace: Namespace.ID) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffectUnion(id: id, namespace: namespace)
+        } else {
+            self
+        }
+    }
+}
+
+private struct GlassFallbackSurface<S: Shape>: View {
+    let shape: S
+    let tint: Color
+
+    var body: some View {
+        shape
+            .fill(tint)
+            .overlay(
+                shape.stroke(Color.white.opacity(0.18), lineWidth: 1)
+            )
+            .overlay(
+                shape.fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.22),
+                            Color.white.opacity(0.08),
+                            Color.clear
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blendMode(.screen)
+            )
     }
 }

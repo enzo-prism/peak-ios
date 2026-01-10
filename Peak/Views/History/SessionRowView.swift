@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionRowView: View {
     let session: SurfSession
+    @Namespace private var chipNamespace
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -28,6 +29,7 @@ struct SessionRowView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+                            .glassUnion(id: "chips", namespace: chipNamespace)
                     }
                     if !session.buddies.isEmpty {
                         Label("\(session.buddies.count)", systemImage: "person.2")
@@ -35,6 +37,7 @@ struct SessionRowView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+                            .glassUnion(id: "chips", namespace: chipNamespace)
                     }
                     if !session.notes.isEmpty {
                         Label("Notes", systemImage: "note.text")
@@ -42,6 +45,7 @@ struct SessionRowView: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+                            .glassUnion(id: "chips", namespace: chipNamespace)
                     }
                 }
             }

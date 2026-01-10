@@ -45,147 +45,149 @@ struct SessionEditorView: View {
                 Theme.background.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        EditorSection("Session") {
-                            DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
-                                .datePickerStyle(.compact)
-                                .tint(Theme.textPrimary)
-                                .foregroundStyle(Theme.textPrimary)
-                                .padding(12)
-                                .background(inputBackground)
-                                .accessibilityIdentifier("session.editor.date")
-
-                            TextField(
-                                "Spot",
-                                text: $draft.spotName,
-                                prompt: Text("Spot").foregroundStyle(Theme.textMuted)
-                            )
-                                .textFieldStyle(.plain)
-                                .foregroundStyle(Theme.textPrimary)
-                                .padding(12)
-                                .background(inputBackground)
-                                .accessibilityIdentifier("session.editor.spot")
-                                .onChange(of: draft.spotName) { newValue in
-                                    if let selected = draft.selectedSpot, selected.name != newValue {
-                                        draft.selectedSpot = nil
-                                    }
-                                }
-
-                            if !spots.isEmpty {
-                                GlassContainer(spacing: 10) {
-                                    ScrollView(.horizontal, showsIndicators: false) {
-                                        HStack(spacing: 8) {
-                                            ForEach(spots) { spot in
-                                                SelectableChip(
-                                                    label: spot.name,
-                                                    systemImage: "mappin",
-                                                    isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
-                                                ) {
-                                                    draft.selectSpot(spot)
-                                                }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                }
-                            }
-                        }
-
-                        EditorSection("Gear") {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 12) {
-                                    TextField(
-                                        "Add gear",
-                                        text: $newGearName,
-                                        prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
-                                    )
-                                        .textFieldStyle(.plain)
-                                        .foregroundStyle(Theme.textPrimary)
-                                        .accessibilityIdentifier("session.editor.gear")
-                                    Picker("Type", selection: $newGearKind) {
-                                        ForEach(GearKind.allCases) { kind in
-                                            Text(kind.label).tag(kind)
-                                        }
-                                    }
-                                    .pickerStyle(.menu)
+                    GlassContainer(spacing: 16) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            EditorSection("Session") {
+                                DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
+                                    .datePickerStyle(.compact)
                                     .tint(Theme.textPrimary)
                                     .foregroundStyle(Theme.textPrimary)
-                                }
-                                .padding(12)
-                                .background(inputBackground)
+                                    .padding(12)
+                                    .glassInput()
+                                    .accessibilityIdentifier("session.editor.date")
 
-                                Button("Add Gear") {
-                                    addGear()
-                                }
-                                .frame(maxWidth: .infinity)
-                                .glassButtonStyle(prominent: false)
-                                .disabled(newGearName.trimmedNonEmpty == nil)
-                            }
-
-                            if !gear.isEmpty {
-                                GlassContainer(spacing: 10) {
-                                    gearGrid
-                                }
-                            }
-                        }
-
-                        EditorSection("Buddies") {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 12) {
-                                    TextField(
-                                        "Add buddy",
-                                        text: $newBuddyName,
-                                        prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
-                                    )
-                                        .textFieldStyle(.plain)
-                                        .foregroundStyle(Theme.textPrimary)
-                                        .accessibilityIdentifier("session.editor.buddy")
-                                    Button("Add") {
-                                        addBuddy()
-                                    }
-                                    .glassButtonStyle(prominent: true)
-                                    .disabled(newBuddyName.trimmedNonEmpty == nil)
-                                }
-                                .padding(12)
-                                .background(inputBackground)
-                            }
-
-                            if !buddies.isEmpty {
-                                GlassContainer(spacing: 10) {
-                                    FlowChipGrid(items: buddies.map { ($0.name, "person") }) { index in
-                                        let buddy = buddies[index]
-                                        draft.toggleBuddy(buddy)
-                                    } isSelected: { index in
-                                        draft.selectedBuddies.contains(where: { $0.persistentModelID == buddies[index].persistentModelID })
-                                    }
-                                }
-                            }
-                        }
-
-                        EditorSection("Rating") {
-                            RatingPickerView(rating: $draft.rating)
-                                .accessibilityIdentifier("session.editor.rating")
-                        }
-
-                        EditorSection("Notes") {
-                            ZStack(alignment: .topLeading) {
-                                TextEditor(text: $draft.notes)
-                                    .frame(minHeight: 120)
-                                    .scrollContentBackground(.hidden)
+                                TextField(
+                                    "Spot",
+                                    text: $draft.spotName,
+                                    prompt: Text("Spot").foregroundStyle(Theme.textMuted)
+                                )
+                                    .textFieldStyle(.plain)
                                     .foregroundStyle(Theme.textPrimary)
-                                    .accessibilityIdentifier("session.editor.notes")
-                                if draft.notes.isEmpty {
-                                    Text("Add any conditions, swell, or quick thoughts.")
-                                        .foregroundStyle(Theme.textMuted)
-                                        .padding(.top, 8)
-                                        .padding(.leading, 5)
+                                    .padding(12)
+                                    .glassInput()
+                                    .accessibilityIdentifier("session.editor.spot")
+                                    .onChange(of: draft.spotName) { newValue in
+                                        if let selected = draft.selectedSpot, selected.name != newValue {
+                                            draft.selectedSpot = nil
+                                        }
+                                    }
+
+                                if !spots.isEmpty {
+                                    GlassContainer(spacing: 10) {
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: 8) {
+                                                ForEach(spots) { spot in
+                                                    SelectableChip(
+                                                        label: spot.name,
+                                                        systemImage: "mappin",
+                                                        isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
+                                                    ) {
+                                                        draft.selectSpot(spot)
+                                                    }
+                                                }
+                                            }
+                                            .padding(.vertical, 4)
+                                        }
+                                    }
                                 }
                             }
-                            .padding(12)
-                            .background(inputBackground)
+
+                            EditorSection("Gear") {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        TextField(
+                                            "Add gear",
+                                            text: $newGearName,
+                                            prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
+                                        )
+                                            .textFieldStyle(.plain)
+                                            .foregroundStyle(Theme.textPrimary)
+                                            .accessibilityIdentifier("session.editor.gear")
+                                        Picker("Type", selection: $newGearKind) {
+                                            ForEach(GearKind.allCases) { kind in
+                                                Text(kind.label).tag(kind)
+                                            }
+                                        }
+                                        .pickerStyle(.menu)
+                                        .tint(Theme.textPrimary)
+                                        .foregroundStyle(Theme.textPrimary)
+                                    }
+                                    .padding(12)
+                                    .glassInput()
+
+                                    Button("Add Gear") {
+                                        addGear()
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .glassButtonStyle(prominent: false)
+                                    .disabled(newGearName.trimmedNonEmpty == nil)
+                                }
+
+                                if !gear.isEmpty {
+                                    GlassContainer(spacing: 10) {
+                                        gearGrid
+                                    }
+                                }
+                            }
+
+                            EditorSection("Buddies") {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        TextField(
+                                            "Add buddy",
+                                            text: $newBuddyName,
+                                            prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
+                                        )
+                                            .textFieldStyle(.plain)
+                                            .foregroundStyle(Theme.textPrimary)
+                                            .accessibilityIdentifier("session.editor.buddy")
+                                        Button("Add") {
+                                            addBuddy()
+                                        }
+                                        .glassButtonStyle(prominent: true)
+                                        .disabled(newBuddyName.trimmedNonEmpty == nil)
+                                    }
+                                    .padding(12)
+                                    .glassInput()
+                                }
+
+                                if !buddies.isEmpty {
+                                    GlassContainer(spacing: 10) {
+                                        FlowChipGrid(items: buddies.map { ($0.name, "person") }) { index in
+                                            let buddy = buddies[index]
+                                            draft.toggleBuddy(buddy)
+                                        } isSelected: { index in
+                                            draft.selectedBuddies.contains(where: { $0.persistentModelID == buddies[index].persistentModelID })
+                                        }
+                                    }
+                                }
+                            }
+
+                            EditorSection("Rating") {
+                                RatingPickerView(rating: $draft.rating)
+                                    .accessibilityIdentifier("session.editor.rating")
+                            }
+
+                            EditorSection("Notes") {
+                                ZStack(alignment: .topLeading) {
+                                    TextEditor(text: $draft.notes)
+                                        .frame(minHeight: 120)
+                                        .scrollContentBackground(.hidden)
+                                        .foregroundStyle(Theme.textPrimary)
+                                        .accessibilityIdentifier("session.editor.notes")
+                                    if draft.notes.isEmpty {
+                                        Text("Add any conditions, swell, or quick thoughts.")
+                                            .foregroundStyle(Theme.textMuted)
+                                            .padding(.top, 8)
+                                            .padding(.leading, 5)
+                                    }
+                                }
+                                .padding(12)
+                                .glassInput()
+                            }
                         }
+                        .padding()
                     }
-                    .padding()
                 }
             }
             .navigationTitle(mode.title)
@@ -219,11 +221,6 @@ struct SessionEditorView: View {
         }
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var inputBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Theme.surface)
     }
 
     private func addGear() {
@@ -320,7 +317,7 @@ private struct EditorSection<Content: View>: View {
             content
         }
         .padding(16)
-        .glassCard(cornerRadius: 24, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: 24, tint: Theme.glassDimTint, isInteractive: true)
     }
 }
 
