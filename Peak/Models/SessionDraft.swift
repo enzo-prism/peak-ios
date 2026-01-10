@@ -23,10 +23,7 @@ struct SessionDraft {
     }
 
     var isReadyToSave: Bool {
-        if let selectedSpot {
-            return !selectedSpot.name.isEmpty
-        }
-        return spotName.trimmedNonEmpty != nil
+        selectedSpot != nil
     }
 
     mutating func selectSpot(_ spot: Spot) {

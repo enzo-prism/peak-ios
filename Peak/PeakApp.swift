@@ -16,7 +16,7 @@ struct PeakApp: App {
     init() {
         Self.configureTabBarAppearance()
         let isUITest = ProcessInfo.processInfo.environment["UITESTS"] == "1"
-        let schema = Schema(versionedSchema: PeakSchemaV1.self)
+        let schema = Schema(versionedSchema: PeakSchemaV2.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITest)
         do {
             container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])

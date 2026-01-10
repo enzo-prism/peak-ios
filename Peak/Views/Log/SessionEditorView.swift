@@ -29,6 +29,9 @@ struct SessionEditorView: View {
     @State private var newGearName = ""
     @State private var newGearKind: GearKind = .board
     @State private var newBuddyName = ""
+    @State private var showSpotEditor = false
+    @State private var showSpotAlert = false
+    @State private var spotAlertMessage = ""
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -67,17 +70,17 @@ struct SessionEditorView: View {
                                     .padding(12)
                                     .glassInput()
                                     .accessibilityIdentifier("session.editor.spot")
-                                    .onChange(of: draft.spotName) { newValue in
+                                    .onChange(of: draft.spotName) { _, newValue in
                                         if let selected = draft.selectedSpot, selected.name != newValue {
                                             draft.selectedSpot = nil
                                         }
                                     }
 
-                                if !spots.isEmpty {
+                                if !filteredSpots.isEmpty {
                                     GlassContainer(spacing: 10) {
                                         ScrollView(.horizontal, showsIndicators: false) {
                                             HStack(spacing: 8) {
-                                                ForEach(spots) { spot in
+                                                ForEach(filteredSpots) { spot in
                                                     SelectableChip(
                                                         label: spot.name,
                                                         systemImage: "mappin",
@@ -90,6 +93,35 @@ struct SessionEditorView: View {
                                             .padding(.vertical, 4)
                                         }
                                     }
+                                } else if !spots.isEmpty {
+                                    Text("No matching spots. Add a surf break.")
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                } else {
+                                    Text("No spots saved yet. Add your first surf break.")
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                }
+
+                                Button {
+                                    addSpotTapped()
+                                } label: {
+                                    Label("Add Surf Break", systemImage: "mappin.and.ellipse")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .glassButtonStyle(prominent: false)
+                                .disabled(isSpotLimitReached)
+
+                                if isSpotLimitReached {
+                                    Text("You can save up to \(Spot.maxCount) surf breaks.")
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
                                 }
                             }
 
@@ -229,11 +261,11 @@ struct SessionEditorView: View {
                     }
                 }
             }
-            .navigationTitle(mode.title)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
+        .navigationTitle(mode.title)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         saveSession()
@@ -243,6 +275,19 @@ struct SessionEditorView: View {
             }
         }
         .tint(Theme.textPrimary)
+        .sheet(isPresented: $showSpotEditor) {
+            SpotEditorView(
+                mode: .new,
+                suggestedName: draft.spotName
+            ) { spot in
+                draft.selectSpot(spot)
+            }
+        }
+        .alert("Spot", isPresented: $showSpotAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(spotAlertMessage)
+        }
     }
 
     private var sortedBuddies: [Buddy] {
@@ -295,12 +340,9 @@ struct SessionEditorView: View {
     }
 
     private func saveSession() {
-        let spot: Spot
-        if let selectedSpot = draft.selectedSpot {
-            spot = selectedSpot
-        } else if let spotName = draft.spotName.trimmedNonEmpty {
-            spot = modelContext.upsertSpot(named: spotName)
-        } else {
+        guard let spot = draft.selectedSpot else {
+            spotAlertMessage = "Select a surf break to save this session."
+            showSpotAlert = true
             return
         }
 
@@ -327,6 +369,24 @@ struct SessionEditorView: View {
             session.updatedAt = Date()
         }
         dismiss()
+    }
+
+    private var filteredSpots: [Spot] {
+        guard let query = draft.spotName.trimmedNonEmpty else { return spots }
+        return spots.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var isSpotLimitReached: Bool {
+        spots.count >= Spot.maxCount
+    }
+
+    private func addSpotTapped() {
+        if isSpotLimitReached {
+            spotAlertMessage = "You can save up to \(Spot.maxCount) surf breaks."
+            showSpotAlert = true
+        } else {
+            showSpotEditor = true
+        }
     }
 }
 

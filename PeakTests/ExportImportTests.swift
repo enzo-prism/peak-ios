@@ -11,7 +11,13 @@ final class ExportImportTests: XCTestCase {
         let sourceContainer = try makeContainer()
         let sourceContext = sourceContainer.mainContext
 
-        let spot = Spot(name: "Trestles", createdAt: createdAt)
+        let spot = Spot(
+            name: "Trestles",
+            locationName: "San Clemente, CA",
+            latitude: 33.384,
+            longitude: -117.593,
+            createdAt: createdAt
+        )
         let gear = Gear(name: "6'2\" Fish", kind: .board, createdAt: createdAt)
         let buddy = Buddy(name: "Kai", createdAt: createdAt)
         let session = SurfSession(
@@ -53,6 +59,10 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(spots.count, 2)
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.spot?.name, "Trestles")
+        let importedSpot = spots.first { $0.name == "Trestles" }
+        XCTAssertEqual(importedSpot?.locationName, "San Clemente, CA")
+        XCTAssertEqual(importedSpot?.latitude ?? 0, 33.384, accuracy: 0.0001)
+        XCTAssertEqual(importedSpot?.longitude ?? 0, -117.593, accuracy: 0.0001)
     }
 
     func testExportImportReplaceClearsExisting() throws {

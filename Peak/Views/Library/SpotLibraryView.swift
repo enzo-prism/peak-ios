@@ -14,6 +14,7 @@ struct SpotLibraryView: View {
     @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
     @State private var sortOption: SpotSortOption = .mostSurf
     @State private var showEditor = false
+    @State private var showLimitAlert = false
 
     private var snapshots: [String: UsageSnapshot] {
         UsageMetricsCalculator.spotSnapshots(sessions: sessions)
@@ -33,6 +34,10 @@ struct SpotLibraryView: View {
                     .pickerStyle(.segmented)
                     .padding(14)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+
+                    Text("\(spots.count) of \(Spot.maxCount) surf breaks saved")
+                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
 
                     if spots.isEmpty {
                         EmptyStateView(
@@ -58,7 +63,11 @@ struct SpotLibraryView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    showEditor = true
+                    if isLimitReached {
+                        showLimitAlert = true
+                    } else {
+                        showEditor = true
+                    }
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -66,6 +75,11 @@ struct SpotLibraryView: View {
         }
         .sheet(isPresented: $showEditor) {
             SpotEditorView(mode: .new)
+        }
+        .alert("Limit Reached", isPresented: $showLimitAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("You can save up to \(Spot.maxCount) surf breaks.")
         }
     }
 
@@ -93,6 +107,10 @@ struct SpotLibraryView: View {
             return spots.sorted { $0.name < $1.name }
         }
     }
+
+    private var isLimitReached: Bool {
+        spots.count >= Spot.maxCount
+    }
 }
 
 private struct SpotRowView: View {
@@ -104,6 +122,10 @@ private struct SpotRowView: View {
             Text(spot.name)
                 .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+
+            Text(spot.locationName?.trimmedNonEmpty ?? "No location saved")
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .foregroundStyle(Theme.textMuted)
 
             HStack(spacing: 12) {
                 Text("Times Surfed: \(snapshot?.count ?? 0)")

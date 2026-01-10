@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 import SwiftData
 
@@ -24,6 +25,8 @@ struct SpotDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     summarySection(metrics: metrics)
+
+                    locationSection()
 
                     UsageChartCard(
                         title: "Sessions over time",
@@ -87,6 +90,35 @@ struct SpotDetailView: View {
         }
     }
 
+    private func locationSection() -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Location")
+                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+
+            if let location = spot.locationName?.trimmedNonEmpty {
+                Text(location)
+                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.textSecondary)
+            } else {
+                Text("No location saved yet.")
+                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.textMuted)
+            }
+
+            if let coordinate = spot.coordinate {
+                mapPreview(coordinate: coordinate)
+            } else {
+                Text("Drop a pin in Edit to save the surf break location.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            }
+        }
+    }
+
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sessions")
@@ -131,6 +163,22 @@ struct SpotDetailView: View {
             return "-"
         }
         return String(format: "%.1f", value)
+    }
+
+    private func mapPreview(coordinate: CLLocationCoordinate2D) -> some View {
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
+        )
+
+        return Map(position: .constant(.region(region)), interactionModes: []) {
+            Marker(spot.name, coordinate: coordinate)
+        }
+        .mapStyle(.standard(elevation: .flat, emphasis: .muted))
+        .frame(height: 180)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityLabel("Map showing \(spot.name)")
     }
 }
 

@@ -112,6 +112,16 @@ final class PeakUILayoutTests: XCTestCase {
 
 private extension PeakUILayoutTests {
     func tapTab(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let tabButton = app.tabBars.buttons[name]
+        if tabButton.waitForExistence(timeout: 2) {
+            if tabButton.isHittable {
+                tabButton.tap()
+            } else {
+                tabButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            return
+        }
+
         let predicate = NSPredicate(format: "label == %@", name)
 
         if let element = firstHittable(in: app.buttons.matching(predicate)) {

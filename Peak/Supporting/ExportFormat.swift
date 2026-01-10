@@ -48,11 +48,17 @@ struct SessionExport: Codable {
 struct SpotExport: Codable {
     let id: String
     let name: String
+    let locationName: String?
+    let latitude: Double?
+    let longitude: Double?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
+        case locationName = "location_name"
+        case latitude
+        case longitude
         case createdAt = "created_at"
     }
 }
@@ -103,6 +109,9 @@ enum PeakExportManager {
             SpotExport(
                 id: spot.key,
                 name: spot.name,
+                locationName: spot.locationName,
+                latitude: spot.latitude,
+                longitude: spot.longitude,
                 createdAt: ExportDateFormatter.string(from: spot.createdAt)
             )
         }
@@ -223,10 +232,19 @@ enum PeakExportManager {
             if let existing = context.existingSpot(named: spotExport.name) {
                 existing.name = spotExport.name
                 existing.key = Spot.makeKey(from: spotExport.name)
+                existing.locationName = spotExport.locationName
+                existing.latitude = spotExport.latitude
+                existing.longitude = spotExport.longitude
                 existing.createdAt = createdAt
                 spotById[spotExport.id] = existing
             } else {
-                let spot = Spot(name: spotExport.name, createdAt: createdAt)
+                let spot = Spot(
+                    name: spotExport.name,
+                    locationName: spotExport.locationName,
+                    latitude: spotExport.latitude,
+                    longitude: spotExport.longitude,
+                    createdAt: createdAt
+                )
                 context.insert(spot)
                 spotById[spotExport.id] = spot
             }

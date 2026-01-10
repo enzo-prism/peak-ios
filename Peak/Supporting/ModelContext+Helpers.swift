@@ -1,7 +1,45 @@
 import Foundation
 import SwiftData
 
+enum SpotLimitError: LocalizedError {
+    case limitReached(max: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .limitReached(let max):
+            return "You can save up to \(max) surf breaks."
+        }
+    }
+}
+
 extension ModelContext {
+    func spotCount() throws -> Int {
+        let descriptor = FetchDescriptor<Spot>()
+        return try fetch(descriptor).count
+    }
+
+    func createSpot(
+        name: String,
+        locationName: String?,
+        latitude: Double?,
+        longitude: Double?,
+        createdAt: Date = Date()
+    ) throws -> Spot {
+        let count = try spotCount()
+        guard count < Spot.maxCount else {
+            throw SpotLimitError.limitReached(max: Spot.maxCount)
+        }
+        let spot = Spot(
+            name: name,
+            locationName: locationName,
+            latitude: latitude,
+            longitude: longitude,
+            createdAt: createdAt
+        )
+        insert(spot)
+        return spot
+    }
+
     func existingSpot(named name: String) -> Spot? {
         let key = Spot.makeKey(from: name)
         let descriptor = FetchDescriptor<Spot>(predicate: #Predicate { $0.key == key })
