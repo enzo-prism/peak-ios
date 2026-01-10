@@ -74,17 +74,17 @@ struct LogView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Peak")
                             .font(.custom("Avenir Next", size: 36, relativeTo: .largeTitle).weight(.semibold))
-                            .foregroundStyle(Theme.textInverse)
+                            .foregroundStyle(Theme.textPrimary)
                             .accessibilityIdentifier("log.hero.title")
                         Text("Surf Log")
                             .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
-                            .foregroundStyle(Theme.textInverse.opacity(0.7))
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 }
 
                 Text("Log a session in seconds. Date, spot, gear, buddies, and quick notes.")
                     .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
-                    .foregroundStyle(Theme.textInverse)
+                    .foregroundStyle(Theme.textSecondary)
                     .accessibilityIdentifier("log.hero.subtitle")
 
                 Button {
@@ -95,7 +95,7 @@ struct LogView: View {
                         Text("Log Session")
                             .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
                     }
-                    .foregroundStyle(Theme.textInverse)
+                    .foregroundStyle(Theme.textPrimary)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity)
                 }
@@ -103,7 +103,7 @@ struct LogView: View {
                 .accessibilityIdentifier("log.hero.cta")
             }
             .padding(22)
-            .glassCard(cornerRadius: 28, tint: Theme.glassStrongTint, isInteractive: true)
+            .glassCard(cornerRadius: 28, tint: Color.black, isInteractive: true)
             .padding(.horizontal)
             .accessibilityIdentifier("log.hero.card")
         }

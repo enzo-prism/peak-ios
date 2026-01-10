@@ -21,7 +21,7 @@ struct EmptyStateView: View {
             }
         }
         .padding(24)
-        .glassCard(cornerRadius: 26, tint: Theme.glassTint, isInteractive: false)
+        .glassCard(cornerRadius: 26, tint: Color.black, isInteractive: false)
         .padding()
     }
 }
