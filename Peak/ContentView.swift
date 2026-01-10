@@ -10,39 +10,43 @@ import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        TabView {
-            LogView()
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            TabView {
+                LogView()
+                    .tabItem {
+                        Label("Log", systemImage: "wave.3.right")
+                    }
+
+                HistoryView()
+                    .tabItem {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                    }
+
+                StatsView()
+                    .tabItem {
+                        Label("Stats", systemImage: "chart.bar")
+                    }
+
+                NavigationStack {
+                    QuiverView()
+                }
                 .tabItem {
-                    Label("Log", systemImage: "wave.3.right")
+                    Label("Quiver", systemImage: "wrench.and.screwdriver")
                 }
 
-            HistoryView()
-                .tabItem {
-                    Label("History", systemImage: "clock.arrow.circlepath")
-                }
-
-            StatsView()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar")
-                }
-
-            NavigationStack {
-                QuiverView()
+                MoreView()
+                    .tabItem {
+                        Label("More", systemImage: "water.waves")
+                    }
             }
-            .tabItem {
-                Label("Quiver", systemImage: "wrench.and.screwdriver")
-            }
-
-            MoreView()
-                .tabItem {
-                    Label("More", systemImage: "water.waves")
-                }
+            .tint(Theme.textPrimary)
+            .toolbarBackground(.hidden, for: .tabBar)
+            .toolbarBackground(Color.clear, for: .tabBar)
+            .toolbarColorScheme(.dark, for: .tabBar)
+            .font(.custom("Avenir Next", size: 16, relativeTo: .body))
         }
-        .tint(Theme.textPrimary)
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(Theme.oceanDeep.opacity(0.95), for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
-        .font(.custom("Avenir Next", size: 16, relativeTo: .body))
     }
 }
 

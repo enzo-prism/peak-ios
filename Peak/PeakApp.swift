@@ -41,8 +41,9 @@ struct PeakApp: App {
 
     private static func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(white: 0.04, alpha: 1.0)
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = UIColor.clear
+        appearance.shadowColor = UIColor.clear
 
         let normalColor = UIColor(white: 0.98, alpha: 0.8)
         let selectedColor = UIColor(white: 0.98, alpha: 1.0)
@@ -64,6 +65,6 @@ struct PeakApp: App {
 
         UITabBar.appearance().standardAppearance = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
-        UITabBar.appearance().isTranslucent = false
+        UITabBar.appearance().isTranslucent = true
     }
 }
