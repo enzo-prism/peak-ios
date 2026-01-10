@@ -46,4 +46,24 @@ extension ModelContext {
         insert(gear)
         return gear
     }
+
+    func existingSession(createdAt: Date) -> SurfSession? {
+        let descriptor = FetchDescriptor<SurfSession>(predicate: #Predicate { $0.createdAt == createdAt })
+        return (try? fetch(descriptor))?.first
+    }
+
+    func deleteAll<T: PersistentModel>(_ type: T.Type) throws {
+        let descriptor = FetchDescriptor<T>()
+        let items = try fetch(descriptor)
+        for item in items {
+            delete(item)
+        }
+    }
+
+    func resetAllData() throws {
+        try deleteAll(SurfSession.self)
+        try deleteAll(Gear.self)
+        try deleteAll(Spot.self)
+        try deleteAll(Buddy.self)
+    }
 }

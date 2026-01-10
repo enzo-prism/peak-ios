@@ -22,6 +22,7 @@ struct SessionEditorView: View {
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
     @Query(sort: \Buddy.name) private var buddies: [Buddy]
+    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
 
     let mode: SessionEditorMode
     @State private var draft: SessionDraft
@@ -121,11 +122,42 @@ struct SessionEditorView: View {
                                     .frame(maxWidth: .infinity)
                                     .glassButtonStyle(prominent: false)
                                     .disabled(newGearName.trimmedNonEmpty == nil)
+
+                                    if let lastSession = sessions.first, !lastSession.gear.isEmpty {
+                                        Button("Use last gear setup") {
+                                            draft.selectedGear = lastSession.gear
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .glassButtonStyle(prominent: false)
+                                    }
                                 }
 
                                 if !gear.isEmpty {
-                                    GlassContainer(spacing: 10) {
-                                        gearGrid
+                                    GlassContainer(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            ForEach(GearKind.allCases) { kind in
+                                                let items = sortedGear(for: kind)
+                                                if !items.isEmpty {
+                                                    VStack(alignment: .leading, spacing: 8) {
+                                                        Text(kind.label.uppercased())
+                                                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                                            .foregroundStyle(Theme.textMuted)
+                                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
+                                                            ForEach(items) { item in
+                                                                SelectableChip(
+                                                                    label: item.name,
+                                                                    systemImage: item.kind.systemImage,
+                                                                    isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
+                                                                ) {
+                                                                    draft.toggleGear(item)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .padding(.vertical, 4)
                                     }
                                 }
                             }
@@ -153,12 +185,19 @@ struct SessionEditorView: View {
 
                                 if !buddies.isEmpty {
                                     GlassContainer(spacing: 10) {
-                                        FlowChipGrid(items: buddies.map { ($0.name, "person") }) { index in
-                                            let buddy = buddies[index]
-                                            draft.toggleBuddy(buddy)
-                                        } isSelected: { index in
-                                            draft.selectedBuddies.contains(where: { $0.persistentModelID == buddies[index].persistentModelID })
+                                        let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
+                                        LazyVGrid(columns: columns, spacing: 8) {
+                                            ForEach(sortedBuddies) { buddy in
+                                                SelectableChip(
+                                                    label: buddy.name,
+                                                    systemImage: "person",
+                                                    isSelected: draft.selectedBuddies.contains(where: { $0.persistentModelID == buddy.persistentModelID })
+                                                ) {
+                                                    draft.toggleBuddy(buddy)
+                                                }
+                                            }
                                         }
+                                        .padding(.vertical, 4)
                                     }
                                 }
                             }
@@ -206,21 +245,35 @@ struct SessionEditorView: View {
         .tint(Theme.textPrimary)
     }
 
-    private var gearGrid: some View {
-        let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
-        return LazyVGrid(columns: columns, spacing: 8) {
-            ForEach(gear) { item in
-                SelectableChip(
-                    label: item.name,
-                    systemImage: item.kind.systemImage,
-                    isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
-                ) {
-                    draft.toggleGear(item)
-                }
+    private var sortedBuddies: [Buddy] {
+        return buddies.sorted { lhs, rhs in
+            let lhsDate = buddySnapshots[lhs.key]?.lastUsed ?? .distantPast
+            let rhsDate = buddySnapshots[rhs.key]?.lastUsed ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.name < rhs.name
             }
+            return lhsDate > rhsDate
         }
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sortedGear(for kind: GearKind) -> [Gear] {
+        let items = gear.filter { $0.kind == kind }
+        return items.sorted { lhs, rhs in
+            let lhsDate = gearSnapshots[lhs.key]?.lastUsed ?? .distantPast
+            let rhsDate = gearSnapshots[rhs.key]?.lastUsed ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.name < rhs.name
+            }
+            return lhsDate > rhsDate
+        }
+    }
+
+    private var gearSnapshots: [String: UsageSnapshot] {
+        UsageMetricsCalculator.gearSnapshots(sessions: sessions)
+    }
+
+    private var buddySnapshots: [String: UsageSnapshot] {
+        UsageMetricsCalculator.buddySnapshots(sessions: sessions)
     }
 
     private func addGear() {
@@ -274,29 +327,6 @@ struct SessionEditorView: View {
             session.updatedAt = Date()
         }
         dismiss()
-    }
-}
-
-private struct FlowChipGrid: View {
-    let items: [(String, String)]
-    let onTap: (Int) -> Void
-    let isSelected: (Int) -> Bool
-
-    var body: some View {
-        let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
-        LazyVGrid(columns: columns, spacing: 8) {
-            ForEach(items.indices, id: \.self) { index in
-                SelectableChip(
-                    label: items[index].0,
-                    systemImage: items[index].1,
-                    isSelected: isSelected(index)
-                ) {
-                    onTap(index)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

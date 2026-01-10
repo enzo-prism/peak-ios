@@ -8,6 +8,13 @@ struct StatsSummary {
     let topBuddies: [CountedItem]
 }
 
+struct SurfYearSummary {
+    let year: Int
+    let totalDays: Int
+    let monthlyCounts: [MonthlyCount]
+    let currentWeekStreak: Int
+}
+
 struct CountedItem: Identifiable {
     let key: String
     let name: String
@@ -44,6 +51,46 @@ enum StatsCalculator {
             topSpots: topSpots,
             topGear: topGear,
             topBuddies: topBuddies
+        )
+    }
+
+    static func surfDaysThisYear(
+        sessions: [SurfSession],
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SurfYearSummary {
+        let year = calendar.component(.year, from: referenceDate)
+        let yearInterval = calendar.dateInterval(of: .year, for: referenceDate)
+        let yearSessions = sessions.filter { session in
+            if let interval = yearInterval {
+                return interval.contains(session.date)
+            }
+            return calendar.component(.year, from: session.date) == year
+        }
+
+        let surfDays = Set(yearSessions.map { calendar.startOfDay(for: $0.date) })
+        let totalDays = surfDays.count
+        let monthlyCounts = UsageMetricsCalculator.surfDayCountsByMonth(
+            sessions: yearSessions,
+            year: year,
+            calendar: calendar
+        )
+        let weekStarts = Set(surfDays.compactMap { day in
+            calendar.dateInterval(of: .weekOfYear, for: day)?.start
+        })
+        let currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start
+        var streak = 0
+        var cursor = currentWeekStart
+        while let weekStart = cursor, weekStarts.contains(weekStart) {
+            streak += 1
+            cursor = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart)
+        }
+
+        return SurfYearSummary(
+            year: year,
+            totalDays: totalDays,
+            monthlyCounts: monthlyCounts,
+            currentWeekStreak: streak
         )
     }
 

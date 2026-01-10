@@ -25,6 +25,11 @@ struct ContentView: View {
                 .tabItem {
                     Label("Stats", systemImage: "chart.bar")
                 }
+
+            MoreView()
+                .tabItem {
+                    Label("More", systemImage: "water.waves")
+                }
         }
         .tint(Theme.textPrimary)
         .toolbarBackground(.visible, for: .tabBar)

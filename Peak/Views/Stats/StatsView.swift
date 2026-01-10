@@ -19,6 +19,7 @@ struct StatsView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
+                            surfDaysSection
                             summaryCards
 
                             StatListSection(title: "Top spots", items: summary.topSpots)
@@ -43,12 +44,35 @@ struct StatsView: View {
         StatsCalculator.summarize(sessions: sessions)
     }
 
+    private var yearSummary: SurfYearSummary {
+        StatsCalculator.surfDaysThisYear(sessions: sessions)
+    }
+
     private var summaryCards: some View {
         GlassContainer(spacing: 12) {
             HStack(spacing: 12) {
                 StatCardView(title: "Sessions", value: "\(summary.totalSessions)", subtitle: "All time")
                 StatCardView(title: "Avg rating", value: averageRatingLabel, subtitle: "Rated sessions")
             }
+        }
+    }
+
+    private var surfDaysSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Surf days \(yearSummary.year)")
+                .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+
+            HStack(spacing: 12) {
+                MetricCardView(title: "Days", value: "\(yearSummary.totalDays)", subtitle: "Year to date")
+                MetricCardView(title: "Week Streak", value: "\(yearSummary.currentWeekStreak)", subtitle: "Weeks")
+            }
+
+            UsageChartCard(
+                title: "Monthly surf days",
+                data: yearSummary.monthlyCounts,
+                valueLabel: "Surf Days"
+            )
         }
     }
 

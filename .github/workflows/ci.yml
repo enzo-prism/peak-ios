@@ -13,13 +13,35 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      - name: Choose latest iPhone simulator
+        run: |
+          python3 - <<'PY'
+          import json, re, subprocess
+          data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
+          iphones = set()
+          for runtime, devices in data["devices"].items():
+            if "iOS" not in runtime:
+              continue
+            for d in devices:
+              name = d.get("name", "")
+              if name.startswith("iPhone "):
+                iphones.add(name)
+          def key(name):
+            m = re.search(r"iPhone (\\d+)", name)
+            return int(m.group(1)) if m else 0
+          best = sorted(iphones, key=key, reverse=True)[0]
+          print(best)
+          with open("dest.txt", "w") as f:
+            f.write(f"platform=iOS Simulator,name={best},OS=latest")
+          PY
+          echo "DESTINATION=$(cat dest.txt)" >> $GITHUB_ENV
       - name: Run unit tests
         run: >-
           xcodebuild -project Peak.xcodeproj -scheme Peak
-          -destination 'platform=iOS Simulator,name=iPhone 15'
+          -destination "$DESTINATION"
           -only-testing:PeakTests test
       - name: Run UI tests
         run: >-
           xcodebuild -project Peak.xcodeproj -scheme Peak
-          -destination 'platform=iOS Simulator,name=iPhone 15'
+          -destination "$DESTINATION"
           -only-testing:PeakUITests test

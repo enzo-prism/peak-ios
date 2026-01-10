@@ -1,0 +1,341 @@
+import Foundation
+import SwiftData
+
+struct PeakExport: Codable {
+    let schemaVersion: String
+    let exportedAt: String
+    let sessions: [SessionExport]
+    let spots: [SpotExport]
+    let gear: [GearExport]
+    let buddies: [BuddyExport]
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case exportedAt = "exported_at"
+        case sessions
+        case spots
+        case gear
+        case buddies
+    }
+}
+
+struct SessionExport: Codable {
+    let id: String
+    let date: String
+    let spotId: String?
+    let spotName: String?
+    let rating: Int
+    let notes: String
+    let buddyIds: [String]
+    let gearIds: [String]
+    let createdAt: String
+    let updatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case date
+        case spotId = "spot_id"
+        case spotName = "spot_name"
+        case rating
+        case notes
+        case buddyIds = "buddy_ids"
+        case gearIds = "gear_ids"
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+}
+
+struct SpotExport: Codable {
+    let id: String
+    let name: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case createdAt = "created_at"
+    }
+}
+
+struct GearExport: Codable {
+    let id: String
+    let name: String
+    let kind: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case kind
+        case createdAt = "created_at"
+    }
+}
+
+struct BuddyExport: Codable {
+    let id: String
+    let name: String
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case createdAt = "created_at"
+    }
+}
+
+enum ImportMode {
+    case merge
+    case replace
+}
+
+enum PeakExportManager {
+    static let schemaVersion = "peak_export_v1"
+
+    static func makeExport(
+        sessions: [SurfSession],
+        spots: [Spot],
+        gear: [Gear],
+        buddies: [Buddy],
+        now: Date = Date()
+    ) -> PeakExport {
+        let exportedAt = ExportDateFormatter.string(from: now)
+        let spotExports = spots.sorted { $0.name < $1.name }.map { spot in
+            SpotExport(
+                id: spot.key,
+                name: spot.name,
+                createdAt: ExportDateFormatter.string(from: spot.createdAt)
+            )
+        }
+        let gearExports = gear.sorted { $0.name < $1.name }.map { item in
+            GearExport(
+                id: item.key,
+                name: item.name,
+                kind: item.kind.rawValue,
+                createdAt: ExportDateFormatter.string(from: item.createdAt)
+            )
+        }
+        let buddyExports = buddies.sorted { $0.name < $1.name }.map { buddy in
+            BuddyExport(
+                id: buddy.key,
+                name: buddy.name,
+                createdAt: ExportDateFormatter.string(from: buddy.createdAt)
+            )
+        }
+        let sessionExports = sessions.sorted { $0.createdAt < $1.createdAt }.map { session in
+            SessionExport(
+                id: ExportDateFormatter.string(from: session.createdAt),
+                date: ExportDateFormatter.string(from: session.date),
+                spotId: session.spot?.key,
+                spotName: session.spot?.name,
+                rating: session.rating,
+                notes: session.notes,
+                buddyIds: session.buddies.map(\.key),
+                gearIds: session.gear.map(\.key),
+                createdAt: ExportDateFormatter.string(from: session.createdAt),
+                updatedAt: ExportDateFormatter.string(from: session.updatedAt)
+            )
+        }
+
+        return PeakExport(
+            schemaVersion: schemaVersion,
+            exportedAt: exportedAt,
+            sessions: sessionExports,
+            spots: spotExports,
+            gear: gearExports,
+            buddies: buddyExports
+        )
+    }
+
+    static func jsonData(from export: PeakExport) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(export)
+    }
+
+    static func decodeJSON(_ data: Data) throws -> PeakExport {
+        let decoder = JSONDecoder()
+        return try decoder.decode(PeakExport.self, from: data)
+    }
+
+    static func exportJSONFile(
+        sessions: [SurfSession],
+        spots: [Spot],
+        gear: [Gear],
+        buddies: [Buddy]
+    ) throws -> URL {
+        let export = makeExport(sessions: sessions, spots: spots, gear: gear, buddies: buddies)
+        let data = try jsonData(from: export)
+        let url = exportURL(prefix: "Peak-Export", fileExtension: "json")
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    static func exportCSVFile(sessions: [SurfSession]) throws -> URL {
+        let csv = sessionsCSV(sessions: sessions)
+        let url = exportURL(prefix: "Peak-Sessions", fileExtension: "csv")
+        guard let data = csv.data(using: .utf8) else {
+            throw ExportError.encodingFailed
+        }
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    static func sessionsCSV(sessions: [SurfSession]) -> String {
+        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary"]
+        for session in sessions {
+            let id = ExportDateFormatter.string(from: session.createdAt)
+            let date = ExportDateFormatter.string(from: session.date)
+            let spotName = session.spot?.name ?? ""
+            let rating = "\(session.rating)"
+            let notes = session.notes
+            let buddyNames = session.buddies.map(\.name).joined(separator: ", ")
+            let gearSummary = session.gear.map { "\($0.name) (\($0.kind.label))" }.joined(separator: ", ")
+
+            let row = [
+                id,
+                date,
+                spotName,
+                rating,
+                notes,
+                buddyNames,
+                gearSummary
+            ].map(csvEscape).joined(separator: ",")
+            rows.append(row)
+        }
+        return rows.joined(separator: "\n")
+    }
+
+    static func applyImport(
+        _ export: PeakExport,
+        mode: ImportMode,
+        context: ModelContext
+    ) throws {
+        guard export.schemaVersion == schemaVersion else {
+            throw ExportError.unsupportedSchema
+        }
+        if mode == .replace {
+            try context.resetAllData()
+        }
+
+        var spotById: [String: Spot] = [:]
+        for spotExport in export.spots {
+            let createdAt = ExportDateFormatter.date(from: spotExport.createdAt) ?? Date()
+            if let existing = context.existingSpot(named: spotExport.name) {
+                existing.name = spotExport.name
+                existing.key = Spot.makeKey(from: spotExport.name)
+                existing.createdAt = createdAt
+                spotById[spotExport.id] = existing
+            } else {
+                let spot = Spot(name: spotExport.name, createdAt: createdAt)
+                context.insert(spot)
+                spotById[spotExport.id] = spot
+            }
+        }
+
+        var gearById: [String: Gear] = [:]
+        for gearExport in export.gear {
+            let kind = GearKind(rawValue: gearExport.kind) ?? .other
+            let createdAt = ExportDateFormatter.date(from: gearExport.createdAt) ?? Date()
+            if let existing = context.existingGear(named: gearExport.name, kind: kind) {
+                existing.name = gearExport.name
+                existing.kind = kind
+                existing.key = Gear.makeKey(name: gearExport.name, kind: kind)
+                existing.createdAt = createdAt
+                gearById[gearExport.id] = existing
+            } else {
+                let gear = Gear(name: gearExport.name, kind: kind, createdAt: createdAt)
+                context.insert(gear)
+                gearById[gearExport.id] = gear
+            }
+        }
+
+        var buddyById: [String: Buddy] = [:]
+        for buddyExport in export.buddies {
+            let createdAt = ExportDateFormatter.date(from: buddyExport.createdAt) ?? Date()
+            if let existing = context.existingBuddy(named: buddyExport.name) {
+                existing.name = buddyExport.name
+                existing.key = Buddy.makeKey(from: buddyExport.name)
+                existing.createdAt = createdAt
+                buddyById[buddyExport.id] = existing
+            } else {
+                let buddy = Buddy(name: buddyExport.name, createdAt: createdAt)
+                context.insert(buddy)
+                buddyById[buddyExport.id] = buddy
+            }
+        }
+
+        for sessionExport in export.sessions {
+            guard let createdAt = ExportDateFormatter.date(from: sessionExport.createdAt) else { continue }
+            let existingSession = context.existingSession(createdAt: createdAt)
+            let session = existingSession ?? SurfSession(
+                date: Date(),
+                spot: nil,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )
+
+            session.date = ExportDateFormatter.date(from: sessionExport.date) ?? session.date
+            session.rating = sessionExport.rating
+            session.notes = sessionExport.notes
+            session.createdAt = createdAt
+            session.updatedAt = ExportDateFormatter.date(from: sessionExport.updatedAt) ?? createdAt
+
+            if let spotId = sessionExport.spotId, let spot = spotById[spotId] {
+                session.spot = spot
+            } else if let spotName = sessionExport.spotName {
+                session.spot = context.upsertSpot(named: spotName)
+            }
+
+            session.gear = sessionExport.gearIds.compactMap { gearById[$0] }
+            session.buddies = sessionExport.buddyIds.compactMap { buddyById[$0] }
+
+            if existingSession == nil {
+                context.insert(session)
+            }
+        }
+    }
+
+    private static func exportURL(prefix: String, fileExtension: String) -> URL {
+        let timestamp = ExportDateFormatter.fileSafeString(from: Date())
+        let filename = "\(prefix)-\(timestamp).\(fileExtension)"
+        return FileManager.default.temporaryDirectory.appendingPathComponent(filename)
+    }
+
+    private static func csvEscape(_ value: String) -> String {
+        let needsEscaping = value.contains(",") || value.contains("\"") || value.contains("\n")
+        if needsEscaping {
+            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
+        }
+        return value
+    }
+}
+
+enum ExportError: Error {
+    case encodingFailed
+    case unsupportedSchema
+}
+
+enum ExportDateFormatter {
+    static let iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    static func string(from date: Date) -> String {
+        iso8601.string(from: date)
+    }
+
+    static func date(from string: String) -> Date? {
+        iso8601.date(from: string)
+    }
+
+    static func fileSafeString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: date)
+    }
+}

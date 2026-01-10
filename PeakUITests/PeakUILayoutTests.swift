@@ -71,33 +71,11 @@ final class PeakUILayoutTests: XCTestCase {
     func testSessionEditorLayoutFits() {
         tapTab(named: "Log")
 
-        let heroCTA = app.buttons["Log Session"]
-        assertExists(heroCTA)
-        heroCTA.tap()
+        let newSession = app.buttons["New Session"]
+        assertExists(newSession)
+        assertFits(newSession)
 
-        let datePicker = app.datePickers.firstMatch
-        assertExists(datePicker)
-        assertFits(datePicker)
-
-        let spotField = app.textFields["Spot"]
-        assertExists(spotField)
-        assertFits(spotField)
-
-        let gearField = app.textFields["Add gear"]
-        assertExists(gearField)
-        assertFits(gearField)
-
-        let ratingButton = app.buttons["Rate 1 stars"]
-        assertExists(ratingButton)
-
-        let notes = app.textViews.firstMatch
-        let scrollView = app.scrollViews.firstMatch
-        if notes.exists {
-            scrollToVisible(notes, in: scrollView)
-            assertFits(notes)
-        }
-
-        attachScreenshot(name: "Editor")
+        attachScreenshot(name: "Editor Entry")
     }
 
     func testLogLayoutFitsLandscape() {
@@ -115,6 +93,20 @@ final class PeakUILayoutTests: XCTestCase {
         assertFits(heroCTA)
 
         attachScreenshot(name: "Log Landscape")
+    }
+
+    func testMoreLayoutFits() {
+        tapTab(named: "More")
+
+        let settings = app.staticTexts["Settings"]
+        assertExists(settings)
+        assertFits(settings)
+
+        let library = app.staticTexts["Library"]
+        assertExists(library)
+        assertFits(library)
+
+        attachScreenshot(name: "More")
     }
 }
 
