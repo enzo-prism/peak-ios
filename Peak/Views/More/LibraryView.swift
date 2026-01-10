@@ -9,9 +9,9 @@ struct LibraryView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     NavigationLink {
-                        GearLibraryView()
+                        QuiverView()
                     } label: {
-                        Label("Gear", systemImage: "wrench.and.screwdriver")
+                        Label("Quiver", systemImage: "wrench.and.screwdriver")
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)

@@ -157,14 +157,14 @@ struct SessionEditorView: View {
 
                                     if let lastSession = sessions.first, !lastSession.gear.isEmpty {
                                         Button("Use last gear setup") {
-                                            draft.selectedGear = lastSession.gear
+                                            draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
                                         }
                                         .frame(maxWidth: .infinity)
                                         .glassButtonStyle(prominent: false)
                                     }
                                 }
 
-                                if !gear.isEmpty {
+                                if !availableGear.isEmpty {
                                     GlassContainer(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 12) {
                                             ForEach(GearKind.allCases) { kind in
@@ -302,7 +302,7 @@ struct SessionEditorView: View {
     }
 
     private func sortedGear(for kind: GearKind) -> [Gear] {
-        let items = gear.filter { $0.kind == kind }
+        let items = availableGear.filter { $0.kind == kind }
         return items.sorted { lhs, rhs in
             let lhsDate = gearSnapshots[lhs.key]?.lastUsed ?? .distantPast
             let rhsDate = gearSnapshots[rhs.key]?.lastUsed ?? .distantPast
@@ -315,6 +315,11 @@ struct SessionEditorView: View {
 
     private var gearSnapshots: [String: UsageSnapshot] {
         UsageMetricsCalculator.gearSnapshots(sessions: sessions)
+    }
+
+    private var availableGear: [Gear] {
+        let selectedKeys = Set(draft.selectedGear.map(\.key))
+        return gear.filter { !$0.isArchived || selectedKeys.contains($0.key) }
     }
 
     private var buddySnapshots: [String: UsageSnapshot] {

@@ -78,6 +78,7 @@ extension ModelContext {
 
     func upsertGear(named name: String, kind: GearKind) -> Gear {
         if let existing = existingGear(named: name, kind: kind) {
+            existing.isArchived = false
             return existing
         }
         let gear = Gear(name: name, kind: kind)

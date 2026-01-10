@@ -67,12 +67,26 @@ struct GearExport: Codable {
     let id: String
     let name: String
     let kind: String
+    let brand: String?
+    let model: String?
+    let size: String?
+    let volumeLiters: Double?
+    let notes: String?
+    let photoData: String?
+    let isArchived: Bool?
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case kind
+        case brand
+        case model
+        case size
+        case volumeLiters = "volume_liters"
+        case notes
+        case photoData = "photo_data"
+        case isArchived = "is_archived"
         case createdAt = "created_at"
     }
 }
@@ -120,6 +134,13 @@ enum PeakExportManager {
                 id: item.key,
                 name: item.name,
                 kind: item.kind.rawValue,
+                brand: item.brand,
+                model: item.model,
+                size: item.size,
+                volumeLiters: item.volumeLiters,
+                notes: item.notes,
+                photoData: item.photoData?.base64EncodedString(),
+                isArchived: item.isArchived,
                 createdAt: ExportDateFormatter.string(from: item.createdAt)
             )
         }
@@ -254,14 +275,34 @@ enum PeakExportManager {
         for gearExport in export.gear {
             let kind = GearKind(rawValue: gearExport.kind) ?? .other
             let createdAt = ExportDateFormatter.date(from: gearExport.createdAt) ?? Date()
+            let photoData = gearExport.photoData.flatMap { Data(base64Encoded: $0) }
+            let isArchived = gearExport.isArchived ?? false
             if let existing = context.existingGear(named: gearExport.name, kind: kind) {
                 existing.name = gearExport.name
                 existing.kind = kind
                 existing.key = Gear.makeKey(name: gearExport.name, kind: kind)
+                existing.brand = gearExport.brand
+                existing.model = gearExport.model
+                existing.size = gearExport.size
+                existing.volumeLiters = gearExport.volumeLiters
+                existing.notes = gearExport.notes
+                existing.photoData = photoData
+                existing.isArchived = isArchived
                 existing.createdAt = createdAt
                 gearById[gearExport.id] = existing
             } else {
-                let gear = Gear(name: gearExport.name, kind: kind, createdAt: createdAt)
+                let gear = Gear(
+                    name: gearExport.name,
+                    kind: kind,
+                    brand: gearExport.brand,
+                    model: gearExport.model,
+                    size: gearExport.size,
+                    volumeLiters: gearExport.volumeLiters,
+                    notes: gearExport.notes,
+                    photoData: photoData,
+                    isArchived: isArchived,
+                    createdAt: createdAt
+                )
                 context.insert(gear)
                 gearById[gearExport.id] = gear
             }

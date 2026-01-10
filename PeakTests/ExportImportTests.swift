@@ -18,7 +18,18 @@ final class ExportImportTests: XCTestCase {
             longitude: -117.593,
             createdAt: createdAt
         )
-        let gear = Gear(name: "6'2\" Fish", kind: .board, createdAt: createdAt)
+        let gear = Gear(
+            name: "6'2\" Fish",
+            kind: .board,
+            brand: "Channel Islands",
+            model: "Fishbeard",
+            size: "6'2\"",
+            volumeLiters: 31.5,
+            notes: "Daily driver",
+            photoData: Data([0x01, 0x02, 0x03]),
+            isArchived: false,
+            createdAt: createdAt
+        )
         let buddy = Buddy(name: "Kai", createdAt: createdAt)
         let session = SurfSession(
             date: createdAt,
@@ -63,6 +74,13 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(importedSpot?.locationName, "San Clemente, CA")
         XCTAssertEqual(importedSpot?.latitude ?? 0, 33.384, accuracy: 0.0001)
         XCTAssertEqual(importedSpot?.longitude ?? 0, -117.593, accuracy: 0.0001)
+        let importedGear = try targetContext.fetch(FetchDescriptor<Gear>()).first { $0.name == "6'2\" Fish" }
+        XCTAssertEqual(importedGear?.brand, "Channel Islands")
+        XCTAssertEqual(importedGear?.model, "Fishbeard")
+        XCTAssertEqual(importedGear?.size, "6'2\"")
+        XCTAssertEqual(importedGear?.volumeLiters ?? 0, 31.5, accuracy: 0.01)
+        XCTAssertEqual(importedGear?.notes, "Daily driver")
+        XCTAssertEqual(importedGear?.photoData, Data([0x01, 0x02, 0x03]))
     }
 
     func testExportImportReplaceClearsExisting() throws {

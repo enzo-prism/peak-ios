@@ -18,24 +18,6 @@ enum Theme {
     static let textInverse = ink
 
     static var background: some View {
-        ZStack {
-            LinearGradient(
-                colors: [oceanDeep, oceanMid],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            RadialGradient(
-                colors: [foam.opacity(0.12), Color.clear],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 320
-            )
-            RadialGradient(
-                colors: [foam.opacity(0.08), Color.clear],
-                center: .bottomLeading,
-                startRadius: 0,
-                endRadius: 280
-            )
-        }
+        Color.black
     }
 }

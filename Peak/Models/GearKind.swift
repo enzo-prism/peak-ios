@@ -24,6 +24,21 @@ enum GearKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var pluralLabel: String {
+        switch self {
+        case .board:
+            return "Boards"
+        case .wetsuit:
+            return "Wetsuits"
+        case .fins:
+            return "Fins"
+        case .leash:
+            return "Leash"
+        case .other:
+            return "Other"
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .board:

@@ -33,11 +33,11 @@ enum UsageMetricsCalculator {
     static func monthlyUsageCounts(
         sessions: [SurfSession],
         monthsBack: Int,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        referenceDate: Date = Date()
     ) -> [MonthlyCount] {
         guard monthsBack > 0 else { return [] }
-        let now = Date()
-        let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: referenceDate)) ?? referenceDate
         let monthStarts = (0..<monthsBack).compactMap { offset -> Date? in
             calendar.date(byAdding: .month, value: -offset, to: currentMonthStart)
         }.sorted()

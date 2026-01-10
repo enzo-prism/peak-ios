@@ -86,8 +86,9 @@ struct GearLibraryView: View {
     }
 
     private var filteredGear: [Gear] {
-        guard let kind = filter.kind else { return gear }
-        return gear.filter { $0.kind == kind }
+        let activeGear = gear.filter { !$0.isArchived }
+        guard let kind = filter.kind else { return activeGear }
+        return activeGear.filter { $0.kind == kind }
     }
 
     private var sortedGear: [Gear] {

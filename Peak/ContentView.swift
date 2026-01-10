@@ -26,6 +26,13 @@ struct ContentView: View {
                     Label("Stats", systemImage: "chart.bar")
                 }
 
+            NavigationStack {
+                QuiverView()
+            }
+            .tabItem {
+                Label("Quiver", systemImage: "wrench.and.screwdriver")
+            }
+
             MoreView()
                 .tabItem {
                     Label("More", systemImage: "water.waves")

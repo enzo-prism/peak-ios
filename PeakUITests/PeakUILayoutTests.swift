@@ -68,6 +68,17 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "Stats")
     }
 
+    func testQuiverLayoutFits() {
+        tapTab(named: "Quiver")
+
+        let gearRow = app.staticTexts["6'2\" Fish"]
+        if gearRow.waitForExistence(timeout: 2) {
+            assertFits(gearRow)
+        }
+
+        attachScreenshot(name: "Quiver")
+    }
+
     func testSessionEditorLayoutFits() {
         tapTab(named: "Log")
 
