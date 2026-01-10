@@ -24,6 +24,15 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 2. Select the `Peak` scheme
 3. Run on any iOS 17+ simulator or device
 
+## Development commands
+- Boot the simulator: `./scripts/boot-sim.sh`
+- Build for simulator: `./scripts/build-sim.sh`
+- Run unit + UI tests: `./scripts/test.sh`
+
+Optional overrides:
+- `SCHEME=Peak ./scripts/test.sh`
+- `DESTINATION_NAME="iPhone 16 Pro" ./scripts/build-sim.sh`
+
 ## Testing
 - Unit tests (contrast):  
   `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' -only-testing:PeakTests test`

@@ -14,6 +14,7 @@ struct PeakApp: App {
     let container: ModelContainer
 
     init() {
+        Self.configureTabBarAppearance()
         let isUITest = ProcessInfo.processInfo.environment["UITESTS"] == "1"
         let schema = Schema(versionedSchema: PeakSchemaV1.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITest)
@@ -34,6 +35,35 @@ struct PeakApp: App {
         WindowGroup {
             ContentView()
                 .modelContainer(container)
+                .preferredColorScheme(.dark)
         }
+    }
+
+    private static func configureTabBarAppearance() {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(white: 0.04, alpha: 1.0)
+
+        let normalColor = UIColor(white: 0.98, alpha: 0.8)
+        let selectedColor = UIColor(white: 0.98, alpha: 1.0)
+
+        appearance.stackedLayoutAppearance.normal.iconColor = normalColor
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
+        appearance.stackedLayoutAppearance.selected.iconColor = selectedColor
+        appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
+        appearance.inlineLayoutAppearance.normal.iconColor = normalColor
+        appearance.inlineLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
+        appearance.inlineLayoutAppearance.selected.iconColor = selectedColor
+        appearance.inlineLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
+        appearance.compactInlineLayoutAppearance.normal.iconColor = normalColor
+        appearance.compactInlineLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: normalColor]
+        appearance.compactInlineLayoutAppearance.selected.iconColor = selectedColor
+        appearance.compactInlineLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: selectedColor]
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+        UITabBar.appearance().isTranslucent = false
     }
 }
