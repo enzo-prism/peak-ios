@@ -18,21 +18,22 @@ jobs:
           python3 - <<'PY'
           import json, re, subprocess
           data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
-          iphones = set()
+          iphones = {}
           for runtime, devices in data["devices"].items():
             if "iOS" not in runtime:
               continue
             for d in devices:
               name = d.get("name", "")
-              if name.startswith("iPhone "):
-                iphones.add(name)
+              if name.startswith("iPhone ") and d.get("isAvailable", True):
+                iphones[name] = d.get("udid")
           def key(name):
             m = re.search(r"iPhone (\\d+)", name)
             return int(m.group(1)) if m else 0
-          best = sorted(iphones, key=key, reverse=True)[0]
+          best = sorted(iphones.keys(), key=key, reverse=True)[0]
+          udid = iphones[best]
           print(best)
           with open("dest.txt", "w") as f:
-            f.write(f"platform=iOS Simulator,name={best},OS=latest")
+            f.write(f"platform=iOS Simulator,id={udid}")
           PY
           echo "DESTINATION=$(cat dest.txt)" >> $GITHUB_ENV
       - name: Run unit tests
