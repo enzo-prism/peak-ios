@@ -82,7 +82,7 @@ struct QuiverView: View {
             .pickerStyle(.segmented)
 
             Toggle("Show archived", isOn: $showArchived)
-                .tint(Theme.surfGreen)
+                .toggleStyle(SwitchToggleStyle(tint: Theme.surfGreen))
         }
         .padding(14)
         .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)

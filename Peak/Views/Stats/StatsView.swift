@@ -78,10 +78,7 @@ struct StatsView: View {
 
     private var surfDaysSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                MetricCardView(title: "Days", value: "\(yearSummary.totalDays)", subtitle: "Year to date")
-                MetricCardView(title: "Week Streak", value: "\(yearSummary.currentWeekStreak)", subtitle: "Weeks")
-            }
+            MetricCardView(title: "Week Streak", value: "\(yearSummary.currentWeekStreak)", subtitle: "Weeks")
 
             UsageChartCard(
                 title: "Monthly surf days",

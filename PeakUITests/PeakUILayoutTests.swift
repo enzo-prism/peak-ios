@@ -79,6 +79,33 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "Quiver")
     }
 
+    func testTabBarIconSizesMatchSystem() throws {
+        if UIDevice.current.userInterfaceIdiom != .phone {
+            throw XCTSkip("Tab bar icon sizing is iPhone-only.")
+        }
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 2), "Missing tab bar")
+
+        let referenceHeight = tabIconHeight(named: "History")
+        let tolerance: CGFloat = 2.5
+        let maxIconHeight = tabBar.frame.height * 0.65
+
+        for name in ["Log", "Stats", "Quiver", "More"] {
+            let iconHeight = tabIconHeight(named: name)
+            XCTAssertLessThanOrEqual(
+                abs(iconHeight - referenceHeight),
+                tolerance,
+                "Tab icon height mismatch for \(name)"
+            )
+            XCTAssertLessThanOrEqual(
+                iconHeight,
+                maxIconHeight,
+                "Tab icon height too large for \(name)"
+            )
+        }
+    }
+
     func testSessionEditorLayoutFits() {
         tapTab(named: "Log")
 
@@ -223,6 +250,13 @@ final class PeakUILayoutTests: XCTestCase {
     }
 }
 
+private struct PixelBuffer {
+    let data: [UInt8]
+    let width: Int
+    let height: Int
+    let scale: CGFloat
+}
+
 private extension PeakUILayoutTests {
     func tapTab(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let tabButton = app.tabBars.buttons[name]
@@ -253,6 +287,215 @@ private extension PeakUILayoutTests {
         }
 
         XCTFail("Missing tab: \(name)", file: file, line: line)
+    }
+
+    func tabIconHeight(
+        named name: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> CGFloat {
+        tapTab(named: name)
+
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 2), "Missing tab bar", file: file, line: line)
+
+        let button = app.tabBars.buttons[name]
+        XCTAssertTrue(button.waitForExistence(timeout: 2), "Missing tab: \(name)", file: file, line: line)
+
+        let tabBarFrame = tabBar.frame
+        let buttonFrame = button.frame.offsetBy(dx: -tabBarFrame.minX, dy: -tabBarFrame.minY)
+        let screenshot = tabBar.screenshot()
+        let pixelBuffer = pixelBuffer(from: screenshot)
+        let scale = pixelBuffer.scale
+        let iconRegionHeight = tabBarFrame.height * 0.65
+        let pixelRegion = CGRect(
+            x: buttonFrame.minX * scale,
+            y: 0,
+            width: buttonFrame.width * scale,
+            height: iconRegionHeight * scale
+        )
+        guard let bounds = iconPixelBounds(in: pixelRegion, pixelBuffer: pixelBuffer) else {
+            XCTFail("Missing tab icon pixels: \(name)", file: file, line: line)
+            return 0
+        }
+
+        let iconHeight = bounds.height / scale
+        XCTAssertGreaterThan(iconHeight, 0, "Invalid tab icon height for \(name)", file: file, line: line)
+
+        return iconHeight
+    }
+
+    func brightPixelBounds(in rect: CGRect, pixelBuffer: PixelBuffer) -> CGRect? {
+        let minX = max(Int(rect.minX), 0)
+        let minY = max(Int(rect.minY), 0)
+        let maxX = min(Int(rect.maxX), pixelBuffer.width - 1)
+        let maxY = min(Int(rect.maxY), pixelBuffer.height - 1)
+
+        guard minX < maxX, minY < maxY else { return nil }
+
+        var foundMinX = Int.max
+        var foundMinY = Int.max
+        var foundMaxX = Int.min
+        var foundMaxY = Int.min
+
+        let bytesPerPixel = 4
+        let threshold = 0.55
+        let alphaThreshold = 32
+
+        for y in minY...maxY {
+            let rowIndex = y * pixelBuffer.width * bytesPerPixel
+            for x in minX...maxX {
+                let index = rowIndex + x * bytesPerPixel
+                let r = pixelBuffer.data[index]
+                let g = pixelBuffer.data[index + 1]
+                let b = pixelBuffer.data[index + 2]
+                let a = pixelBuffer.data[index + 3]
+
+                if a < alphaThreshold { continue }
+
+                let luminance = (0.2126 * Double(r) + 0.7152 * Double(g) + 0.0722 * Double(b)) / 255.0
+                if luminance < threshold { continue }
+
+                if x < foundMinX { foundMinX = x }
+                if y < foundMinY { foundMinY = y }
+                if x > foundMaxX { foundMaxX = x }
+                if y > foundMaxY { foundMaxY = y }
+            }
+        }
+
+        guard foundMinX <= foundMaxX, foundMinY <= foundMaxY else { return nil }
+        return CGRect(
+            x: CGFloat(foundMinX),
+            y: CGFloat(foundMinY),
+            width: CGFloat(foundMaxX - foundMinX + 1),
+            height: CGFloat(foundMaxY - foundMinY + 1)
+        )
+    }
+
+    func iconPixelBounds(in rect: CGRect, pixelBuffer: PixelBuffer) -> CGRect? {
+        if let brightBounds = brightPixelBounds(in: rect, pixelBuffer: pixelBuffer) {
+            return brightBounds
+        }
+        return contrastPixelBounds(in: rect, pixelBuffer: pixelBuffer)
+    }
+
+    func contrastPixelBounds(in rect: CGRect, pixelBuffer: PixelBuffer) -> CGRect? {
+        let minX = max(Int(rect.minX), 0)
+        let minY = max(Int(rect.minY), 0)
+        let maxX = min(Int(rect.maxX), pixelBuffer.width - 1)
+        let maxY = min(Int(rect.maxY), pixelBuffer.height - 1)
+
+        guard minX < maxX, minY < maxY else { return nil }
+
+        let bytesPerPixel = 4
+        func sampleColor(x: Int, y: Int) -> (Double, Double, Double, Double) {
+            let index = (y * pixelBuffer.width + x) * bytesPerPixel
+            let r = Double(pixelBuffer.data[index]) / 255.0
+            let g = Double(pixelBuffer.data[index + 1]) / 255.0
+            let b = Double(pixelBuffer.data[index + 2]) / 255.0
+            let a = Double(pixelBuffer.data[index + 3]) / 255.0
+            return (r, g, b, a)
+        }
+
+        let inset = 2
+        let samplePoints = [
+            (minX + inset, minY + inset),
+            (maxX - inset, minY + inset),
+            (minX + inset, maxY - inset),
+            (maxX - inset, maxY - inset)
+        ].filter { $0.0 >= minX && $0.0 <= maxX && $0.1 >= minY && $0.1 <= maxY }
+
+        guard !samplePoints.isEmpty else { return nil }
+
+        var bgR = 0.0
+        var bgG = 0.0
+        var bgB = 0.0
+        var bgCount = 0.0
+
+        for point in samplePoints {
+            let (r, g, b, a) = sampleColor(x: point.0, y: point.1)
+            guard a > 0.1 else { continue }
+            bgR += r
+            bgG += g
+            bgB += b
+            bgCount += 1.0
+        }
+
+        guard bgCount > 0 else { return nil }
+
+        bgR /= bgCount
+        bgG /= bgCount
+        bgB /= bgCount
+
+        let alphaThreshold: UInt8 = 32
+        let distanceThreshold = 0.25
+
+        var foundMinX = Int.max
+        var foundMinY = Int.max
+        var foundMaxX = Int.min
+        var foundMaxY = Int.min
+
+        for y in minY...maxY {
+            let rowIndex = y * pixelBuffer.width * bytesPerPixel
+            for x in minX...maxX {
+                let index = rowIndex + x * bytesPerPixel
+                let r = Double(pixelBuffer.data[index]) / 255.0
+                let g = Double(pixelBuffer.data[index + 1]) / 255.0
+                let b = Double(pixelBuffer.data[index + 2]) / 255.0
+                let a = pixelBuffer.data[index + 3]
+
+                if a < alphaThreshold { continue }
+
+                let distance = abs(r - bgR) + abs(g - bgG) + abs(b - bgB)
+                if distance < distanceThreshold { continue }
+
+                if x < foundMinX { foundMinX = x }
+                if y < foundMinY { foundMinY = y }
+                if x > foundMaxX { foundMaxX = x }
+                if y > foundMaxY { foundMaxY = y }
+            }
+        }
+
+        guard foundMinX <= foundMaxX, foundMinY <= foundMaxY else { return nil }
+        return CGRect(
+            x: CGFloat(foundMinX),
+            y: CGFloat(foundMinY),
+            width: CGFloat(foundMaxX - foundMinX + 1),
+            height: CGFloat(foundMaxY - foundMinY + 1)
+        )
+    }
+
+    func pixelBuffer(from screenshot: XCUIScreenshot, file: StaticString = #filePath, line: UInt = #line) -> PixelBuffer {
+        let image = screenshot.image
+        guard let cgImage = image.cgImage else {
+            XCTFail("Missing screenshot CGImage", file: file, line: line)
+            return PixelBuffer(data: [], width: 0, height: 0, scale: image.scale)
+        }
+
+        let scale = image.scale
+        let width = Int(image.size.width * scale)
+        let height = Int(image.size.height * scale)
+
+        var data = [UInt8](repeating: 0, count: width * height * 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: &data,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            XCTFail("Failed to create pixel buffer", file: file, line: line)
+            return PixelBuffer(data: [], width: width, height: height, scale: scale)
+        }
+
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: 1, y: -1)
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        return PixelBuffer(data: data, width: width, height: height, scale: scale)
     }
 
     func assertExists(_ element: XCUIElement, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) {
