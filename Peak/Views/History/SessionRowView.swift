@@ -47,6 +47,14 @@ struct SessionRowView: View {
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
                             .glassUnion(id: "chips", namespace: chipNamespace)
                     }
+                    if !session.photos.isEmpty {
+                        Label("\(session.photos.count)", systemImage: "photo.on.rectangle")
+                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+                            .glassUnion(id: "chips", namespace: chipNamespace)
+                    }
                 }
             }
             .foregroundStyle(Theme.textSecondary)

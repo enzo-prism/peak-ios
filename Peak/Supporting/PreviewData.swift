@@ -3,7 +3,7 @@ import SwiftData
 
 enum PreviewData {
     static var container: ModelContainer = {
-        let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self])
+        let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionPhoto.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         let context = container.mainContext

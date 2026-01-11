@@ -29,6 +29,7 @@ nonisolated struct SessionExport: Codable {
     let notes: String
     let buddyIds: [String]
     let gearIds: [String]
+    let photoData: [String]?
     let createdAt: String
     let updatedAt: String
 
@@ -42,6 +43,7 @@ nonisolated struct SessionExport: Codable {
         case notes
         case buddyIds = "buddy_ids"
         case gearIds = "gear_ids"
+        case photoData = "photo_data"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -154,7 +156,10 @@ enum PeakExportManager {
             )
         }
         let sessionExports = sessions.sorted { $0.createdAt < $1.createdAt }.map { session in
-            SessionExport(
+            let photoData = session.photos
+                .sorted(by: { $0.sortIndex < $1.sortIndex })
+                .map { $0.data.base64EncodedString() }
+            return SessionExport(
                 id: ExportDateFormatter.string(from: session.createdAt),
                 date: ExportDateFormatter.string(from: session.date),
                 spotId: session.spot?.key,
@@ -164,6 +169,7 @@ enum PeakExportManager {
                 notes: session.notes,
                 buddyIds: session.buddies.map(\.key),
                 gearIds: session.gear.map(\.key),
+                photoData: photoData.isEmpty ? nil : photoData,
                 createdAt: ExportDateFormatter.string(from: session.createdAt),
                 updatedAt: ExportDateFormatter.string(from: session.updatedAt)
             )
@@ -395,6 +401,15 @@ enum PeakExportManager {
 
             session.gear = sessionExport.gearIds.compactMap { gearById[$0] }
             session.buddies = sessionExport.buddyIds.compactMap { buddyById[$0] }
+            let importedPhotos = (sessionExport.photoData ?? []).compactMap { Data(base64Encoded: $0) }
+            if !session.photos.isEmpty {
+                for photo in session.photos {
+                    context.delete(photo)
+                }
+            }
+            session.photos = importedPhotos.enumerated().map { index, data in
+                SessionPhoto(data: data, sortIndex: index)
+            }
 
             if existingSession == nil {
                 context.insert(session)
