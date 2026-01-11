@@ -64,6 +64,7 @@ struct GearLibraryView: View {
                                 GearRowView(gear: item, snapshot: snapshots[item.key])
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("gear.row")
                         }
                     }
                 }
@@ -171,8 +172,11 @@ private struct GearRowView: View {
             }
             .foregroundStyle(Theme.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityIdentifier("gear.row")
     }
 
     private var lastUsedLabel: String {

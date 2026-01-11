@@ -101,6 +101,7 @@ struct QuiverView: View {
                     QuiverGearRow(gear: item, snapshot: snapshots[item.key])
                 }
                 .buttonStyle(PressFeedbackButtonStyle())
+                .accessibilityIdentifier("quiver.row")
             }
         }
     }
@@ -196,8 +197,11 @@ private struct QuiverGearRow: View {
             .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
             .foregroundStyle(Theme.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityIdentifier("quiver.row")
     }
 
     private var lastUsedLabel: String {

@@ -48,6 +48,7 @@ struct BuddyLibraryView: View {
                                 BuddyRowView(buddy: buddy, snapshot: snapshots[buddy.key])
                             }
                             .buttonStyle(.plain)
+                            .accessibilityIdentifier("buddy.row")
                         }
                     }
                 }
@@ -114,8 +115,11 @@ private struct BuddyRowView: View {
             .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
             .foregroundStyle(Theme.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .accessibilityIdentifier("buddy.row")
     }
 
     private var lastUsedLabel: String {

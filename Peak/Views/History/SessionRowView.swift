@@ -51,8 +51,10 @@ struct SessionRowView: View {
             }
             .foregroundStyle(Theme.textSecondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("history.row")
     }
 }

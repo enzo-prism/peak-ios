@@ -79,6 +79,62 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "Quiver")
     }
 
+    func testQuiverRowHitAreaFullWidth() {
+        tapTab(named: "Quiver")
+
+        let row = app.buttons.matching(identifier: "quiver.row").firstMatch
+        assertExists(row)
+        assertRowFullWidth(row, in: app.scrollViews.firstMatch, name: "Quiver row")
+
+        tapEdge(of: row, x: 0.95)
+
+        let usageSummary = app.staticTexts["Usage Summary"]
+        assertExists(usageSummary)
+    }
+
+    func testSpotRowHitAreaFullWidth() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Spots")
+
+        let row = app.buttons.matching(identifier: "spot.row").firstMatch
+        assertExists(row)
+        assertRowFullWidth(row, in: app.scrollViews.firstMatch, name: "Spot row")
+
+        tapEdge(of: row, x: 0.95)
+
+        let summaryTitle = app.staticTexts["Summary"]
+        assertExists(summaryTitle)
+    }
+
+    func testBuddyRowHitAreaFullWidth() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Buddies")
+
+        let row = app.buttons.matching(identifier: "buddy.row").firstMatch
+        assertExists(row)
+        assertRowFullWidth(row, in: app.scrollViews.firstMatch, name: "Buddy row")
+
+        tapEdge(of: row, x: 0.95)
+
+        let deleteButton = app.buttons["Delete Buddy"]
+        assertExists(deleteButton)
+    }
+
+    func testHistoryRowHitAreaFullWidth() {
+        tapTab(named: "History")
+
+        let row = historyRowCell()
+        assertExists(row)
+        assertRowFullWidth(row, in: app.windows.firstMatch, name: "History row")
+
+        tapEdge(of: row, x: 0.95)
+
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
+    }
+
     func testTabBarIconSizesMatchSystem() throws {
         if UIDevice.current.userInterfaceIdiom != .phone {
             throw XCTSkip("Tab bar icon sizing is iPhone-only.")
@@ -662,6 +718,21 @@ private extension PeakUILayoutTests {
         return app.cells.matching(identifier: "history.row").firstMatch
     }
 
+    func historyRowCell() -> XCUIElement {
+        let sessionName = "San Onofre State Beach - Old Man's"
+        let sessionCell = app.cells.containing(.staticText, identifier: sessionName).firstMatch
+        if sessionCell.exists {
+            return sessionCell
+        }
+
+        let fallbackCell = app.cells.containing(.staticText, identifier: "Trestles").firstMatch
+        if fallbackCell.exists {
+            return fallbackCell
+        }
+
+        return app.cells.firstMatch
+    }
+
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
         let elements = query.allElementsBoundByIndex
         if let hittable = elements.first(where: { $0.exists && $0.isHittable }) {
@@ -711,6 +782,33 @@ private extension PeakUILayoutTests {
         }
 
         return app
+    }
+
+    func assertRowFullWidth(
+        _ element: XCUIElement,
+        in container: XCUIElement,
+        name: String,
+        horizontalPadding: CGFloat = 40,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertExists(container, file: file, line: line)
+
+        let containerWidth = container.frame.width
+        XCTAssertGreaterThan(containerWidth, 0, "Missing container width for \(name)", file: file, line: line)
+
+        let expectedMinWidth = containerWidth - horizontalPadding
+        XCTAssertGreaterThanOrEqual(
+            element.frame.width,
+            expectedMinWidth,
+            "\(name) hit area too narrow",
+            file: file,
+            line: line
+        )
+    }
+
+    func tapEdge(of element: XCUIElement, x: CGFloat, y: CGFloat = 0.5) {
+        element.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y)).tap()
     }
 
     func assertPopupLayout(
