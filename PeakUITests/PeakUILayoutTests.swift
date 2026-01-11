@@ -147,6 +147,115 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "More")
     }
 
+    func testSessionDeleteConfirmationDialogLayout() {
+        tapTab(named: "History")
+
+        let sessionName = "San Onofre State Beach - Old Man's"
+        if app.staticTexts[sessionName].waitForExistence(timeout: 2) {
+            tapElement(named: sessionName)
+        } else {
+            let row = firstHistoryRow()
+            assertExists(row)
+            row.tap()
+        }
+
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
+        scrollToVisible(deleteButton, in: app.scrollViews.firstMatch)
+        deleteButton.tap()
+
+        assertPopupLayout(
+            title: "Delete this session?",
+            buttons: ["Delete"]
+        )
+        attachScreenshot(name: "Popup Session Delete")
+        app.buttons["Delete"].tap()
+    }
+
+    func testSpotDeleteBlockedAlertLayout() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Spots")
+        tapElement(named: "Ocean Beach")
+
+        let deleteButton = app.buttons["Delete Spot"]
+        assertExists(deleteButton)
+        scrollToVisible(deleteButton, in: app.scrollViews.firstMatch)
+        deleteButton.tap()
+
+        assertPopupLayout(
+            title: "Cannot Delete",
+            messageContains: "Used by",
+            buttons: ["OK"]
+        )
+        attachScreenshot(name: "Popup Spot Delete Blocked")
+        app.buttons["OK"].tap()
+    }
+
+    func testBuddyDeleteBlockedAlertLayout() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Buddies")
+        tapElement(named: "Kai")
+
+        let deleteButton = app.buttons["Delete Buddy"]
+        assertExists(deleteButton)
+        scrollToVisible(deleteButton, in: app.scrollViews.firstMatch)
+        deleteButton.tap()
+
+        assertPopupLayout(
+            title: "Cannot Delete",
+            messageContains: "Used by",
+            buttons: ["OK"]
+        )
+        attachScreenshot(name: "Popup Buddy Delete Blocked")
+        app.buttons["OK"].tap()
+    }
+
+    func testGearArchiveConfirmationDialogLayout() {
+        tapTab(named: "Quiver")
+        tapElement(named: "6'2\" Fish")
+
+        let archiveButton = app.buttons["Archive Gear"]
+        assertExists(archiveButton)
+        scrollToVisible(archiveButton, in: app.scrollViews.firstMatch)
+        archiveButton.tap()
+
+        assertPopupLayout(
+            title: "Archive gear?",
+            messageContains: "Archived gear stays",
+            buttons: ["Archive"]
+        )
+        attachScreenshot(name: "Popup Gear Archive")
+        app.buttons["Archive"].tap()
+    }
+
+    func testSettingsResetConfirmationDialogLayout() {
+        tapTab(named: "More")
+        tapElement(named: "Settings")
+
+        let resetButton = app.buttons["Reset All Data"]
+        assertExists(resetButton)
+        scrollToVisible(resetButton, in: scrollContainer())
+        resetButton.tap()
+
+        assertPopupLayout(
+            title: "Reset all data?",
+            messageContains: "permanently deletes",
+            buttons: ["Delete Everything"]
+        )
+        attachScreenshot(name: "Popup Reset Data")
+        app.buttons["Delete Everything"].tap()
+
+        assertPopupLayout(
+            title: "Reset Complete",
+            messageContains: "All data has been deleted",
+            buttons: ["OK"]
+        )
+        attachScreenshot(name: "Popup Reset Complete")
+        app.buttons["OK"].tap()
+    }
+
     func testSessionEditorKeyboardAvoidsFields() {
         tapTab(named: "Log")
 
@@ -533,6 +642,26 @@ private extension PeakUILayoutTests {
         add(attachment)
     }
 
+    func scrollContainer() -> XCUIElement {
+        let table = app.tables.firstMatch
+        if table.exists {
+            return table
+        }
+        return app.scrollViews.firstMatch
+    }
+
+    func firstHistoryRow() -> XCUIElement {
+        let row = app.otherElements.matching(identifier: "history.row").firstMatch
+        if row.exists {
+            return row
+        }
+        let buttonRow = app.buttons.matching(identifier: "history.row").firstMatch
+        if buttonRow.exists {
+            return buttonRow
+        }
+        return app.cells.matching(identifier: "history.row").firstMatch
+    }
+
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
         let elements = query.allElementsBoundByIndex
         if let hittable = elements.first(where: { $0.exists && $0.isHittable }) {
@@ -563,6 +692,76 @@ private extension PeakUILayoutTests {
         }
 
         XCTFail("Missing element: \(name)", file: file, line: line)
+    }
+
+    func popupContainer(for title: String) -> XCUIElement {
+        let alert = app.alerts.firstMatch
+        if alert.waitForExistence(timeout: 2), alert.staticTexts[title].exists {
+            return alert
+        }
+
+        let sheet = app.sheets.firstMatch
+        if sheet.waitForExistence(timeout: 2), sheet.staticTexts[title].exists {
+            return sheet
+        }
+
+        let popover = app.popovers.firstMatch
+        if popover.waitForExistence(timeout: 2), popover.staticTexts[title].exists {
+            return popover
+        }
+
+        return app
+    }
+
+    func assertPopupLayout(
+        title: String,
+        messageContains: String? = nil,
+        buttons: [String],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let container = popupContainer(for: title)
+        let titleElement = container.staticTexts[title]
+        if titleElement.exists {
+            assertExists(titleElement, file: file, line: line)
+            assertFits(titleElement, file: file, line: line)
+        } else {
+            let fallbackTitle = app.staticTexts[title]
+            assertExists(fallbackTitle, file: file, line: line)
+            assertFits(fallbackTitle, file: file, line: line)
+        }
+
+        if let messageContains {
+            let predicate = NSPredicate(format: "label CONTAINS %@", messageContains)
+            let messageElement = container.staticTexts.matching(predicate).firstMatch
+            if messageElement.exists {
+                assertExists(messageElement, file: file, line: line)
+                assertFits(messageElement, file: file, line: line)
+            } else {
+                let fallbackMessage = app.staticTexts.matching(predicate).firstMatch
+                assertExists(fallbackMessage, file: file, line: line)
+                assertFits(fallbackMessage, file: file, line: line)
+            }
+        }
+
+        for label in buttons {
+            let button = container.buttons[label]
+            if button.exists {
+                assertExists(button, file: file, line: line)
+                assertFits(button, file: file, line: line)
+            } else {
+                let predicate = NSPredicate(format: "label CONTAINS[c] %@", label)
+                let partialButton = container.buttons.matching(predicate).firstMatch
+                if partialButton.exists {
+                    assertExists(partialButton, file: file, line: line)
+                    assertFits(partialButton, file: file, line: line)
+                } else {
+                    let fallbackButton = app.buttons.matching(predicate).firstMatch
+                    assertExists(fallbackButton, file: file, line: line)
+                    assertFits(fallbackButton, file: file, line: line)
+                }
+            }
+        }
     }
 
     func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
