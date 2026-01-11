@@ -16,7 +16,7 @@ struct ContentView: View {
             TabView {
                 LogView()
                     .tabItem {
-                        Label("Log", systemImage: "wave.3.right")
+                        Label("Log", image: "list-bullet")
                     }
 
                 HistoryView()
@@ -26,14 +26,14 @@ struct ContentView: View {
 
                 StatsView()
                     .tabItem {
-                        Label("Stats", systemImage: "chart.bar")
+                        Label("Stats", image: "figure-surfing")
                     }
 
                 NavigationStack {
                     QuiverView()
                 }
                 .tabItem {
-                    Label("Quiver", systemImage: "wrench.and.screwdriver")
+                    Label("Quiver", image: "surfboard")
                 }
 
                 MoreView()

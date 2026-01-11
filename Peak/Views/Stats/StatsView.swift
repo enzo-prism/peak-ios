@@ -78,10 +78,6 @@ struct StatsView: View {
 
     private var surfDaysSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Surf days \(yearSummary.year)")
-                .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-
             HStack(spacing: 12) {
                 MetricCardView(title: "Days", value: "\(yearSummary.totalDays)", subtitle: "Year to date")
                 MetricCardView(title: "Week Streak", value: "\(yearSummary.currentWeekStreak)", subtitle: "Weeks")

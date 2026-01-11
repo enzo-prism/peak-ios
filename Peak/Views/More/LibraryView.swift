@@ -11,7 +11,7 @@ struct LibraryView: View {
                     NavigationLink {
                         QuiverView()
                     } label: {
-                        Label("Quiver", systemImage: "wrench.and.screwdriver")
+                        Label("Quiver", image: "surfboard")
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)

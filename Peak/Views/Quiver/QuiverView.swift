@@ -32,11 +32,11 @@ struct QuiverView: View {
                     filterCard
 
                     if visibleGear.isEmpty {
-                        EmptyStateView(
-                            title: emptyStateTitle,
-                            message: emptyStateMessage,
-                            systemImage: "wrench.and.screwdriver"
-                        )
+                    EmptyStateView(
+                        title: emptyStateTitle,
+                        message: emptyStateMessage,
+                        imageName: "surfboard"
+                    )
                     } else {
                         ForEach(GearKind.allCases) { kind in
                             let items = sortedGear(for: kind)
@@ -82,7 +82,7 @@ struct QuiverView: View {
             .pickerStyle(.segmented)
 
             Toggle("Show archived", isOn: $showArchived)
-                .tint(Theme.textPrimary)
+                .tint(Theme.surfGreen)
         }
         .padding(14)
         .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)

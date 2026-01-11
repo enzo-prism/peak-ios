@@ -3,11 +3,24 @@ import SwiftUI
 struct EmptyStateView: View {
     let title: String
     let message: String
-    let systemImage: String
+    let image: Image
+
+    init(title: String, message: String, systemImage: String) {
+        self.title = title
+        self.message = message
+        self.image = Image(systemName: systemImage)
+    }
+
+    init(title: String, message: String, imageName: String) {
+        self.title = title
+        self.message = message
+        self.image = Image(imageName)
+    }
 
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: systemImage)
+            image
+                .renderingMode(.template)
                 .font(.system(size: 42, weight: .semibold))
                 .foregroundStyle(Theme.textPrimary)
             VStack(spacing: 8) {

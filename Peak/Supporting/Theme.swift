@@ -6,6 +6,7 @@ enum Theme {
     static let foam = Color(white: 0.98)
     static let sand = Color(white: 0.88)
     static let ink = Color(white: 0.06)
+    static let surfGreen = Color(red: 0.22, green: 0.74, blue: 0.48)
 
     static let glassTint = Color(white: 1.0, opacity: 0.12)
     static let glassStrongTint = Color(white: 1.0, opacity: 0.5)
