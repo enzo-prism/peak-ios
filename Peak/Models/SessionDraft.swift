@@ -10,6 +10,7 @@ struct SessionDraft {
     var rating: Int = 0
     var durationMinutes: Int = 0
     var notes: String = ""
+    var photos: [SessionPhotoEntry] = []
 
     init() {}
 
@@ -22,6 +23,9 @@ struct SessionDraft {
         rating = session.rating
         durationMinutes = session.durationMinutes ?? 0
         notes = session.notes
+        photos = session.photos
+            .sorted(by: { $0.sortIndex < $1.sortIndex })
+            .map { SessionPhotoEntry(photo: $0) }
     }
 
     var isReadyToSave: Bool {
@@ -47,5 +51,23 @@ struct SessionDraft {
         } else {
             selectedBuddies.append(buddy)
         }
+    }
+}
+
+struct SessionPhotoEntry: Identifiable, Equatable {
+    let id: UUID
+    var data: Data
+    var existingPhoto: SessionPhoto?
+
+    init(data: Data) {
+        self.id = UUID()
+        self.data = data
+        self.existingPhoto = nil
+    }
+
+    init(photo: SessionPhoto) {
+        self.id = UUID()
+        self.data = photo.data
+        self.existingPhoto = photo
     }
 }

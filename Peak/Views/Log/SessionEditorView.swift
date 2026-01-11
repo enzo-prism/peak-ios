@@ -1,5 +1,7 @@
+import PhotosUI
 import SwiftUI
 import SwiftData
+import UIKit
 
 enum SessionEditorMode {
     case new
@@ -32,6 +34,9 @@ struct SessionEditorView: View {
     @State private var showSpotEditor = false
     @State private var showSpotAlert = false
     @State private var spotAlertMessage = ""
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+
+    private let maxPhotos = 6
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -284,6 +289,60 @@ struct SessionEditorView: View {
                                 .padding(12)
                                 .glassInput()
                             }
+
+                            EditorSection("Photos") {
+                                if draft.photos.isEmpty {
+                                    Text("Add quick snaps from your session.")
+                                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                } else {
+                                    let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+                                    LazyVGrid(columns: columns, spacing: 8) {
+                                        ForEach(draft.photos) { entry in
+                                            ZStack(alignment: .topTrailing) {
+                                                if let image = UIImage(data: entry.data) {
+                                                    Image(uiImage: image)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(height: 120)
+                                                        .frame(maxWidth: .infinity)
+                                                        .clipped()
+                                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                                }
+                                                Button {
+                                                    removePhoto(entry)
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .font(.system(size: 18))
+                                                        .foregroundStyle(Theme.textPrimary)
+                                                        .shadow(radius: 2)
+                                                }
+                                                .padding(6)
+                                                .accessibilityLabel("Remove photo")
+                                            }
+                                            .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+                                        }
+                                    }
+                                }
+
+                                PhotosPicker(
+                                    selection: $selectedPhotoItems,
+                                    maxSelectionCount: max(1, maxPhotos - draft.photos.count),
+                                    matching: .images
+                                ) {
+                                    Label("Add Photos", systemImage: "photo.on.rectangle")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .glassButtonStyle(prominent: false)
+                                .disabled(draft.photos.count >= maxPhotos)
+
+                                Text("Up to \(maxPhotos) photos per session.")
+                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                    .foregroundStyle(Theme.textMuted)
+                            }
                         }
                         .padding()
                     }
@@ -315,6 +374,15 @@ struct SessionEditorView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(spotAlertMessage)
+        }
+        .onChange(of: selectedPhotoItems) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            Task {
+                await addPhotos(from: newValue)
+                await MainActor.run {
+                    selectedPhotoItems = []
+                }
+            }
         }
     }
 
@@ -392,14 +460,19 @@ struct SessionEditorView: View {
             return
         }
         let durationMinutes = SurfSession.normalizedDuration(draft.durationMinutes > 0 ? draft.durationMinutes : nil)
+        let photoEntries = draft.photos
 
         switch mode {
         case .new:
+            let photos = photoEntries.enumerated().map { index, entry in
+                SessionPhoto(data: entry.data, sortIndex: index)
+            }
             let session = SurfSession(
                 date: draft.date,
                 spot: spot,
                 gear: draft.selectedGear,
                 buddies: draft.selectedBuddies,
+                photos: photos,
                 rating: draft.rating,
                 durationMinutes: durationMinutes,
                 notes: draft.notes,
@@ -408,10 +481,23 @@ struct SessionEditorView: View {
             )
             modelContext.insert(session)
         case .edit(let session):
+            let retainedExistingIds = Set(photoEntries.compactMap { $0.existingPhoto?.persistentModelID })
+            for photo in session.photos where !retainedExistingIds.contains(photo.persistentModelID) {
+                modelContext.delete(photo)
+            }
+            let updatedPhotos = photoEntries.enumerated().map { index, entry in
+                if let existing = entry.existingPhoto {
+                    existing.data = entry.data
+                    existing.sortIndex = index
+                    return existing
+                }
+                return SessionPhoto(data: entry.data, sortIndex: index)
+            }
             session.date = draft.date
             session.spot = spot
             session.gear = draft.selectedGear
             session.buddies = draft.selectedBuddies
+            session.photos = updatedPhotos
             session.rating = draft.rating
             session.durationMinutes = durationMinutes
             session.notes = draft.notes
@@ -436,6 +522,28 @@ struct SessionEditorView: View {
         } else {
             showSpotEditor = true
         }
+    }
+
+    private func removePhoto(_ entry: SessionPhotoEntry) {
+        draft.photos.removeAll { $0.id == entry.id }
+    }
+
+    private func addPhotos(from items: [PhotosPickerItem]) async {
+        for item in items {
+            if await MainActor.run(body: { draft.photos.count >= maxPhotos }) {
+                return
+            }
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let compressed = compressedPhotoData(from: data)
+            await MainActor.run {
+                draft.photos.append(SessionPhotoEntry(data: compressed))
+            }
+        }
+    }
+
+    private func compressedPhotoData(from data: Data) -> Data {
+        guard let image = UIImage(data: data) else { return data }
+        return image.jpegData(compressionQuality: 0.85) ?? data
     }
 }
 

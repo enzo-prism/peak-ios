@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct SessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -35,6 +36,30 @@ struct SessionDetailView: View {
 
                         if !session.buddies.isEmpty {
                             infoCard(title: "Buddies", items: session.buddies.sorted(by: { $0.name < $1.name }).map { $0.name })
+                        }
+
+                        let sortedPhotos = session.photos.sorted(by: { $0.sortIndex < $1.sortIndex })
+                        if !sortedPhotos.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                sectionTitle("Photos")
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(sortedPhotos) { photo in
+                                            if let image = UIImage(data: photo.data) {
+                                                Image(uiImage: image)
+                                                    .resizable()
+                                                    .scaledToFill()
+                                                    .frame(width: 180, height: 130)
+                                                    .clipped()
+                                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
                         }
 
                         if !session.notes.isEmpty {
