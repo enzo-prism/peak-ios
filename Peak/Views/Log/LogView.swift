@@ -124,7 +124,14 @@ struct LogView: View {
             .scaledToFit()
             .frame(width: 28, height: 28)
             .padding(10)
-            .glassCard(cornerRadius: 16, tint: Theme.glassTint, isInteractive: false)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
             .accessibilityHidden(true)
     }
 }
