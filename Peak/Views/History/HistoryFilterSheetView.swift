@@ -103,7 +103,7 @@ private struct FilterRow: View {
             .padding(.horizontal, 12)
             .glassCard(cornerRadius: 16, tint: isSelected ? Theme.glassStrongTint : Theme.glassDimTint, isInteractive: true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressFeedbackButtonStyle())
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
     }

@@ -75,6 +75,7 @@ struct GearEditorView: View {
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.name")
 
                             Picker("Type", selection: $kind) {
                                 ForEach(GearKind.allCases) { kind in
@@ -94,18 +95,21 @@ struct GearEditorView: View {
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.brand")
 
                             TextField("Model", text: $model)
                                 .textFieldStyle(.plain)
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.model")
 
                             TextField("Size", text: $size)
                                 .textFieldStyle(.plain)
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.size")
 
                             TextField("Volume (L)", text: $volumeText)
                                 .textFieldStyle(.plain)
@@ -113,6 +117,7 @@ struct GearEditorView: View {
                                 .keyboardType(.decimalPad)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.volume")
                         }
 
                         editorSection("Photo") {
@@ -157,10 +162,13 @@ struct GearEditorView: View {
                                 .foregroundStyle(Theme.textPrimary)
                                 .padding(12)
                                 .glassInput()
+                                .accessibilityIdentifier("gear.editor.notes")
                         }
                     }
                     .padding()
                 }
+                .scrollDismissesKeyboard(.interactively)
+                .keyboardSafeAreaInset()
             }
             .navigationTitle(mode.title)
             .toolbar {

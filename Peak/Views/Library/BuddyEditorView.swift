@@ -39,16 +39,19 @@ struct BuddyEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                VStack(alignment: .leading, spacing: 16) {
-                    TextField("Buddy name", text: $name)
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(Theme.textPrimary)
-                        .padding(12)
-                        .glassInput()
-
-                    Spacer()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TextField("Buddy name", text: $name)
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(Theme.textPrimary)
+                            .padding(12)
+                            .glassInput()
+                            .accessibilityIdentifier("buddy.editor.name")
+                    }
+                    .padding()
                 }
-                .padding()
+                .scrollDismissesKeyboard(.interactively)
+                .keyboardSafeAreaInset()
             }
             .navigationTitle(mode.title)
             .toolbar {

@@ -34,7 +34,7 @@ struct HistoryView: View {
                                     } label: {
                                         SessionRowView(session: session)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(PressFeedbackButtonStyle())
                                     .listRowInsets(EdgeInsets())
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)

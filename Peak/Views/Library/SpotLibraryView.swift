@@ -71,6 +71,7 @@ struct SpotLibraryView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityIdentifier("spot.library.add")
             }
         }
         .sheet(isPresented: $showEditor) {

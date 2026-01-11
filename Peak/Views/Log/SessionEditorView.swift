@@ -182,10 +182,12 @@ struct SessionEditorView: View {
                                                                     isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
                                                                 ) {
                                                                     draft.toggleGear(item)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                    }
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .keyboardSafeAreaInset()
+            }
+        }
                                                 }
                                             }
                                         }

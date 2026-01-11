@@ -177,7 +177,9 @@ xcodebuild test \
   -destination "platform=iOS Simulator,id=${IPAD_UDID}" \
   -derivedDataPath "${DERIVED_DATA}" \
   -resultBundlePath "${IPAD_DIR}/UITests.xcresult" \
-  -only-testing:"${UI_TEST_TARGET}"
+  -only-testing:"${UI_TEST_TARGET}" \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO
 
 if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
   capture_screenshot "${IPHONE_UDID}" "${IPHONE_DIR}/screenshot.png" "iPhone"

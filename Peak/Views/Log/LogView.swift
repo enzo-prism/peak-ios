@@ -33,8 +33,9 @@ struct LogView: View {
                                             SessionDetailView(session: session)
                                         } label: {
                                             SessionRowView(session: session)
+                                                .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(PressFeedbackButtonStyle())
                                     }
                                 }
                             }
@@ -107,7 +108,7 @@ struct LogView: View {
                             )
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressFeedbackButtonStyle())
                 .accessibilityIdentifier("log.hero.cta")
             }
             .padding(22)

@@ -59,42 +59,46 @@ struct SpotEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                VStack(alignment: .leading, spacing: 16) {
-                    TextField("Spot name", text: $name)
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(Theme.textPrimary)
-                        .padding(12)
-                        .glassInput()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TextField("Spot name", text: $name)
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(Theme.textPrimary)
+                            .padding(12)
+                            .glassInput()
+                            .accessibilityIdentifier("spot.editor.name")
 
-                    TextField("Location (city or region)", text: $locationName)
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(Theme.textPrimary)
-                        .padding(12)
-                        .glassInput()
+                        TextField("Location (city or region)", text: $locationName)
+                            .textFieldStyle(.plain)
+                            .foregroundStyle(Theme.textPrimary)
+                            .padding(12)
+                            .glassInput()
+                            .accessibilityIdentifier("spot.editor.location")
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("PIN LOCATION")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
-                            .foregroundStyle(Theme.textMuted)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("PIN LOCATION")
+                                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                .foregroundStyle(Theme.textMuted)
 
-                        mapPicker
+                            mapPicker
 
-                        if selectedCoordinate == nil {
-                            Text("Drop a pin to save this surf break.")
+                            if selectedCoordinate == nil {
+                                Text("Drop a pin to save this surf break.")
+                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                    .foregroundStyle(Theme.textMuted)
+                            }
+                        }
+
+                        if isLimitReached {
+                            Text("You can save up to \(Spot.maxCount) surf breaks.")
                                 .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
                                 .foregroundStyle(Theme.textMuted)
                         }
                     }
-
-                    if isLimitReached {
-                        Text("You can save up to \(Spot.maxCount) surf breaks.")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                            .foregroundStyle(Theme.textMuted)
-                    }
-
-                    Spacer()
+                    .padding()
                 }
-                .padding()
+                .scrollDismissesKeyboard(.interactively)
+                .keyboardSafeAreaInset()
             }
             .navigationTitle(mode.title)
             .toolbar {
@@ -212,6 +216,7 @@ struct SpotEditorView: View {
             .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
             .accessibilityLabel("Surf break map")
             .accessibilityHint("Double tap to drop a pin")
+            .accessibilityIdentifier("spot.editor.map")
         }
     }
 

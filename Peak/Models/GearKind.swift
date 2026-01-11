@@ -7,9 +7,9 @@ enum GearKind: String, Codable, CaseIterable, Identifiable {
     case leash
     case other
 
-    var id: String { rawValue }
+    nonisolated var id: String { rawValue }
 
-    var label: String {
+    nonisolated var label: String {
         switch self {
         case .board:
             return "Board"
@@ -24,7 +24,7 @@ enum GearKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    var pluralLabel: String {
+    nonisolated var pluralLabel: String {
         switch self {
         case .board:
             return "Boards"
@@ -39,7 +39,7 @@ enum GearKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    var systemImage: String {
+    nonisolated var systemImage: String {
         switch self {
         case .board:
             return "rectangle.portrait"

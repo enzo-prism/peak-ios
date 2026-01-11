@@ -18,6 +18,8 @@ struct SettingsView: View {
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
     @State private var alertMessage: AlertMessage?
+    @State private var isWorking = false
+    @State private var workingTitle = "Working..."
 
     var body: some View {
         ZStack {
@@ -25,10 +27,10 @@ struct SettingsView: View {
 
             List {
                 Section {
-                    SettingsRow(title: "Export JSON", systemImage: "square.and.arrow.up") {
+                    SettingsRow(title: "Export JSON", systemImage: "square.and.arrow.up", isDisabled: isWorking) {
                         exportJSON()
                     }
-                    SettingsRow(title: "Export CSV", systemImage: "doc.plaintext") {
+                    SettingsRow(title: "Export CSV", systemImage: "doc.plaintext", isDisabled: isWorking) {
                         exportCSV()
                     }
                 } header: {
@@ -36,7 +38,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    SettingsRow(title: "Import JSON Backup", systemImage: "square.and.arrow.down") {
+                    SettingsRow(title: "Import JSON Backup", systemImage: "square.and.arrow.down", isDisabled: isWorking) {
                         showImporter = true
                     }
                 } header: {
@@ -47,7 +49,8 @@ struct SettingsView: View {
                     SettingsRow(
                         title: "Reset All Data",
                         systemImage: "trash",
-                        role: .destructive
+                        role: .destructive,
+                        isDisabled: isWorking
                     ) {
                         showResetConfirm = true
                     }
@@ -99,6 +102,17 @@ struct SettingsView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+
+            if isWorking {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
+                ProgressView(workingTitle)
+                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            }
         }
         .navigationTitle("Settings")
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
@@ -155,45 +169,44 @@ struct SettingsView: View {
     }
 
     private func exportJSON() {
-        do {
-            let url = try PeakExportManager.exportJSONFile(
+        runWork("Exporting JSON...", errorTitle: "Export Failed") {
+            let export = PeakExportManager.makeExport(
                 sessions: sessions,
                 spots: spots,
                 gear: gear,
                 buddies: buddies
             )
+            let url = try await Task.detached(priority: .userInitiated) {
+                try PeakExportManager.exportJSONFile(from: export)
+            }.value
             shareItems = [url]
             showShareSheet = true
-        } catch {
-            alertMessage = errorAlert(title: "Export Failed", error: error)
         }
     }
 
     private func exportCSV() {
-        do {
-            let url = try PeakExportManager.exportCSVFile(sessions: sessions)
+        runWork("Exporting CSV...", errorTitle: "Export Failed") {
+            let export = PeakExportManager.makeExport(
+                sessions: sessions,
+                spots: spots,
+                gear: gear,
+                buddies: buddies
+            )
+            let url = try await Task.detached(priority: .userInitiated) {
+                try PeakExportManager.exportCSVFile(from: export)
+            }.value
             shareItems = [url]
             showShareSheet = true
-        } catch {
-            alertMessage = errorAlert(title: "Export Failed", error: error)
         }
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            do {
-                let didAccess = url.startAccessingSecurityScopedResource()
-                defer {
-                    if didAccess {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-                let data = try Data(contentsOf: url)
-                importPayload = try PeakExportManager.decodeJSON(data)
+            runWork("Reading Backup...", errorTitle: "Import Failed") {
+                let payload = try await loadImportPayload(from: url)
+                importPayload = payload
                 showImportOptions = true
-            } catch {
-                alertMessage = errorAlert(title: "Import Failed", error: error)
             }
         case .failure(let error):
             alertMessage = errorAlert(title: "Import Failed", error: error)
@@ -202,20 +215,49 @@ struct SettingsView: View {
 
     private func applyImport(mode: ImportMode) {
         guard let payload = importPayload else { return }
-        do {
+        runWork("Importing Backup...", errorTitle: "Import Failed") {
             try PeakExportManager.applyImport(payload, mode: mode, context: modelContext)
             alertMessage = AlertMessage(title: "Import Complete", body: "Your data has been updated.")
-        } catch {
-            alertMessage = errorAlert(title: "Import Failed", error: error)
         }
     }
 
     private func resetAllData() {
-        do {
+        runWork("Resetting Data...", errorTitle: "Reset Failed") {
             try modelContext.resetAllData()
             alertMessage = AlertMessage(title: "Reset Complete", body: "All data has been deleted.")
-        } catch {
-            alertMessage = errorAlert(title: "Reset Failed", error: error)
+        }
+    }
+
+    private func loadImportPayload(from url: URL) async throws -> PeakExport {
+        try await Task.detached(priority: .userInitiated) {
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if didAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            let data = try Data(contentsOf: url)
+            return try PeakExportManager.decodeJSON(data)
+        }.value
+    }
+
+    private func runWork(
+        _ title: String,
+        errorTitle: String,
+        operation: @escaping () async throws -> Void
+    ) {
+        guard !isWorking else { return }
+        Task { @MainActor in
+            isWorking = true
+            workingTitle = title
+            await Task.yield()
+            defer { isWorking = false }
+
+            do {
+                try await operation()
+            } catch {
+                alertMessage = errorAlert(title: errorTitle, error: error)
+            }
         }
     }
 
@@ -241,6 +283,7 @@ private struct SettingsRow: View {
     let title: String
     let systemImage: String
     var role: ButtonRole? = nil
+    var isDisabled: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -251,7 +294,9 @@ private struct SettingsRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: true)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressFeedbackButtonStyle())
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.6 : 1)
         .listRowBackground(Color.clear)
     }
 }

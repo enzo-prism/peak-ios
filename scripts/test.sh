@@ -11,6 +11,9 @@ export DESTINATION_NAME
 "${SCRIPT_DIR}/boot-sim.sh"
 
 mkdir -p "$(dirname "${RESULT_BUNDLE}")"
+if [[ -e "${RESULT_BUNDLE}" ]]; then
+  rm -rf "${RESULT_BUNDLE}"
+fi
 
 set +e
 xcodebuild test \
@@ -19,7 +22,9 @@ xcodebuild test \
   -configuration "${CONFIGURATION}" \
   -destination "${DESTINATION}" \
   -derivedDataPath "${DERIVED_DATA}" \
-  -resultBundlePath "${RESULT_BUNDLE}"
+  -resultBundlePath "${RESULT_BUNDLE}" \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO
 status=$?
 set -e
 

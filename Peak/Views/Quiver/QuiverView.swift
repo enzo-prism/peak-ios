@@ -17,9 +17,10 @@ struct QuiverView: View {
     @State private var sortOption: QuiverSortOption = .mostUsed
     @State private var showArchived = false
     @State private var showEditor = false
+    @State private var cachedSnapshots: [String: GearUsageSnapshot] = [:]
 
     private var snapshots: [String: GearUsageSnapshot] {
-        GearUsageCalculator.snapshots(sessions: sessions)
+        cachedSnapshots
     }
 
     var body: some View {
@@ -56,11 +57,18 @@ struct QuiverView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityIdentifier("quiver.add")
             }
         }
         .searchable(text: $searchText, prompt: "Search gear")
         .sheet(isPresented: $showEditor) {
             GearEditorView(mode: .new)
+        }
+        .onAppear {
+            refreshSnapshots()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshSnapshots()
         }
     }
 
@@ -92,7 +100,7 @@ struct QuiverView: View {
                 } label: {
                     QuiverGearRow(gear: item, snapshot: snapshots[item.key])
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressFeedbackButtonStyle())
             }
         }
     }
@@ -145,6 +153,10 @@ struct QuiverView: View {
             return "Try a different search or clear your filters."
         }
         return "Add boards, wetsuits, fins, and more to build your quiver."
+    }
+
+    private func refreshSnapshots() {
+        cachedSnapshots = GearUsageCalculator.snapshots(sessions: sessions)
     }
 }
 

@@ -20,8 +20,21 @@ struct SelectableChip: View {
             .padding(.horizontal, 12)
             .foregroundStyle(isSelected ? Theme.textInverse : Theme.textPrimary)
             .glassCapsule(tint: isSelected ? Theme.glassStrongTint : Theme.glassDimTint, isInteractive: true)
+            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressFeedbackButtonStyle())
+    }
+}
+
+struct PressFeedbackButtonStyle: ButtonStyle {
+    var pressedScale: CGFloat = 0.98
+    var pressedOpacity: Double = 0.92
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? pressedScale : 1)
+            .opacity(configuration.isPressed ? pressedOpacity : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

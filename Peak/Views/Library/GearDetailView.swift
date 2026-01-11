@@ -11,14 +11,18 @@ struct GearDetailView: View {
     @State private var showEditor = false
     @State private var showDeleteConfirm = false
     @State private var showArchiveConfirm = false
+    @State private var cachedSummary = GearUsageSummary(
+        totalUses: 0,
+        firstUsed: nil,
+        lastUsed: nil,
+        averageRating: 0,
+        topSpots: [],
+        monthlyCounts: []
+    )
+    @State private var cachedPolicy = GearUsagePolicy(canDelete: false, canArchive: false)
+    @State private var cachedRelatedSessions: [SurfSession] = []
 
     var body: some View {
-        let relatedSessions = sessions.filter { session in
-            session.gear.contains(where: { $0.key == gear.key })
-        }
-        let summary = GearUsageCalculator.summary(for: gear, sessions: sessions)
-        let policy = GearUsageCalculator.policy(for: gear, sessions: sessions)
-
         ZStack {
             Theme.background.ignoresSafeArea()
 
@@ -26,21 +30,21 @@ struct GearDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     headerCard
 
-                    usageSummarySection(summary: summary)
+                    usageSummarySection(summary: cachedSummary)
 
                     UsageChartCard(
                         title: "Usage over time",
-                        data: summary.monthlyCounts,
+                        data: cachedSummary.monthlyCounts,
                         valueLabel: "Sessions"
                     )
 
-                    topSpotsSection(spots: summary.topSpots)
+                    topSpotsSection(spots: cachedSummary.topSpots)
 
                     notesSection
 
-                    sessionSection(sessions: relatedSessions)
+                    sessionSection(sessions: cachedRelatedSessions)
 
-                    actionSection(policy: policy)
+                    actionSection(policy: cachedPolicy)
                 }
                 .padding()
             }
@@ -80,6 +84,12 @@ struct GearDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes the gear from your library. Sessions will remain unchanged.")
+        }
+        .onAppear {
+            refreshUsage()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshUsage()
         }
     }
 
@@ -222,7 +232,7 @@ struct GearDetailView: View {
                     } label: {
                         SessionRowView(session: session)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressFeedbackButtonStyle())
                 }
             }
         }
@@ -262,6 +272,14 @@ struct GearDetailView: View {
             return "-"
         }
         return String(format: "%.1f", value)
+    }
+
+    private func refreshUsage() {
+        cachedRelatedSessions = sessions.filter { session in
+            session.gear.contains(where: { $0.key == gear.key })
+        }
+        cachedSummary = GearUsageCalculator.summary(for: gear, sessions: sessions)
+        cachedPolicy = GearUsageCalculator.policy(for: gear, sessions: sessions)
     }
 }
 

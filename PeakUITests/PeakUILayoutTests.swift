@@ -119,6 +119,108 @@ final class PeakUILayoutTests: XCTestCase {
 
         attachScreenshot(name: "More")
     }
+
+    func testSessionEditorKeyboardAvoidsFields() {
+        tapTab(named: "Log")
+
+        let newSession = app.buttons["New Session"]
+        assertExists(newSession)
+        newSession.tap()
+
+        let scrollView = app.scrollViews.firstMatch
+
+        let spotField = app.textFields["session.editor.spot"]
+        assertExists(spotField)
+        scrollToVisible(spotField, in: scrollView)
+        spotField.tap()
+        app.typeText("San Onofre State Beach")
+        assertNotCoveredByKeyboard(spotField)
+
+        let gearField = app.textFields["session.editor.gear"]
+        assertExists(gearField)
+        scrollToVisible(gearField, in: scrollView)
+        gearField.tap()
+        app.typeText("7'4\" Midlength")
+        assertNotCoveredByKeyboard(gearField)
+
+        let buddyField = app.textFields["session.editor.buddy"]
+        assertExists(buddyField)
+        scrollToVisible(buddyField, in: scrollView)
+        buddyField.tap()
+        app.typeText("Chris")
+        assertNotCoveredByKeyboard(buddyField)
+
+        let notesField = app.textViews["session.editor.notes"]
+        assertExists(notesField)
+        scrollToVisible(notesField, in: scrollView)
+        notesField.tap()
+        app.typeText("Long notes to confirm the editor stays visible above the keyboard.")
+        assertNotCoveredByKeyboard(notesField)
+    }
+
+    func testGearEditorKeyboardAvoidsFields() {
+        tapTab(named: "Quiver")
+
+        let addGear = app.buttons["quiver.add"]
+        assertExists(addGear)
+        addGear.tap()
+
+        let scrollView = app.scrollViews.firstMatch
+
+        let nameField = app.textFields["gear.editor.name"]
+        assertExists(nameField)
+        nameField.tap()
+        app.typeText("Twin Pin")
+        assertNotCoveredByKeyboard(nameField)
+
+        let notesField = app.textViews["gear.editor.notes"]
+        assertExists(notesField)
+        scrollToVisible(notesField, in: scrollView)
+        notesField.tap()
+        app.typeText("Adds glide and trims on shoulder-high days.")
+        assertNotCoveredByKeyboard(notesField)
+    }
+
+    func testSpotEditorKeyboardAvoidsFields() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Spots")
+
+        let addSpot = app.buttons["spot.library.add"]
+        assertExists(addSpot)
+        addSpot.tap()
+
+        let scrollView = app.scrollViews.firstMatch
+
+        let nameField = app.textFields["spot.editor.name"]
+        assertExists(nameField)
+        nameField.tap()
+        app.typeText("Little Rincon")
+        assertNotCoveredByKeyboard(nameField)
+
+        let locationField = app.textFields["spot.editor.location"]
+        assertExists(locationField)
+        scrollToVisible(locationField, in: scrollView)
+        locationField.tap()
+        app.typeText("Santa Barbara")
+        assertNotCoveredByKeyboard(locationField)
+    }
+
+    func testBuddyEditorKeyboardAvoidsFields() {
+        tapTab(named: "More")
+        tapElement(named: "Library")
+        tapElement(named: "Buddies")
+
+        let addBuddy = app.buttons["buddy.library.add"]
+        assertExists(addBuddy)
+        addBuddy.tap()
+
+        let nameField = app.textFields["buddy.editor.name"]
+        assertExists(nameField)
+        nameField.tap()
+        app.typeText("Sam")
+        assertNotCoveredByKeyboard(nameField)
+    }
 }
 
 private extension PeakUILayoutTests {
@@ -197,5 +299,43 @@ private extension PeakUILayoutTests {
             return first
         }
         return nil
+    }
+
+    func tapElement(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let predicate = NSPredicate(format: "label == %@", name)
+
+        if let element = firstHittable(in: app.buttons.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.cells.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.staticTexts.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        XCTFail("Missing element: \(name)", file: file, line: line)
+    }
+
+    func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let keyboard = app.keyboards.firstMatch
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 2), "Keyboard not visible", file: file, line: line)
+
+        let elementFrame = element.frame
+        let keyboardFrame = keyboard.frame
+        let tolerance: CGFloat = 6
+
+        XCTAssertLessThanOrEqual(
+            elementFrame.maxY,
+            keyboardFrame.minY - tolerance,
+            "Element covered by keyboard: \(element)",
+            file: file,
+            line: line
+        )
     }
 }

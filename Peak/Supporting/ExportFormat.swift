@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct PeakExport: Codable {
+nonisolated struct PeakExport: Codable {
     let schemaVersion: String
     let exportedAt: String
     let sessions: [SessionExport]
@@ -19,7 +19,7 @@ struct PeakExport: Codable {
     }
 }
 
-struct SessionExport: Codable {
+nonisolated struct SessionExport: Codable {
     let id: String
     let date: String
     let spotId: String?
@@ -45,7 +45,7 @@ struct SessionExport: Codable {
     }
 }
 
-struct SpotExport: Codable {
+nonisolated struct SpotExport: Codable {
     let id: String
     let name: String
     let locationName: String?
@@ -63,7 +63,7 @@ struct SpotExport: Codable {
     }
 }
 
-struct GearExport: Codable {
+nonisolated struct GearExport: Codable {
     let id: String
     let name: String
     let kind: String
@@ -91,7 +91,7 @@ struct GearExport: Codable {
     }
 }
 
-struct BuddyExport: Codable {
+nonisolated struct BuddyExport: Codable {
     let id: String
     let name: String
     let createdAt: String
@@ -176,13 +176,13 @@ enum PeakExportManager {
         )
     }
 
-    static func jsonData(from export: PeakExport) throws -> Data {
+    nonisolated static func jsonData(from export: PeakExport) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(export)
     }
 
-    static func decodeJSON(_ data: Data) throws -> PeakExport {
+    nonisolated static func decodeJSON(_ data: Data) throws -> PeakExport {
         let decoder = JSONDecoder()
         return try decoder.decode(PeakExport.self, from: data)
     }
@@ -194,6 +194,10 @@ enum PeakExportManager {
         buddies: [Buddy]
     ) throws -> URL {
         let export = makeExport(sessions: sessions, spots: spots, gear: gear, buddies: buddies)
+        return try exportJSONFile(from: export)
+    }
+
+    nonisolated static func exportJSONFile(from export: PeakExport) throws -> URL {
         let data = try jsonData(from: export)
         let url = exportURL(prefix: "Peak-Export", fileExtension: "json")
         try data.write(to: url, options: [.atomic])
@@ -202,6 +206,16 @@ enum PeakExportManager {
 
     static func exportCSVFile(sessions: [SurfSession]) throws -> URL {
         let csv = sessionsCSV(sessions: sessions)
+        let url = exportURL(prefix: "Peak-Sessions", fileExtension: "csv")
+        guard let data = csv.data(using: .utf8) else {
+            throw ExportError.encodingFailed
+        }
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    nonisolated static func exportCSVFile(from export: PeakExport) throws -> URL {
+        let csv = sessionsCSV(export: export)
         let url = exportURL(prefix: "Peak-Sessions", fileExtension: "csv")
         guard let data = csv.data(using: .utf8) else {
             throw ExportError.encodingFailed
@@ -232,6 +246,36 @@ enum PeakExportManager {
             ].map(csvEscape).joined(separator: ",")
             rows.append(row)
         }
+        return rows.joined(separator: "\n")
+    }
+
+    nonisolated static func sessionsCSV(export: PeakExport) -> String {
+        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary"]
+        let spotLookup = Dictionary(uniqueKeysWithValues: export.spots.map { ($0.id, $0.name) })
+        let gearLookup = Dictionary(uniqueKeysWithValues: export.gear.map { ($0.id, $0) })
+        let buddyLookup = Dictionary(uniqueKeysWithValues: export.buddies.map { ($0.id, $0.name) })
+
+        for session in export.sessions {
+            let spotName = session.spotName ?? (session.spotId.flatMap { spotLookup[$0] } ?? "")
+            let buddyNames = session.buddyIds.compactMap { buddyLookup[$0] }.joined(separator: ", ")
+            let gearSummary = session.gearIds.compactMap { id -> String? in
+                guard let gear = gearLookup[id] else { return nil }
+                let kindLabel = GearKind(rawValue: gear.kind)?.label ?? gear.kind
+                return "\(gear.name) (\(kindLabel))"
+            }.joined(separator: ", ")
+
+            let row = [
+                session.id,
+                session.date,
+                spotName,
+                "\(session.rating)",
+                session.notes,
+                buddyNames,
+                gearSummary
+            ].map(csvEscape).joined(separator: ",")
+            rows.append(row)
+        }
+
         return rows.joined(separator: "\n")
     }
 
@@ -354,13 +398,13 @@ enum PeakExportManager {
         }
     }
 
-    private static func exportURL(prefix: String, fileExtension: String) -> URL {
+    nonisolated private static func exportURL(prefix: String, fileExtension: String) -> URL {
         let timestamp = ExportDateFormatter.fileSafeString(from: Date())
         let filename = "\(prefix)-\(timestamp).\(fileExtension)"
         return FileManager.default.temporaryDirectory.appendingPathComponent(filename)
     }
 
-    private static func csvEscape(_ value: String) -> String {
+    nonisolated private static func csvEscape(_ value: String) -> String {
         let needsEscaping = value.contains(",") || value.contains("\"") || value.contains("\n")
         if needsEscaping {
             let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
@@ -376,21 +420,21 @@ enum ExportError: Error {
 }
 
 enum ExportDateFormatter {
-    static let iso8601: ISO8601DateFormatter = {
+    nonisolated private static func iso8601Formatter() -> ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }()
-
-    static func string(from date: Date) -> String {
-        iso8601.string(from: date)
     }
 
-    static func date(from string: String) -> Date? {
-        iso8601.date(from: string)
+    nonisolated static func string(from date: Date) -> String {
+        iso8601Formatter().string(from: date)
     }
 
-    static func fileSafeString(from date: Date) -> String {
+    nonisolated static func date(from string: String) -> Date? {
+        iso8601Formatter().date(from: string)
+    }
+
+    nonisolated static func fileSafeString(from date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)

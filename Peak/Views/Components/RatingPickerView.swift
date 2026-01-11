@@ -12,8 +12,10 @@ struct RatingPickerView: View {
                     Image(systemName: value <= rating ? "star.fill" : "star")
                         .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.4))
                         .font(.title3)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressFeedbackButtonStyle())
                 .accessibilityLabel("Rate \(value) stars")
             }
             if rating > 0 {
@@ -27,7 +29,7 @@ struct RatingPickerView: View {
                         .padding(.vertical, 4)
                         .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressFeedbackButtonStyle())
                 .accessibilityLabel("Clear rating")
             }
         }

@@ -4,6 +4,19 @@ import SwiftData
 struct StatsView: View {
     @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
     @State private var showContent = false
+    @State private var cachedSummary = StatsSummary(
+        totalSessions: 0,
+        averageRating: 0,
+        topSpots: [],
+        topGear: [],
+        topBuddies: []
+    )
+    @State private var cachedYearSummary = SurfYearSummary(
+        year: Calendar.current.component(.year, from: Date()),
+        totalDays: 0,
+        monthlyCounts: [],
+        currentWeekStreak: 0
+    )
 
     var body: some View {
         NavigationStack {
@@ -38,14 +51,20 @@ struct StatsView: View {
             }
             .navigationTitle("Stats")
         }
+        .onAppear {
+            refreshSummaries()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshSummaries()
+        }
     }
 
     private var summary: StatsSummary {
-        StatsCalculator.summarize(sessions: sessions)
+        cachedSummary
     }
 
     private var yearSummary: SurfYearSummary {
-        StatsCalculator.surfDaysThisYear(sessions: sessions)
+        cachedYearSummary
     }
 
     private var summaryCards: some View {
@@ -81,6 +100,11 @@ struct StatsView: View {
             return "-"
         }
         return String(format: "%.1f", summary.averageRating)
+    }
+
+    private func refreshSummaries() {
+        cachedSummary = StatsCalculator.summarize(sessions: sessions)
+        cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
     }
 }
 

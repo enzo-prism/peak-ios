@@ -62,6 +62,7 @@ struct BuddyLibraryView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityIdentifier("buddy.library.add")
             }
         }
         .sheet(isPresented: $showEditor) {
