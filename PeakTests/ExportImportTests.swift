@@ -37,6 +37,7 @@ final class ExportImportTests: XCTestCase {
             gear: [gear],
             buddies: [buddy],
             rating: 5,
+            durationMinutes: 90,
             notes: "Clean lines",
             createdAt: createdAt,
             updatedAt: createdAt
@@ -70,6 +71,7 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(spots.count, 2)
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.spot?.name, "Trestles")
+        XCTAssertEqual(sessions.first?.durationMinutes, 90)
         let importedSpot = spots.first { $0.name == "Trestles" }
         XCTAssertEqual(importedSpot?.locationName, "San Clemente, CA")
         XCTAssertEqual(importedSpot?.latitude ?? 0, 33.384, accuracy: 0.0001)

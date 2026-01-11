@@ -25,6 +25,7 @@ nonisolated struct SessionExport: Codable {
     let spotId: String?
     let spotName: String?
     let rating: Int
+    let durationMinutes: Int?
     let notes: String
     let buddyIds: [String]
     let gearIds: [String]
@@ -37,6 +38,7 @@ nonisolated struct SessionExport: Codable {
         case spotId = "spot_id"
         case spotName = "spot_name"
         case rating
+        case durationMinutes = "duration_minutes"
         case notes
         case buddyIds = "buddy_ids"
         case gearIds = "gear_ids"
@@ -158,6 +160,7 @@ enum PeakExportManager {
                 spotId: session.spot?.key,
                 spotName: session.spot?.name,
                 rating: session.rating,
+                durationMinutes: session.durationMinutes,
                 notes: session.notes,
                 buddyIds: session.buddies.map(\.key),
                 gearIds: session.gear.map(\.key),
@@ -379,6 +382,7 @@ enum PeakExportManager {
 
             session.date = ExportDateFormatter.date(from: sessionExport.date) ?? session.date
             session.rating = sessionExport.rating
+            session.durationMinutes = SurfSession.normalizedDuration(sessionExport.durationMinutes)
             session.notes = sessionExport.notes
             session.createdAt = createdAt
             session.updatedAt = ExportDateFormatter.date(from: sessionExport.updatedAt) ?? createdAt

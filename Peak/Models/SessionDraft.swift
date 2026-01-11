@@ -8,6 +8,7 @@ struct SessionDraft {
     var selectedGear: [Gear] = []
     var selectedBuddies: [Buddy] = []
     var rating: Int = 0
+    var durationMinutes: Int = 0
     var notes: String = ""
 
     init() {}
@@ -19,6 +20,7 @@ struct SessionDraft {
         selectedGear = session.gear
         selectedBuddies = session.buddies
         rating = session.rating
+        durationMinutes = session.durationMinutes ?? 0
         notes = session.notes
     }
 

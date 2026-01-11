@@ -14,3 +14,18 @@ extension Date {
         formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
     }
 }
+
+enum SessionDurationFormatter {
+    static func string(from minutes: Int?) -> String {
+        guard let minutes, minutes > 0 else { return "Not set" }
+        let hours = minutes / 60
+        let remainingMinutes = minutes % 60
+        if hours > 0, remainingMinutes > 0 {
+            return "\(hours)h \(remainingMinutes)m"
+        }
+        if hours > 0 {
+            return "\(hours)h"
+        }
+        return "\(remainingMinutes)m"
+    }
+}

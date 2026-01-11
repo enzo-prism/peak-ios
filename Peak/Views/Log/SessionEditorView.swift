@@ -60,6 +60,32 @@ struct SessionEditorView: View {
                                     .glassInput()
                                     .accessibilityIdentifier("session.editor.date")
 
+                                DatePicker("Start time", selection: $draft.date, displayedComponents: [.hourAndMinute])
+                                    .datePickerStyle(.compact)
+                                    .tint(Theme.textPrimary)
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .padding(12)
+                                    .glassInput()
+                                    .accessibilityIdentifier("session.editor.startTime")
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Duration")
+                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                                            .foregroundStyle(Theme.textPrimary)
+                                        Spacer()
+                                        Text(durationLabel)
+                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                            .foregroundStyle(Theme.textMuted)
+                                    }
+                                    Slider(value: durationBinding, in: 0...180, step: 15)
+                                        .tint(Theme.textPrimary)
+                                        .accessibilityIdentifier("session.editor.duration")
+                                        .accessibilityValue(durationLabel)
+                                }
+                                .padding(12)
+                                .glassInput()
+
                                 TextField(
                                     "Spot",
                                     text: $draft.spotName,
@@ -303,6 +329,19 @@ struct SessionEditorView: View {
         }
     }
 
+    private var durationBinding: Binding<Double> {
+        Binding(
+            get: { Double(draft.durationMinutes) },
+            set: { newValue in
+                draft.durationMinutes = Int(newValue.rounded())
+            }
+        )
+    }
+
+    private var durationLabel: String {
+        SessionDurationFormatter.string(from: draft.durationMinutes > 0 ? draft.durationMinutes : nil)
+    }
+
     private func sortedGear(for kind: GearKind) -> [Gear] {
         let items = availableGear.filter { $0.kind == kind }
         return items.sorted { lhs, rhs in
@@ -352,6 +391,7 @@ struct SessionEditorView: View {
             showSpotAlert = true
             return
         }
+        let durationMinutes = SurfSession.normalizedDuration(draft.durationMinutes > 0 ? draft.durationMinutes : nil)
 
         switch mode {
         case .new:
@@ -361,6 +401,7 @@ struct SessionEditorView: View {
                 gear: draft.selectedGear,
                 buddies: draft.selectedBuddies,
                 rating: draft.rating,
+                durationMinutes: durationMinutes,
                 notes: draft.notes,
                 createdAt: Date(),
                 updatedAt: Date()
@@ -372,6 +413,7 @@ struct SessionEditorView: View {
             session.gear = draft.selectedGear
             session.buddies = draft.selectedBuddies
             session.rating = draft.rating
+            session.durationMinutes = durationMinutes
             session.notes = draft.notes
             session.updatedAt = Date()
         }

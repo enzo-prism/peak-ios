@@ -7,6 +7,7 @@ final class SurfSession {
     var spot: Spot?
     var notes: String
     var rating: Int
+    var durationMinutes: Int?
     var createdAt: Date
     var updatedAt: Date
     @Relationship(deleteRule: .nullify) var gear: [Gear]
@@ -18,6 +19,7 @@ final class SurfSession {
         gear: [Gear] = [],
         buddies: [Buddy] = [],
         rating: Int = 0,
+        durationMinutes: Int? = nil,
         notes: String = "",
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -27,8 +29,17 @@ final class SurfSession {
         self.gear = gear
         self.buddies = buddies
         self.rating = max(0, min(5, rating))
+        self.durationMinutes = SurfSession.normalizedDuration(durationMinutes)
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    static func normalizedDuration(_ minutes: Int?) -> Int? {
+        guard let minutes, minutes > 0 else { return nil }
+        let clamped = min(minutes, 180)
+        let step = 15
+        let snapped = Int((Double(clamped) / Double(step)).rounded()) * step
+        return max(step, min(snapped, 180))
     }
 }

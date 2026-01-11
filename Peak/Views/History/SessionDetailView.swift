@@ -17,6 +17,10 @@ struct SessionDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         VStack(alignment: .leading, spacing: 10) {
                             detailRow(title: "Date", value: session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+                            detailRow(title: "Start time", value: session.date.formatted(.dateTime.hour().minute()))
+                            if let durationMinutes = session.durationMinutes {
+                                detailRow(title: "Duration", value: SessionDurationFormatter.string(from: durationMinutes))
+                            }
                             detailRow(title: "Spot", value: session.spot?.name ?? "Unknown spot")
                             if session.rating > 0 {
                                 detailRow(title: "Rating", value: "\(session.rating) / 5")
