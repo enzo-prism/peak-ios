@@ -36,6 +36,10 @@ final class ExportImportTests: XCTestCase {
             spot: spot,
             gear: [gear],
             buddies: [buddy],
+            photos: [
+                SessionPhoto(data: Data([0x0A, 0x0B]), sortIndex: 0, createdAt: createdAt),
+                SessionPhoto(data: Data([0x0C, 0x0D]), sortIndex: 1, createdAt: createdAt)
+            ],
             rating: 5,
             durationMinutes: 90,
             notes: "Clean lines",
@@ -83,6 +87,10 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(importedGear?.volumeLiters ?? 0, 31.5, accuracy: 0.01)
         XCTAssertEqual(importedGear?.notes, "Daily driver")
         XCTAssertEqual(importedGear?.photoData, Data([0x01, 0x02, 0x03]))
+        let importedPhotos = sessions.first?.photos.sorted(by: { $0.sortIndex < $1.sortIndex }) ?? []
+        XCTAssertEqual(importedPhotos.count, 2)
+        XCTAssertEqual(importedPhotos.first?.data, Data([0x0A, 0x0B]))
+        XCTAssertEqual(importedPhotos.last?.data, Data([0x0C, 0x0D]))
     }
 
     func testExportImportReplaceClearsExisting() throws {
@@ -124,7 +132,7 @@ final class ExportImportTests: XCTestCase {
     }
 
     private func makeContainer() throws -> ModelContainer {
-        let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self])
+        let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionPhoto.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [configuration])
     }
