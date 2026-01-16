@@ -8,26 +8,30 @@ struct MoreView: View {
                 Theme.background.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 12) {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            Label("Settings", systemImage: "gearshape")
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
-                        }
-                        .buttonStyle(.plain)
+                    GlassContainer(spacing: 12) {
+                        VStack(spacing: 12) {
+                            NavigationLink {
+                                SettingsView()
+                            } label: {
+                                Label("Settings", systemImage: "gearshape")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
 
-                        NavigationLink {
-                            LibraryView()
-                        } label: {
-                            Label("Library", systemImage: "books.vertical")
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                            NavigationLink {
+                                LibraryView()
+                            } label: {
+                                Label("Library", systemImage: "books.vertical")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
                         }
-                        .buttonStyle(.plain)
                     }
                     .padding()
                 }

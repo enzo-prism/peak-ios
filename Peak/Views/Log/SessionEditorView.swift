@@ -1,5 +1,7 @@
-import SwiftUI
+import PhotosUI
 import SwiftData
+import SwiftUI
+import UniformTypeIdentifiers
 
 enum SessionEditorMode {
     case new
@@ -32,6 +34,11 @@ struct SessionEditorView: View {
     @State private var showSpotEditor = false
     @State private var showSpotAlert = false
     @State private var spotAlertMessage = ""
+    @State private var selectedMediaItems: [PhotosPickerItem] = []
+    @State private var showMediaAlert = false
+    @State private var mediaAlertMessage = ""
+    @State private var didSave = false
+    @State private var dismissAfterMediaAlert = false
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -208,12 +215,10 @@ struct SessionEditorView: View {
                                                                     isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
                                                                 ) {
                                                                     draft.toggleGear(item)
-                    }
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .keyboardSafeAreaInset()
-            }
-        }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -267,6 +272,53 @@ struct SessionEditorView: View {
                                     .accessibilityIdentifier("session.editor.rating")
                             }
 
+                            EditorSection("Media") {
+                                if draft.mediaItems.isEmpty {
+                                    Text("Add photos or videos from your library.")
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+                                        .padding(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                } else {
+                                    let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
+                                    LazyVGrid(columns: columns, spacing: 12) {
+                                        ForEach(draft.mediaItems) { item in
+                                            ZStack(alignment: .topTrailing) {
+                                                SessionMediaThumbnailView(
+                                                    imageData: item.thumbnailData ?? item.photoData,
+                                                    isVideo: item.kind == .video
+                                                )
+                                                .frame(height: 110)
+                                                .frame(maxWidth: .infinity)
+                                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                                .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+
+                                                Button {
+                                                    removeMediaItem(item)
+                                                } label: {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .font(.system(size: 18, weight: .semibold))
+                                                        .foregroundStyle(Theme.textPrimary)
+                                                        .padding(6)
+                                                }
+                                                .buttonStyle(PressFeedbackButtonStyle())
+                                                .accessibilityLabel("Remove media")
+                                            }
+                                        }
+                                    }
+                                }
+
+                                PhotosPicker(
+                                    selection: $selectedMediaItems,
+                                    matching: .any(of: [.images, .videos])
+                                ) {
+                                    Label("Add Photos or Videos", systemImage: "photo.on.rectangle.angled")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .glassButtonStyle(prominent: false)
+                            }
+
                             EditorSection("Notes") {
                                 ZStack(alignment: .topLeading) {
                                     TextEditor(text: $draft.notes)
@@ -287,6 +339,8 @@ struct SessionEditorView: View {
                         }
                         .padding()
                     }
+                    .scrollDismissesKeyboard(.interactively)
+                    .keyboardSafeAreaInset()
                 }
             }
         .navigationTitle(mode.title)
@@ -315,6 +369,24 @@ struct SessionEditorView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(spotAlertMessage)
+        }
+        .alert("Media", isPresented: $showMediaAlert) {
+            Button("OK", role: .cancel) {
+                if dismissAfterMediaAlert {
+                    dismissAfterMediaAlert = false
+                    dismiss()
+                }
+            }
+        } message: {
+            Text(mediaAlertMessage)
+        }
+        .onChange(of: selectedMediaItems) { _, newValue in
+            handleMediaSelection(newValue)
+        }
+        .onDisappear {
+            if !didSave {
+                cleanupPendingMedia()
+            }
         }
     }
 
@@ -393,6 +465,8 @@ struct SessionEditorView: View {
         }
         let durationMinutes = SurfSession.normalizedDuration(draft.durationMinutes > 0 ? draft.durationMinutes : nil)
 
+        var mediaFailures = 0
+
         switch mode {
         case .new:
             let session = SurfSession(
@@ -407,6 +481,7 @@ struct SessionEditorView: View {
                 updatedAt: Date()
             )
             modelContext.insert(session)
+            mediaFailures = applyMedia(to: session)
         case .edit(let session):
             session.date = draft.date
             session.spot = spot
@@ -416,8 +491,21 @@ struct SessionEditorView: View {
             session.durationMinutes = durationMinutes
             session.notes = draft.notes
             session.updatedAt = Date()
+            mediaFailures = applyMedia(to: session)
         }
-        dismiss()
+
+        didSave = true
+
+        if mediaFailures > 0 {
+            mediaAlertMessage = mediaFailures == 1
+                ? "One media item could not be saved."
+                : "\(mediaFailures) media items could not be saved."
+            showMediaAlert = true
+            dismissAfterMediaAlert = true
+        } else {
+            dismissAfterMediaAlert = false
+            dismiss()
+        }
     }
 
     private var filteredSpots: [Spot] {
@@ -436,6 +524,95 @@ struct SessionEditorView: View {
         } else {
             showSpotEditor = true
         }
+    }
+
+    private func handleMediaSelection(_ items: [PhotosPickerItem]) {
+        Task {
+            for item in items {
+                await addMediaItem(item)
+            }
+            await MainActor.run {
+                selectedMediaItems = []
+            }
+        }
+    }
+
+    private func addMediaItem(_ item: PhotosPickerItem) async {
+        let isVideo = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
+        if isVideo {
+            guard let url = try? await item.loadTransferable(type: URL.self) else { return }
+            let thumbnailData = SessionMediaStore.videoThumbnailData(from: url)
+            await MainActor.run {
+                draft.mediaItems.append(.newVideo(temporaryURL: url, thumbnailData: thumbnailData))
+            }
+        } else {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+            let photoData = SessionMediaStore.compressedPhotoData(from: data)
+            let thumbnailData = SessionMediaStore.thumbnailData(from: photoData)
+            await MainActor.run {
+                draft.mediaItems.append(.newPhoto(photoData: photoData, thumbnailData: thumbnailData))
+            }
+        }
+    }
+
+    private func cleanupPendingMedia() {
+        let pendingURLs = draft.mediaItems.compactMap { $0.temporaryVideoURL }
+        SessionMediaStore.deleteTemporaryFiles(pendingURLs)
+    }
+
+    private func removeMediaItem(_ item: SessionMediaDraftItem) {
+        if let url = item.temporaryVideoURL {
+            SessionMediaStore.deleteTemporaryFiles([url])
+        }
+        draft.removeMediaItem(item)
+    }
+
+    private func applyMedia(to session: SurfSession) -> Int {
+        let keptExisting = draft.mediaItems.compactMap { $0.existingMedia }
+        let keptIds = Set(keptExisting.map(\.persistentModelID))
+        let removed = session.media.filter { !keptIds.contains($0.persistentModelID) }
+        SessionMediaStore.deleteStoredMedia(for: removed)
+        for media in removed {
+            modelContext.delete(media)
+        }
+
+        var updatedMedia: [SessionMedia] = []
+        updatedMedia.reserveCapacity(draft.mediaItems.count)
+        var failures = 0
+
+        for item in draft.mediaItems {
+            switch item.source {
+            case .existing(let media):
+                updatedMedia.append(media)
+            case .newPhoto(let photoData, let thumbnailData):
+                let media = SessionMedia(
+                    kind: .photo,
+                    photoData: photoData,
+                    thumbnailData: thumbnailData,
+                    createdAt: item.createdAt
+                )
+                modelContext.insert(media)
+                updatedMedia.append(media)
+            case .newVideo(let temporaryURL, let thumbnailData):
+                do {
+                    let stored = try SessionMediaStore.storeVideo(from: temporaryURL, thumbnailData: thumbnailData)
+                    let media = SessionMedia(
+                        kind: .video,
+                        thumbnailData: stored.thumbnailData,
+                        videoFileName: stored.fileName,
+                        createdAt: item.createdAt
+                    )
+                    modelContext.insert(media)
+                    updatedMedia.append(media)
+                } catch {
+                    failures += 1
+                    SessionMediaStore.deleteTemporaryFiles([temporaryURL])
+                }
+            }
+        }
+
+        session.media = updatedMedia
+        return failures
     }
 }
 

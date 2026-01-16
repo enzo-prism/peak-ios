@@ -1,5 +1,7 @@
-import SwiftUI
+import AVKit
 import SwiftData
+import SwiftUI
+import UIKit
 
 struct SessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -7,6 +9,7 @@ struct SessionDetailView: View {
     let session: SurfSession
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
+    @State private var selectedMedia: SessionMedia?
 
     var body: some View {
         ZStack {
@@ -35,6 +38,10 @@ struct SessionDetailView: View {
 
                         if !session.buddies.isEmpty {
                             infoCard(title: "Buddies", items: session.buddies.sorted(by: { $0.name < $1.name }).map { $0.name })
+                        }
+
+                        if !session.media.isEmpty {
+                            mediaSection
                         }
 
                         if !session.notes.isEmpty {
@@ -72,6 +79,7 @@ struct SessionDetailView: View {
         }
         .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                SessionMediaStore.deleteStoredMedia(for: session.media)
                 modelContext.delete(session)
                 dismiss()
             }
@@ -79,6 +87,9 @@ struct SessionDetailView: View {
         }
         .sheet(isPresented: $showEdit) {
             SessionEditorView(mode: .edit(session))
+        }
+        .sheet(item: $selectedMedia) { media in
+            SessionMediaViewer(media: media)
         }
     }
 
@@ -113,6 +124,79 @@ struct SessionDetailView: View {
         Text(title.uppercased())
             .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
             .foregroundStyle(Theme.textMuted)
+    }
+
+    private var mediaSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionTitle("Media")
+            let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(session.media.sorted(by: { $0.createdAt < $1.createdAt }), id: \.persistentModelID) { media in
+                    Button {
+                        selectedMedia = media
+                    } label: {
+                        SessionMediaThumbnailView(
+                            imageData: media.thumbnailData ?? media.photoData,
+                            isVideo: media.kind == .video
+                        )
+                        .frame(height: 110)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+                    }
+                    .buttonStyle(PressFeedbackButtonStyle())
+                    .accessibilityLabel(media.kind == .video ? "Video" : "Photo")
+                }
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+    }
+}
+
+private struct SessionMediaViewer: View {
+    @Environment(\.dismiss) private var dismiss
+    let media: SessionMedia
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.background.ignoresSafeArea()
+
+                if media.kind == .video {
+                    if let url = media.videoFileName.map(SessionMediaStore.videoURL(for:)) {
+                        VideoPlayer(player: player)
+                            .onAppear {
+                                player = AVPlayer(url: url)
+                                player?.play()
+                            }
+                            .onDisappear {
+                                player?.pause()
+                            }
+                    } else {
+                        Text("Video unavailable.")
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                } else if let data = media.photoData, let image = UIImage(data: data) {
+                    ScrollView([.horizontal, .vertical]) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .padding(16)
+                    }
+                } else {
+                    Text("Photo unavailable.")
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            .navigationTitle("Media")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }
 

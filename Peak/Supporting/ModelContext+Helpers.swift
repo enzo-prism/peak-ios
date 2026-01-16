@@ -91,6 +91,12 @@ extension ModelContext {
         return (try? fetch(descriptor))?.first
     }
 
+    private func deleteSessionMediaFiles() throws {
+        let descriptor = FetchDescriptor<SessionMedia>()
+        let items = try fetch(descriptor)
+        SessionMediaStore.deleteStoredMedia(for: items)
+    }
+
     func deleteAll<T: PersistentModel>(_ type: T.Type) throws {
         let descriptor = FetchDescriptor<T>()
         let items = try fetch(descriptor)
@@ -100,7 +106,9 @@ extension ModelContext {
     }
 
     func resetAllData() throws {
+        try deleteSessionMediaFiles()
         try deleteAll(SurfSession.self)
+        try deleteAll(SessionMedia.self)
         try deleteAll(Gear.self)
         try deleteAll(Spot.self)
         try deleteAll(Buddy.self)

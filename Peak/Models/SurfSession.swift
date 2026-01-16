@@ -12,12 +12,14 @@ final class SurfSession {
     var updatedAt: Date
     @Relationship(deleteRule: .nullify) var gear: [Gear]
     @Relationship(deleteRule: .nullify) var buddies: [Buddy]
+    @Relationship(deleteRule: .cascade) var media: [SessionMedia]
 
     init(
         date: Date,
         spot: Spot?,
         gear: [Gear] = [],
         buddies: [Buddy] = [],
+        media: [SessionMedia] = [],
         rating: Int = 0,
         durationMinutes: Int? = nil,
         notes: String = "",
@@ -28,6 +30,7 @@ final class SurfSession {
         self.spot = spot
         self.gear = gear
         self.buddies = buddies
+        self.media = media
         self.rating = max(0, min(5, rating))
         self.durationMinutes = SurfSession.normalizedDuration(durationMinutes)
         self.notes = notes

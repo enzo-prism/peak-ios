@@ -7,36 +7,41 @@ struct LibraryView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 12) {
-                    NavigationLink {
-                        QuiverView()
-                    } label: {
-                        Label("Quiver", image: "surfboard")
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
-                    }
-                    .buttonStyle(.plain)
+                GlassContainer(spacing: 12) {
+                    VStack(spacing: 12) {
+                        NavigationLink {
+                            QuiverView()
+                        } label: {
+                            Label("Quiver", image: "surfboard")
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(PressFeedbackButtonStyle())
 
-                    NavigationLink {
-                        SpotLibraryView()
-                    } label: {
-                        Label("Spots", systemImage: "mappin.and.ellipse")
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
-                    }
-                    .buttonStyle(.plain)
+                        NavigationLink {
+                            SpotLibraryView()
+                        } label: {
+                            Label("Spots", systemImage: "mappin.and.ellipse")
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(PressFeedbackButtonStyle())
 
-                    NavigationLink {
-                        BuddyLibraryView()
-                    } label: {
-                        Label("Buddies", systemImage: "person.2")
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                        NavigationLink {
+                            BuddyLibraryView()
+                        } label: {
+                            Label("Buddies", systemImage: "person.2")
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(PressFeedbackButtonStyle())
                     }
-                    .buttonStyle(.plain)
                 }
                 .padding()
             }
