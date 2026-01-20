@@ -330,8 +330,8 @@ private struct ZoomableImageView: UIViewRepresentable {
         Coordinator(onSingleTap: onSingleTap)
     }
 
-    func makeUIView(context: Context) -> UIScrollView {
-        let scrollView = UIScrollView()
+    func makeUIView(context: Context) -> ZoomingScrollView {
+        let scrollView = ZoomingScrollView()
         scrollView.backgroundColor = .clear
         scrollView.delegate = context.coordinator
         scrollView.showsHorizontalScrollIndicator = false
@@ -351,6 +351,8 @@ private struct ZoomableImageView: UIViewRepresentable {
         scrollView.addSubview(imageView)
 
         context.coordinator.imageView = imageView
+        scrollView.zoomCoordinator = context.coordinator
+        scrollView.currentImage = image
         context.coordinator.update(image: image, in: scrollView)
 
         let doubleTap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleDoubleTap(_:)))
@@ -367,8 +369,20 @@ private struct ZoomableImageView: UIViewRepresentable {
         return scrollView
     }
 
-    func updateUIView(_ scrollView: UIScrollView, context: Context) {
+    func updateUIView(_ scrollView: ZoomingScrollView, context: Context) {
+        scrollView.currentImage = image
         context.coordinator.update(image: image, in: scrollView)
+    }
+
+    final class ZoomingScrollView: UIScrollView {
+        var currentImage: UIImage?
+        weak var zoomCoordinator: Coordinator?
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            guard let currentImage, let zoomCoordinator else { return }
+            zoomCoordinator.update(image: currentImage, in: self)
+        }
     }
 
     final class Coordinator: NSObject, UIScrollViewDelegate {
