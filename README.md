@@ -1,11 +1,13 @@
 # Peak - Surf Log
 
-Peak is a fast, private surf-session logbook. Track when you surfed, where you paddled out, what gear you rode, and who you surfed with, then look back anytime.
+Peak is a fast, private surf-session logbook. Track when you surfed, where you paddled out, what gear you rode, who you surfed with, and the conditions, then look back anytime.
 
 ## Product scope
 - Offline-first, on-device storage only
 - No accounts or social features
 - Quick session logging (date + spot required)
+- Optional wind and wave height conditions
+- Photo and video attachments per session
 - History timeline with filters (spot, gear, buddy)
 - Basic stats (totals, top spots, most-used gear)
 
