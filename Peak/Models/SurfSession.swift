@@ -8,6 +8,8 @@ final class SurfSession {
     var notes: String
     var rating: Int
     var durationMinutes: Int?
+    var windCondition: WindCondition?
+    var waveHeight: WaveHeight?
     var createdAt: Date
     var updatedAt: Date
     @Relationship(deleteRule: .nullify) var gear: [Gear]
@@ -22,6 +24,8 @@ final class SurfSession {
         media: [SessionMedia] = [],
         rating: Int = 0,
         durationMinutes: Int? = nil,
+        windCondition: WindCondition? = nil,
+        waveHeight: WaveHeight? = nil,
         notes: String = "",
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -33,6 +37,8 @@ final class SurfSession {
         self.media = media
         self.rating = max(0, min(5, rating))
         self.durationMinutes = SurfSession.normalizedDuration(durationMinutes)
+        self.windCondition = windCondition
+        self.waveHeight = waveHeight
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt

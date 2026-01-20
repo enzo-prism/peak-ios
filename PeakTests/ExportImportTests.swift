@@ -38,6 +38,8 @@ final class ExportImportTests: XCTestCase {
             buddies: [buddy],
             rating: 5,
             durationMinutes: 90,
+            windCondition: .breezy,
+            waveHeight: .shoulderHigh,
             notes: "Clean lines",
             createdAt: createdAt,
             updatedAt: createdAt
@@ -72,6 +74,8 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.spot?.name, "Trestles")
         XCTAssertEqual(sessions.first?.durationMinutes, 90)
+        XCTAssertEqual(sessions.first?.windCondition, .breezy)
+        XCTAssertEqual(sessions.first?.waveHeight, .shoulderHigh)
         let importedSpot = spots.first { $0.name == "Trestles" }
         XCTAssertEqual(importedSpot?.locationName, "San Clemente, CA")
         XCTAssertEqual(importedSpot?.latitude ?? 0, 33.384, accuracy: 0.0001)

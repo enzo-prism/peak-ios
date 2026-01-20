@@ -15,9 +15,13 @@ enum SessionMediaStore {
         let pathExtension = sourceURL.pathExtension.isEmpty ? "mov" : sourceURL.pathExtension
         let fileName = "\(UUID().uuidString).\(pathExtension)"
         let destination = directory.appendingPathComponent(fileName)
-        try FileManager.default.copyItem(at: sourceURL, to: destination)
+        do {
+            try FileManager.default.moveItem(at: sourceURL, to: destination)
+        } catch {
+            try FileManager.default.copyItem(at: sourceURL, to: destination)
+            try? FileManager.default.removeItem(at: sourceURL)
+        }
         let resolvedThumbnail = thumbnailData ?? videoThumbnailData(from: destination)
-        try? FileManager.default.removeItem(at: sourceURL)
         return StoredSessionVideo(fileName: fileName, thumbnailData: resolvedThumbnail)
     }
 

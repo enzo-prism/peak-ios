@@ -93,6 +93,50 @@ struct SessionEditorView: View {
                                 .padding(12)
                                 .glassInput()
 
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Wind")
+                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                                            .foregroundStyle(Theme.textPrimary)
+                                        Spacer()
+                                        Text(windLabel)
+                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                            .foregroundStyle(Theme.textMuted)
+                                    }
+                                    Slider(
+                                        value: windBinding,
+                                        in: 0...Double(WindCondition.allCases.count),
+                                        step: 1
+                                    )
+                                    .tint(Theme.textPrimary)
+                                    .accessibilityIdentifier("session.editor.wind")
+                                    .accessibilityValue(windLabel)
+                                }
+                                .padding(12)
+                                .glassInput()
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("Wave height")
+                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                                            .foregroundStyle(Theme.textPrimary)
+                                        Spacer()
+                                        Text(waveHeightLabel)
+                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                            .foregroundStyle(Theme.textMuted)
+                                    }
+                                    Slider(
+                                        value: waveHeightBinding,
+                                        in: 0...Double(WaveHeight.allCases.count),
+                                        step: 1
+                                    )
+                                    .tint(Theme.textPrimary)
+                                    .accessibilityIdentifier("session.editor.waveHeight")
+                                    .accessibilityValue(waveHeightLabel)
+                                }
+                                .padding(12)
+                                .glassInput()
+
                                 TextField(
                                     "Spot",
                                     text: $draft.spotName,
@@ -414,6 +458,50 @@ struct SessionEditorView: View {
         SessionDurationFormatter.string(from: draft.durationMinutes > 0 ? draft.durationMinutes : nil)
     }
 
+    private var windBinding: Binding<Double> {
+        Binding(
+            get: { Double(windIndex) },
+            set: { newValue in
+                let clamped = max(0, min(Int(newValue.rounded()), WindCondition.allCases.count))
+                draft.windCondition = clamped == 0 ? nil : WindCondition.allCases[clamped - 1]
+            }
+        )
+    }
+
+    private var windLabel: String {
+        draft.windCondition?.label ?? "Not set"
+    }
+
+    private var windIndex: Int {
+        guard let condition = draft.windCondition,
+              let index = WindCondition.allCases.firstIndex(of: condition) else {
+            return 0
+        }
+        return index + 1
+    }
+
+    private var waveHeightBinding: Binding<Double> {
+        Binding(
+            get: { Double(waveHeightIndex) },
+            set: { newValue in
+                let clamped = max(0, min(Int(newValue.rounded()), WaveHeight.allCases.count))
+                draft.waveHeight = clamped == 0 ? nil : WaveHeight.allCases[clamped - 1]
+            }
+        )
+    }
+
+    private var waveHeightLabel: String {
+        draft.waveHeight?.label ?? "Not set"
+    }
+
+    private var waveHeightIndex: Int {
+        guard let height = draft.waveHeight,
+              let index = WaveHeight.allCases.firstIndex(of: height) else {
+            return 0
+        }
+        return index + 1
+    }
+
     private func sortedGear(for kind: GearKind) -> [Gear] {
         let items = availableGear.filter { $0.kind == kind }
         return items.sorted { lhs, rhs in
@@ -476,6 +564,8 @@ struct SessionEditorView: View {
                 buddies: draft.selectedBuddies,
                 rating: draft.rating,
                 durationMinutes: durationMinutes,
+                windCondition: draft.windCondition,
+                waveHeight: draft.waveHeight,
                 notes: draft.notes,
                 createdAt: Date(),
                 updatedAt: Date()
@@ -489,6 +579,8 @@ struct SessionEditorView: View {
             session.buddies = draft.selectedBuddies
             session.rating = draft.rating
             session.durationMinutes = durationMinutes
+            session.windCondition = draft.windCondition
+            session.waveHeight = draft.waveHeight
             session.notes = draft.notes
             session.updatedAt = Date()
             mediaFailures = applyMedia(to: session)
@@ -528,31 +620,45 @@ struct SessionEditorView: View {
 
     private func handleMediaSelection(_ items: [PhotosPickerItem]) {
         Task {
+            var failures = 0
             for item in items {
-                await addMediaItem(item)
+                let success = await addMediaItem(item)
+                if !success {
+                    failures += 1
+                }
             }
             await MainActor.run {
                 selectedMediaItems = []
+                if failures > 0 {
+                    mediaAlertMessage = failures == 1
+                        ? "One media item could not be added."
+                        : "\(failures) media items could not be added."
+                    showMediaAlert = true
+                    dismissAfterMediaAlert = false
+                }
             }
         }
     }
 
-    private func addMediaItem(_ item: PhotosPickerItem) async {
-        let isVideo = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
-        if isVideo {
-            guard let url = try? await item.loadTransferable(type: URL.self) else { return }
-            let thumbnailData = SessionMediaStore.videoThumbnailData(from: url)
+    private func addMediaItem(_ item: PhotosPickerItem) async -> Bool {
+        if let video = try? await item.loadTransferable(type: SessionVideoTransferable.self) {
+            let thumbnailData = SessionMediaStore.videoThumbnailData(from: video.url)
             await MainActor.run {
-                draft.mediaItems.append(.newVideo(temporaryURL: url, thumbnailData: thumbnailData))
+                draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
             }
-        } else {
-            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+            return true
+        }
+
+        if let data = try? await item.loadTransferable(type: Data.self) {
             let photoData = SessionMediaStore.compressedPhotoData(from: data)
             let thumbnailData = SessionMediaStore.thumbnailData(from: photoData)
             await MainActor.run {
                 draft.mediaItems.append(.newPhoto(photoData: photoData, thumbnailData: thumbnailData))
             }
+            return true
         }
+
+        return false
     }
 
     private func cleanupPendingMedia() {
@@ -613,6 +719,31 @@ struct SessionEditorView: View {
 
         session.media = updatedMedia
         return failures
+    }
+}
+
+private struct SessionVideoTransferable: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { video in
+            SentTransferredFile(video.url)
+        } importing: { received in
+            let pathExtension = received.file.pathExtension.isEmpty ? "mov" : received.file.pathExtension
+            let fileName = "\(UUID().uuidString).\(pathExtension)"
+            let destination = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            let scoped = received.file.startAccessingSecurityScopedResource()
+            defer {
+                if scoped {
+                    received.file.stopAccessingSecurityScopedResource()
+                }
+            }
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            try FileManager.default.copyItem(at: received.file, to: destination)
+            return SessionVideoTransferable(url: destination)
+        }
     }
 }
 

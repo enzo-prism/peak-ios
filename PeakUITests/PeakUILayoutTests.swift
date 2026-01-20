@@ -54,6 +54,52 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "History")
     }
 
+    func testMediaViewerPhotoLayout() {
+        openHistorySession(named: "Trestles")
+
+        let scrollView = app.scrollViews.firstMatch
+        let photoThumb = app.buttons.matching(identifier: "session.media.photo").firstMatch
+        assertExists(photoThumb)
+        scrollToVisible(photoThumb, in: scrollView)
+        photoThumb.tap()
+
+        let photoViewer = element(named: "media.viewer.photo")
+        assertExists(photoViewer)
+        assertFits(photoViewer)
+
+        let badge = element(named: "media.viewer.badge")
+        assertExists(badge)
+        assertFits(badge)
+
+        let doneButton = app.buttons["media.viewer.done"]
+        assertExists(doneButton)
+        assertFits(doneButton)
+
+        attachScreenshot(name: "Media Photo Viewer")
+        doneButton.tap()
+    }
+
+    func testMediaViewerVideoLayout() {
+        openHistorySession(named: "Trestles")
+
+        let scrollView = app.scrollViews.firstMatch
+        let videoThumb = app.buttons.matching(identifier: "session.media.video").firstMatch
+        assertExists(videoThumb)
+        scrollToVisible(videoThumb, in: scrollView)
+        videoThumb.tap()
+
+        let videoViewer = element(named: "media.viewer.video")
+        assertExists(videoViewer)
+        assertFits(videoViewer)
+
+        let doneButton = app.buttons["media.viewer.done"]
+        assertExists(doneButton)
+        assertFits(doneButton)
+
+        attachScreenshot(name: "Media Video Viewer")
+        doneButton.tap()
+    }
+
     func testStatsLayoutFits() {
         tapTab(named: "Stats")
 
@@ -423,6 +469,10 @@ private struct PixelBuffer {
 }
 
 private extension PeakUILayoutTests {
+    func element(named identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
     func tapTab(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         let tabButton = app.tabBars.buttons[name]
         if tabButton.waitForExistence(timeout: 2) {
@@ -731,6 +781,20 @@ private extension PeakUILayoutTests {
         }
 
         return app.cells.firstMatch
+    }
+
+    func openHistorySession(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        tapTab(named: "History")
+
+        let row = app.staticTexts[name]
+        if row.waitForExistence(timeout: 2) {
+            row.tap()
+            return
+        }
+
+        let cell = historyRowCell()
+        assertExists(cell, file: file, line: line)
+        cell.tap()
     }
 
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {

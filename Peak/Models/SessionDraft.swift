@@ -9,6 +9,8 @@ struct SessionDraft {
     var selectedBuddies: [Buddy] = []
     var rating: Int = 0
     var durationMinutes: Int = 0
+    var windCondition: WindCondition?
+    var waveHeight: WaveHeight?
     var notes: String = ""
     var mediaItems: [SessionMediaDraftItem] = []
 
@@ -22,6 +24,8 @@ struct SessionDraft {
         selectedBuddies = session.buddies
         rating = session.rating
         durationMinutes = session.durationMinutes ?? 0
+        windCondition = session.windCondition
+        waveHeight = session.waveHeight
         notes = session.notes
         mediaItems = session.media.sorted { $0.createdAt < $1.createdAt }.map { SessionMediaDraftItem(existing: $0) }
     }

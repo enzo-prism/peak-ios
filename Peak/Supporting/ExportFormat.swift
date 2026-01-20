@@ -26,6 +26,8 @@ nonisolated struct SessionExport: Codable {
     let spotName: String?
     let rating: Int
     let durationMinutes: Int?
+    let windCondition: String?
+    let waveHeight: String?
     let notes: String
     let buddyIds: [String]
     let gearIds: [String]
@@ -39,6 +41,8 @@ nonisolated struct SessionExport: Codable {
         case spotName = "spot_name"
         case rating
         case durationMinutes = "duration_minutes"
+        case windCondition = "wind_condition"
+        case waveHeight = "wave_height"
         case notes
         case buddyIds = "buddy_ids"
         case gearIds = "gear_ids"
@@ -161,6 +165,8 @@ enum PeakExportManager {
                 spotName: session.spot?.name,
                 rating: session.rating,
                 durationMinutes: session.durationMinutes,
+                windCondition: session.windCondition?.rawValue,
+                waveHeight: session.waveHeight?.rawValue,
                 notes: session.notes,
                 buddyIds: session.buddies.map(\.key),
                 gearIds: session.gear.map(\.key),
@@ -228,7 +234,7 @@ enum PeakExportManager {
     }
 
     static func sessionsCSV(sessions: [SurfSession]) -> String {
-        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary"]
+        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight"]
         for session in sessions {
             let id = ExportDateFormatter.string(from: session.createdAt)
             let date = ExportDateFormatter.string(from: session.date)
@@ -237,6 +243,8 @@ enum PeakExportManager {
             let notes = session.notes
             let buddyNames = session.buddies.map(\.name).joined(separator: ", ")
             let gearSummary = session.gear.map { "\($0.name) (\($0.kind.label))" }.joined(separator: ", ")
+            let windCondition = session.windCondition?.label ?? ""
+            let waveHeight = session.waveHeight?.label ?? ""
 
             let row = [
                 id,
@@ -245,7 +253,9 @@ enum PeakExportManager {
                 rating,
                 notes,
                 buddyNames,
-                gearSummary
+                gearSummary,
+                windCondition,
+                waveHeight
             ].map(csvEscape).joined(separator: ",")
             rows.append(row)
         }
@@ -253,7 +263,7 @@ enum PeakExportManager {
     }
 
     nonisolated static func sessionsCSV(export: PeakExport) -> String {
-        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary"]
+        var rows = ["id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight"]
         let spotLookup = Dictionary(uniqueKeysWithValues: export.spots.map { ($0.id, $0.name) })
         let gearLookup = Dictionary(uniqueKeysWithValues: export.gear.map { ($0.id, $0) })
         let buddyLookup = Dictionary(uniqueKeysWithValues: export.buddies.map { ($0.id, $0.name) })
@@ -266,6 +276,8 @@ enum PeakExportManager {
                 let kindLabel = GearKind(rawValue: gear.kind)?.label ?? gear.kind
                 return "\(gear.name) (\(kindLabel))"
             }.joined(separator: ", ")
+            let windCondition = session.windCondition.flatMap { WindCondition(rawValue: $0)?.label } ?? ""
+            let waveHeight = session.waveHeight.flatMap { WaveHeight(rawValue: $0)?.label } ?? ""
 
             let row = [
                 session.id,
@@ -274,7 +286,9 @@ enum PeakExportManager {
                 "\(session.rating)",
                 session.notes,
                 buddyNames,
-                gearSummary
+                gearSummary,
+                windCondition,
+                waveHeight
             ].map(csvEscape).joined(separator: ",")
             rows.append(row)
         }
@@ -383,6 +397,8 @@ enum PeakExportManager {
             session.date = ExportDateFormatter.date(from: sessionExport.date) ?? session.date
             session.rating = sessionExport.rating
             session.durationMinutes = SurfSession.normalizedDuration(sessionExport.durationMinutes)
+            session.windCondition = sessionExport.windCondition.flatMap(WindCondition.init)
+            session.waveHeight = sessionExport.waveHeight.flatMap(WaveHeight.init)
             session.notes = sessionExport.notes
             session.createdAt = createdAt
             session.updatedAt = ExportDateFormatter.date(from: sessionExport.updatedAt) ?? createdAt
