@@ -11,11 +11,30 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Photo and video attachments per session
 - History timeline with filters (spot, gear, buddy)
 - Basic stats (totals, top spots, most-used gear)
+- Spot library with pinned locations (required for auto-fill, capped at 10)
+- JSON + CSV export, JSON import (merge or replace)
+
+## Surf conditions auto-fill
+- Requires a session start time, duration, and a surf break with a pinned location.
+- Pulls marine + wind data from Open-Meteo, averages across the session window, and stores the source + fetch time.
+- Never runs automatically; it only fires when the user taps **Auto-fill Conditions**.
+
+## Architecture overview
+- **UI**: SwiftUI tabs (`Log`, `History`, `Stats`, `Quiver`, `More`) with shared glass styling in `Peak/Supporting/Theme.swift`.
+- **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage.
+- **Editing**: `SessionDraft` stages changes before saving to a `SurfSession`.
+- **Media**: Photos stored inline; videos stored in `Application Support/SessionMedia` and referenced by filename.
+- **Conditions**: `SurfConditionsService` calls Open-Meteo marine + weather endpoints when auto-fill is tapped.
+- **Stats**: `StatsCalculator` + `UsageMetricsCalculator` compute totals, streaks, and top items.
+- **Export/Import**: `PeakExportManager` handles JSON/CSV export and JSON restore.
 
 ## Design system
 - Black and white palette with liquid-glass inspired surfaces and depth
 - Contrast tokens are enforced by automated tests (4.5:1 body, 7:1 key text)
 - Theming lives in `Peak/Supporting/Theme.swift` and related helpers
+
+## Architecture
+- See `ARCHITECTURE.md` for a full overview of the app structure, data model, and key flows.
 
 ## Platform decisions
 - Minimum iOS: 17.0 (SwiftData)
@@ -54,3 +73,4 @@ Optional overrides:
 - Stats view shows totals, top spots, and most-used gear
 - App works fully offline and stores data locally
 - Accessible with Dynamic Type and VoiceOver basics
+- Auto-fill conditions only runs on tap and requires a duration + pinned spot

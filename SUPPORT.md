@@ -9,3 +9,7 @@ Include the following to help us respond quickly:
 - iOS version
 - Device model
 - Steps to reproduce any issue
+
+If the issue involves Auto-fill Conditions, include:
+- Session date/time and duration
+- Surf break name and whether it has a pinned location
