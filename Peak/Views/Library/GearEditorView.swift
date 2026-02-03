@@ -18,6 +18,10 @@ enum GearEditorMode {
 }
 
 struct GearEditorView: View {
+    private enum FocusField: Hashable {
+        case notes
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -33,6 +37,8 @@ struct GearEditorView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var alertMessage = ""
     @State private var showAlert = false
+    @FocusState private var focusedField: FocusField?
+    @StateObject private var keyboardObserver = KeyboardObserver()
 
     init(mode: GearEditorMode) {
         self.mode = mode
@@ -67,15 +73,16 @@ struct GearEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        editorSection("Basics") {
-                            TextField("Name", text: $name)
-                                .textFieldStyle(.plain)
-                                .foregroundStyle(Theme.textPrimary)
-                                .padding(12)
-                                .glassInput()
-                                .accessibilityIdentifier("gear.editor.name")
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            editorSection("Basics") {
+                                TextField("Name", text: $name)
+                                    .textFieldStyle(.plain)
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .padding(12)
+                                    .glassInput()
+                                    .accessibilityIdentifier("gear.editor.name")
 
                             Picker("Type", selection: $kind) {
                                 ForEach(GearKind.allCases) { kind in
@@ -155,20 +162,35 @@ struct GearEditorView: View {
                             }
                         }
 
-                        editorSection("Notes") {
-                            TextEditor(text: $notes)
-                                .frame(minHeight: 120)
-                                .scrollContentBackground(.hidden)
-                                .foregroundStyle(Theme.textPrimary)
-                                .padding(12)
-                                .glassInput()
-                                .accessibilityIdentifier("gear.editor.notes")
+                            editorSection("Notes") {
+                                TextEditor(text: $notes)
+                                    .frame(minHeight: 120)
+                                    .scrollContentBackground(.hidden)
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .padding(12)
+                                    .glassInput()
+                                    .accessibilityIdentifier("gear.editor.notes")
+                                    .focused($focusedField, equals: .notes)
+                                    .id(FocusField.notes)
+                            }
+                        }
+                        .padding()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .keyboardSafeAreaInset()
+                    .onChange(of: focusedField) { _, newValue in
+                        guard newValue == .notes else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
                         }
                     }
-                    .padding()
+                    .onChange(of: keyboardObserver.height) { _, height in
+                        guard height > 0, focusedField == .notes else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
+                        }
+                    }
                 }
-                .scrollDismissesKeyboard(.interactively)
-                .keyboardSafeAreaInset()
             }
             .navigationTitle(mode.title)
             .toolbar {

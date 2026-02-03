@@ -13,7 +13,7 @@
 				<key>testContrastTokensMeetMinimums</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00085306167602539062</real>
+					<real>0.00071704387664794922</real>
 				</dict>
 			</dict>
 			<key>ExportImportTests</key>
@@ -21,12 +21,12 @@
 				<key>testExportImportMergeRoundTrip</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.026216030120849609</real>
+					<real>0.027227997779846191</real>
 				</dict>
 				<key>testExportImportReplaceClearsExisting</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0058090686798095703</real>
+					<real>0.006053924560546875</real>
 				</dict>
 			</dict>
 			<key>GearUsageCalculatorTests</key>
@@ -34,17 +34,17 @@
 				<key>testGearPolicyAllowsDeleteWhenUnused</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00046300888061523438</real>
+					<real>0.00053203105926513672</real>
 				</dict>
 				<key>testGearPolicyRequiresArchiveWhenUsed</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0004119873046875</real>
+					<real>0.00051403045654296875</real>
 				</dict>
 				<key>testGearUsageSummaryAndTopSpots</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00055301189422607422</real>
+					<real>0.00074398517608642578</real>
 				</dict>
 			</dict>
 			<key>ModelMigrationTests</key>
@@ -52,7 +52,7 @@
 				<key>testContainerInitializesWithMigrationPlan</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.012230992317199707</real>
+					<real>0.012133955955505371</real>
 				</dict>
 			</dict>
 			<key>SpotLimitTests</key>
@@ -60,7 +60,7 @@
 				<key>testSpotLimitBlocksNewSpots</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.0039669275283813477</real>
+					<real>0.0035680532455444336</real>
 				</dict>
 			</dict>
 			<key>UsageMetricsTests</key>
@@ -68,17 +68,17 @@
 				<key>testSurfDaysThisYearCountsUniqueDays</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00054097175598144531</real>
+					<real>0.00063693523406982422</real>
 				</dict>
 				<key>testSurfDaysThisYearWeekStreak</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00042796134948730469</real>
+					<real>0.0004119873046875</real>
 				</dict>
 				<key>testUsageMetricsSummaries</key>
 				<dict>
 					<key>mrnet</key>
-					<real>0.00043702125549316406</real>
+					<real>0.00043892860412597656</real>
 				</dict>
 			</dict>
 		</dict>
@@ -89,107 +89,117 @@
 				<key>testBuddyDeleteBlockedAlertLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>19.359920978546143</real>
+					<real>12.159548997879028</real>
 				</dict>
 				<key>testBuddyEditorKeyboardAvoidsFields</key>
 				<dict>
 					<key>mrnet</key>
-					<real>12.811943054199219</real>
+					<real>10.807259082794189</real>
 				</dict>
 				<key>testBuddyRowHitAreaFullWidth</key>
 				<dict>
 					<key>mrnet</key>
-					<real>11.523601055145264</real>
+					<real>9.8835419416427612</real>
 				</dict>
 				<key>testGearArchiveConfirmationDialogLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>16.498478055000305</real>
+					<real>15.570221066474915</real>
 				</dict>
 				<key>testGearEditorKeyboardAvoidsFields</key>
 				<dict>
 					<key>mrnet</key>
-					<real>19.174284934997559</real>
+					<real>16.612218022346497</real>
 				</dict>
 				<key>testHistoryLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>8.047929048538208</real>
+					<real>6.6839959621429443</real>
 				</dict>
 				<key>testHistoryRowHitAreaFullWidth</key>
 				<dict>
 					<key>mrnet</key>
-					<real>10.665217041969299</real>
+					<real>9.1177090406417847</real>
 				</dict>
 				<key>testLogLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>11.199633002281189</real>
+					<real>9.8229199647903442</real>
 				</dict>
 				<key>testLogLayoutFitsLandscape</key>
 				<dict>
 					<key>mrnet</key>
-					<real>10.637676000595093</real>
+					<real>7.9409099817276001</real>
+				</dict>
+				<key>testMediaViewerPhotoLayout</key>
+				<dict>
+					<key>mrnet</key>
+					<real>12.344826936721802</real>
+				</dict>
+				<key>testMediaViewerVideoLayout</key>
+				<dict>
+					<key>mrnet</key>
+					<real>11.157132983207703</real>
 				</dict>
 				<key>testMoreLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>9.2560679912567139</real>
+					<real>7.5547839403152466</real>
 				</dict>
 				<key>testQuiverLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>7.9218059778213501</real>
+					<real>6.5628540515899658</real>
 				</dict>
 				<key>testQuiverRowHitAreaFullWidth</key>
 				<dict>
 					<key>mrnet</key>
-					<real>10.686419010162354</real>
+					<real>9.1615620851516724</real>
 				</dict>
 				<key>testSessionDeleteConfirmationDialogLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>16.006575107574463</real>
+					<real>14.462549090385437</real>
 				</dict>
 				<key>testSessionEditorKeyboardAvoidsFields</key>
 				<dict>
 					<key>mrnet</key>
-					<real>35.229234933853149</real>
+					<real>27.392950057983398</real>
 				</dict>
 				<key>testSessionEditorLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>8.0825549364089966</real>
+					<real>6.7019830942153931</real>
 				</dict>
 				<key>testSettingsResetConfirmationDialogLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>20.737746000289917</real>
+					<real>19.332475066184998</real>
 				</dict>
 				<key>testSpotDeleteBlockedAlertLayout</key>
 				<dict>
 					<key>mrnet</key>
-					<real>14.695206999778748</real>
+					<real>12.941602945327759</real>
 				</dict>
 				<key>testSpotEditorKeyboardAvoidsFields</key>
 				<dict>
 					<key>mrnet</key>
-					<real>16.800039052963257</real>
+					<real>14.259551048278809</real>
 				</dict>
 				<key>testSpotRowHitAreaFullWidth</key>
 				<dict>
 					<key>mrnet</key>
-					<real>11.449486017227173</real>
+					<real>10.16378390789032</real>
 				</dict>
 				<key>testStatsLayoutFits</key>
 				<dict>
 					<key>mrnet</key>
-					<real>9.1184689998626709</real>
+					<real>7.6301599740982056</real>
 				</dict>
 				<key>testTabBarIconSizesMatchSystem</key>
 				<dict>
 					<key>mrnet</key>
-					<real>3.9338539838790894</real>
+					<real>23.696501016616821</real>
 				</dict>
 			</dict>
 		</dict>

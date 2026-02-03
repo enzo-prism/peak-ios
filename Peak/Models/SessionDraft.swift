@@ -11,6 +11,20 @@ struct SessionDraft {
     var durationMinutes: Int = 0
     var windCondition: WindCondition?
     var waveHeight: WaveHeight?
+    var windSpeedKph: Double?
+    var windDirectionDegrees: Double?
+    var waveHeightMeters: Double?
+    var swellWaveHeightMeters: Double?
+    var swellWavePeriodSeconds: Double?
+    var swellWaveDirectionDegrees: Double?
+    var windWaveHeightMeters: Double?
+    var windWavePeriodSeconds: Double?
+    var windWaveDirectionDegrees: Double?
+    var seaSurfaceTemperatureC: Double?
+    var conditionsSource: String?
+    var conditionsFetchedAt: Date?
+    var conditionsLatitude: Double?
+    var conditionsLongitude: Double?
     var notes: String = ""
     var mediaItems: [SessionMediaDraftItem] = []
 
@@ -26,6 +40,20 @@ struct SessionDraft {
         durationMinutes = session.durationMinutes ?? 0
         windCondition = session.windCondition
         waveHeight = session.waveHeight
+        windSpeedKph = session.windSpeedKph
+        windDirectionDegrees = session.windDirectionDegrees
+        waveHeightMeters = session.waveHeightMeters
+        swellWaveHeightMeters = session.swellWaveHeightMeters
+        swellWavePeriodSeconds = session.swellWavePeriodSeconds
+        swellWaveDirectionDegrees = session.swellWaveDirectionDegrees
+        windWaveHeightMeters = session.windWaveHeightMeters
+        windWavePeriodSeconds = session.windWavePeriodSeconds
+        windWaveDirectionDegrees = session.windWaveDirectionDegrees
+        seaSurfaceTemperatureC = session.seaSurfaceTemperatureC
+        conditionsSource = session.conditionsSource
+        conditionsFetchedAt = session.conditionsFetchedAt
+        conditionsLatitude = session.conditionsLatitude
+        conditionsLongitude = session.conditionsLongitude
         notes = session.notes
         mediaItems = session.media.sorted { $0.createdAt < $1.createdAt }.map { SessionMediaDraftItem(existing: $0) }
     }
@@ -57,6 +85,42 @@ struct SessionDraft {
 
     mutating func removeMediaItem(_ item: SessionMediaDraftItem) {
         mediaItems.removeAll { $0.id == item.id }
+    }
+
+    var hasSurfConditions: Bool {
+        windCondition != nil ||
+        waveHeight != nil ||
+        windSpeedKph != nil ||
+        windDirectionDegrees != nil ||
+        waveHeightMeters != nil ||
+        swellWaveHeightMeters != nil ||
+        swellWavePeriodSeconds != nil ||
+        swellWaveDirectionDegrees != nil ||
+        windWaveHeightMeters != nil ||
+        windWavePeriodSeconds != nil ||
+        windWaveDirectionDegrees != nil ||
+        seaSurfaceTemperatureC != nil ||
+        conditionsSource != nil ||
+        conditionsFetchedAt != nil
+    }
+
+    mutating func applySurfConditions(_ snapshot: SurfConditionsSnapshot) {
+        windCondition = snapshot.windCondition
+        waveHeight = snapshot.waveHeightCategory
+        windSpeedKph = snapshot.windSpeedKph
+        windDirectionDegrees = snapshot.windDirectionDegrees
+        waveHeightMeters = snapshot.waveHeightMeters
+        swellWaveHeightMeters = snapshot.swellWaveHeightMeters
+        swellWavePeriodSeconds = snapshot.swellWavePeriodSeconds
+        swellWaveDirectionDegrees = snapshot.swellWaveDirectionDegrees
+        windWaveHeightMeters = snapshot.windWaveHeightMeters
+        windWavePeriodSeconds = snapshot.windWavePeriodSeconds
+        windWaveDirectionDegrees = snapshot.windWaveDirectionDegrees
+        seaSurfaceTemperatureC = snapshot.seaSurfaceTemperatureC
+        conditionsSource = snapshot.source
+        conditionsFetchedAt = snapshot.fetchedAt
+        conditionsLatitude = snapshot.latitude
+        conditionsLongitude = snapshot.longitude
     }
 }
 

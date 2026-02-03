@@ -3,6 +3,9 @@ import SwiftData
 import UIKit
 
 enum PreviewData {
+    private static let fallbackPhotoBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+    private static let fallbackPhotoData = Data(base64Encoded: fallbackPhotoBase64)
     static var container: ModelContainer = {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -71,6 +74,18 @@ enum PreviewData {
             waveHeight: .overhead,
             notes: "Clean lines and glassy walls."
         )
+        session2.windSpeedKph = 8
+        session2.windDirectionDegrees = 280
+        session2.waveHeightMeters = 1.7
+        session2.swellWaveHeightMeters = 1.2
+        session2.swellWavePeriodSeconds = 12
+        session2.swellWaveDirectionDegrees = 265
+        session2.windWaveHeightMeters = 0.6
+        session2.windWavePeriodSeconds = 6
+        session2.windWaveDirectionDegrees = 300
+        session2.seaSurfaceTemperatureC = 17.5
+        session2.conditionsSource = "Open-Meteo"
+        session2.conditionsFetchedAt = Date()
 
         if let photoMedia = makeSamplePhotoMedia(createdAt: session2.date) {
             context.insert(photoMedia)
@@ -107,7 +122,10 @@ enum PreviewData {
     }
 
     private static func makeSamplePhotoMedia(createdAt: Date) -> SessionMedia? {
-        guard let photoData = makeSamplePhotoData() else { return nil }
+        let photoData = makeSamplePhotoData()
+            ?? fallbackPhotoData
+            ?? UIImage(systemName: "photo")?.pngData()
+            ?? Data()
         let thumbnailData = SessionMediaStore.thumbnailData(from: photoData)
         return SessionMedia(
             kind: .photo,
@@ -129,6 +147,9 @@ enum PreviewData {
     }
 
     private static func makeSamplePhotoData() -> Data? {
+        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+            return fallbackPhotoData
+        }
         let size = CGSize(width: 1200, height: 900)
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in
@@ -160,16 +181,27 @@ enum PreviewData {
             )
             context.cgContext.strokePath()
         }
-        return image.jpegData(compressionQuality: 0.9)
+        if let data = image.jpegData(compressionQuality: 0.9) {
+            return data
+        }
+        return fallbackPhotoData ?? UIImage(systemName: "photo")?.pngData()
     }
 
     private static func makeSampleVideoFileName() -> String? {
         let fileName = "preview-\(UUID().uuidString).mov"
         let url = SessionMediaStore.videoURL(for: fileName)
+        let directory = url.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: directory.path) {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let data = Data([0x0, 0x0, 0x0, 0x0])
         do {
-            try Data().write(to: url)
+            try data.write(to: url, options: .atomic)
             return fileName
         } catch {
+            if FileManager.default.createFile(atPath: url.path, contents: data) {
+                return fileName
+            }
             return nil
         }
     }

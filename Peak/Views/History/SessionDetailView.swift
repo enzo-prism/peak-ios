@@ -39,6 +39,18 @@ struct SessionDetailView: View {
                         .padding(16)
                         .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
 
+                        if !surfReportRows.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                sectionTitle("Surf report")
+                                ForEach(surfReportRows.indices, id: \.self) { index in
+                                    let row = surfReportRows[index]
+                                    detailRow(title: row.title, value: row.value)
+                                }
+                            }
+                            .padding(16)
+                            .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+                        }
+
                         if !session.gear.isEmpty {
                             infoCard(title: "Gear", items: session.gear.sorted(by: { $0.name < $1.name }).map { "\($0.name) (\($0.kind.label))" })
                         }
@@ -131,6 +143,62 @@ struct SessionDetailView: View {
         Text(title.uppercased())
             .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
             .foregroundStyle(Theme.textMuted)
+    }
+
+    private var surfReportRows: [(title: String, value: String)] {
+        var rows: [(title: String, value: String)] = []
+
+        if let waveHeightMeters = session.waveHeightMeters {
+            rows.append((title: "Wave height", value: SurfConditionsFormatter.meters(waveHeightMeters)))
+        }
+
+        if let swellWaveHeightMeters = session.swellWaveHeightMeters {
+            rows.append((title: "Swell height", value: SurfConditionsFormatter.meters(swellWaveHeightMeters)))
+        }
+
+        if let swellWavePeriodSeconds = session.swellWavePeriodSeconds {
+            rows.append((title: "Swell period", value: SurfConditionsFormatter.period(swellWavePeriodSeconds)))
+        }
+
+        if let swellWaveDirectionDegrees = session.swellWaveDirectionDegrees {
+            rows.append((title: "Swell direction", value: SurfConditionsFormatter.direction(swellWaveDirectionDegrees)))
+        }
+
+        if let windWaveHeightMeters = session.windWaveHeightMeters {
+            rows.append((title: "Wind wave height", value: SurfConditionsFormatter.meters(windWaveHeightMeters)))
+        }
+
+        if let windWavePeriodSeconds = session.windWavePeriodSeconds {
+            rows.append((title: "Wind wave period", value: SurfConditionsFormatter.period(windWavePeriodSeconds)))
+        }
+
+        if let windWaveDirectionDegrees = session.windWaveDirectionDegrees {
+            rows.append((title: "Wind wave direction", value: SurfConditionsFormatter.direction(windWaveDirectionDegrees)))
+        }
+
+        if let windSpeedKph = session.windSpeedKph {
+            rows.append((title: "Wind speed", value: SurfConditionsFormatter.speed(windSpeedKph)))
+        }
+
+        if let windDirectionDegrees = session.windDirectionDegrees {
+            rows.append((title: "Wind direction", value: SurfConditionsFormatter.direction(windDirectionDegrees)))
+        }
+
+        if let seaSurfaceTemperatureC = session.seaSurfaceTemperatureC {
+            rows.append((title: "Water temp", value: SurfConditionsFormatter.temperature(seaSurfaceTemperatureC)))
+        }
+
+        if let source = session.conditionsSource {
+            let sourceValue: String
+            if let fetchedAt = session.conditionsFetchedAt {
+                sourceValue = "\(source) - \(fetchedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
+            } else {
+                sourceValue = source
+            }
+            rows.append((title: "Source", value: sourceValue))
+        }
+
+        return rows
     }
 
     private var mediaSection: some View {

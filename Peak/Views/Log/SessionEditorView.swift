@@ -18,6 +18,10 @@ enum SessionEditorMode {
 }
 
 struct SessionEditorView: View {
+    private enum FocusField: Hashable {
+        case notes
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -37,8 +41,13 @@ struct SessionEditorView: View {
     @State private var selectedMediaItems: [PhotosPickerItem] = []
     @State private var showMediaAlert = false
     @State private var mediaAlertMessage = ""
+    @State private var isFetchingConditions = false
+    @State private var surfConditionsNotice: SurfConditionsNotice?
+    @State private var showSurfConditionsOverwriteAlert = false
     @State private var didSave = false
     @State private var dismissAfterMediaAlert = false
+    @FocusState private var focusedField: FocusField?
+    @StateObject private var keyboardObserver = KeyboardObserver()
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -55,10 +64,11 @@ struct SessionEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                ScrollView {
-                    GlassContainer(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            EditorSection("Session") {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        GlassContainer(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                EditorSection("Session") {
                                 DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
                                     .datePickerStyle(.compact)
                                     .tint(Theme.textPrimary)
@@ -199,6 +209,32 @@ struct SessionEditorView: View {
                                     Text("You can save up to \(Spot.maxCount) surf breaks.")
                                         .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
                                         .foregroundStyle(Theme.textMuted)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Button {
+                                        autoFillConditionsTapped()
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            if isFetchingConditions {
+                                                ProgressView()
+                                                    .tint(Theme.textPrimary)
+                                            }
+                                            Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
+                                                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    .glassButtonStyle(prominent: false)
+                                    .disabled(isFetchingConditions)
+
+                                    Text(conditionsHintText)
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                        .foregroundStyle(Theme.textMuted)
+
+                                    if let notice = surfConditionsNotice {
+                                        surfConditionsNoticeView(notice)
+                                    }
                                 }
                             }
 
@@ -363,28 +399,43 @@ struct SessionEditorView: View {
                                 .glassButtonStyle(prominent: false)
                             }
 
-                            EditorSection("Notes") {
-                                ZStack(alignment: .topLeading) {
-                                    TextEditor(text: $draft.notes)
-                                        .frame(minHeight: 120)
-                                        .scrollContentBackground(.hidden)
-                                        .foregroundStyle(Theme.textPrimary)
-                                        .accessibilityIdentifier("session.editor.notes")
-                                    if draft.notes.isEmpty {
-                                        Text("Add any conditions, swell, or quick thoughts.")
-                                            .foregroundStyle(Theme.textMuted)
-                                            .padding(.top, 8)
-                                            .padding(.leading, 5)
+                                EditorSection("Notes") {
+                                    ZStack(alignment: .topLeading) {
+                                        TextEditor(text: $draft.notes)
+                                            .frame(minHeight: 120)
+                                            .scrollContentBackground(.hidden)
+                                            .foregroundStyle(Theme.textPrimary)
+                                            .accessibilityIdentifier("session.editor.notes")
+                                            .focused($focusedField, equals: .notes)
+                                            .id(FocusField.notes)
+                                        if draft.notes.isEmpty {
+                                            Text("Add any conditions, swell, or quick thoughts.")
+                                                .foregroundStyle(Theme.textMuted)
+                                                .padding(.top, 8)
+                                                .padding(.leading, 5)
+                                        }
                                     }
+                                    .padding(12)
+                                    .glassInput()
                                 }
-                                .padding(12)
-                                .glassInput()
                             }
+                            .padding()
                         }
-                        .padding()
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .keyboardSafeAreaInset()
+                    .onChange(of: focusedField) { _, newValue in
+                        guard newValue == .notes else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
+                        }
+                    }
+                    .onChange(of: keyboardObserver.height) { _, height in
+                        guard height > 0, focusedField == .notes else { return }
+                        DispatchQueue.main.async {
+                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
+                        }
+                    }
                 }
             }
         .navigationTitle(mode.title)
@@ -423,6 +474,14 @@ struct SessionEditorView: View {
             }
         } message: {
             Text(mediaAlertMessage)
+        }
+        .confirmationDialog("Replace conditions?", isPresented: $showSurfConditionsOverwriteAlert, titleVisibility: .visible) {
+            Button("Replace") {
+                fetchSurfConditions()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will replace any wind or wave values you've already set.")
         }
         .onChange(of: selectedMediaItems) { _, newValue in
             handleMediaSelection(newValue)
@@ -566,6 +625,20 @@ struct SessionEditorView: View {
                 durationMinutes: durationMinutes,
                 windCondition: draft.windCondition,
                 waveHeight: draft.waveHeight,
+                windSpeedKph: draft.windSpeedKph,
+                windDirectionDegrees: draft.windDirectionDegrees,
+                waveHeightMeters: draft.waveHeightMeters,
+                swellWaveHeightMeters: draft.swellWaveHeightMeters,
+                swellWavePeriodSeconds: draft.swellWavePeriodSeconds,
+                swellWaveDirectionDegrees: draft.swellWaveDirectionDegrees,
+                windWaveHeightMeters: draft.windWaveHeightMeters,
+                windWavePeriodSeconds: draft.windWavePeriodSeconds,
+                windWaveDirectionDegrees: draft.windWaveDirectionDegrees,
+                seaSurfaceTemperatureC: draft.seaSurfaceTemperatureC,
+                conditionsSource: draft.conditionsSource,
+                conditionsFetchedAt: draft.conditionsFetchedAt,
+                conditionsLatitude: draft.conditionsLatitude,
+                conditionsLongitude: draft.conditionsLongitude,
                 notes: draft.notes,
                 createdAt: Date(),
                 updatedAt: Date()
@@ -581,6 +654,20 @@ struct SessionEditorView: View {
             session.durationMinutes = durationMinutes
             session.windCondition = draft.windCondition
             session.waveHeight = draft.waveHeight
+            session.windSpeedKph = draft.windSpeedKph
+            session.windDirectionDegrees = draft.windDirectionDegrees
+            session.waveHeightMeters = draft.waveHeightMeters
+            session.swellWaveHeightMeters = draft.swellWaveHeightMeters
+            session.swellWavePeriodSeconds = draft.swellWavePeriodSeconds
+            session.swellWaveDirectionDegrees = draft.swellWaveDirectionDegrees
+            session.windWaveHeightMeters = draft.windWaveHeightMeters
+            session.windWavePeriodSeconds = draft.windWavePeriodSeconds
+            session.windWaveDirectionDegrees = draft.windWaveDirectionDegrees
+            session.seaSurfaceTemperatureC = draft.seaSurfaceTemperatureC
+            session.conditionsSource = draft.conditionsSource
+            session.conditionsFetchedAt = draft.conditionsFetchedAt
+            session.conditionsLatitude = draft.conditionsLatitude
+            session.conditionsLongitude = draft.conditionsLongitude
             session.notes = draft.notes
             session.updatedAt = Date()
             mediaFailures = applyMedia(to: session)
@@ -607,6 +694,127 @@ struct SessionEditorView: View {
 
     private var isSpotLimitReached: Bool {
         spots.count >= Spot.maxCount
+    }
+
+    private var conditionsHintText: String {
+        if missingConditionsMessage() == nil {
+            return "Pulls surf conditions for this session time window."
+        }
+        return "Add a duration and pin a surf break to enable auto-fill."
+    }
+
+    private func autoFillConditionsTapped() {
+        if let message = missingConditionsMessage() {
+            surfConditionsNotice = SurfConditionsNotice(style: .info, message: message)
+            return
+        }
+
+        if draft.hasSurfConditions {
+            showSurfConditionsOverwriteAlert = true
+            return
+        }
+
+        fetchSurfConditions()
+    }
+
+    private func fetchSurfConditions() {
+        guard let spot = draft.selectedSpot,
+              let latitude = spot.latitude,
+              let longitude = spot.longitude else {
+            surfConditionsNotice = SurfConditionsNotice(
+                style: .info,
+                message: "Select a surf break with a pinned location to pull surf data."
+            )
+            return
+        }
+        guard draft.durationMinutes > 0 else {
+            surfConditionsNotice = SurfConditionsNotice(
+                style: .info,
+                message: "Add a duration to pull surf data."
+            )
+            return
+        }
+
+        isFetchingConditions = true
+        surfConditionsNotice = SurfConditionsNotice(style: .info, message: "Fetching surf conditions...")
+
+        let start = draft.date
+        let duration = draft.durationMinutes
+
+        Task {
+            do {
+                let snapshot = try await SurfConditionsService.fetch(
+                    start: start,
+                    durationMinutes: duration,
+                    latitude: latitude,
+                    longitude: longitude
+                )
+                await MainActor.run {
+                    isFetchingConditions = false
+                    draft.applySurfConditions(snapshot)
+                    surfConditionsNotice = SurfConditionsNotice(style: .success, message: successMessage(for: snapshot))
+                }
+            } catch {
+                await MainActor.run {
+                    isFetchingConditions = false
+                    surfConditionsNotice = SurfConditionsNotice(style: .error, message: errorMessage(for: error))
+                }
+            }
+        }
+    }
+
+    private func missingConditionsMessage() -> String? {
+        let hasDuration = draft.durationMinutes > 0
+        let hasSpot = draft.selectedSpot != nil
+        let hasCoordinates = draft.selectedSpot?.latitude != nil && draft.selectedSpot?.longitude != nil
+
+        if hasDuration && hasSpot && hasCoordinates {
+            return nil
+        }
+
+        if !hasDuration && (!hasSpot || !hasCoordinates) {
+            return "Add a duration and pin a surf break to pull surf data."
+        }
+
+        if !hasDuration {
+            return "Add a duration to pull surf data."
+        }
+
+        return "Select a surf break with a pinned location to pull surf data."
+    }
+
+    private func successMessage(for snapshot: SurfConditionsSnapshot) -> String {
+        if let summary = SurfConditionsFormatter.compactSummary(
+            waveHeightMeters: snapshot.waveHeightMeters,
+            windSpeedKph: snapshot.windSpeedKph
+        ) {
+            return "Filled from Open-Meteo: \(summary)."
+        }
+        return "Filled from Open-Meteo."
+    }
+
+    private func errorMessage(for error: Error) -> String {
+        if let error = error as? LocalizedError, let description = error.errorDescription {
+            return description
+        }
+        return "Could not fetch surf conditions."
+    }
+
+    @ViewBuilder
+    private func surfConditionsNoticeView(_ notice: SurfConditionsNotice) -> some View {
+        let iconName = notice.style.iconName
+        let accent = notice.style.accentColor
+
+        HStack(spacing: 8) {
+            Image(systemName: iconName)
+                .foregroundStyle(accent)
+            Text(notice.message)
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .foregroundStyle(Theme.textPrimary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private func addSpotTapped() {
@@ -720,6 +928,40 @@ struct SessionEditorView: View {
         session.media = updatedMedia
         return failures
     }
+}
+
+private struct SurfConditionsNotice: Identifiable {
+    enum Style {
+        case info
+        case success
+        case error
+
+        var iconName: String {
+            switch self {
+            case .info:
+                return "info.circle"
+            case .success:
+                return "checkmark.circle"
+            case .error:
+                return "exclamationmark.triangle"
+            }
+        }
+
+        var accentColor: Color {
+            switch self {
+            case .info:
+                return Theme.textMuted
+            case .success:
+                return Theme.surfGreen
+            case .error:
+                return Theme.textMuted
+            }
+        }
+    }
+
+    let id = UUID()
+    let style: Style
+    let message: String
 }
 
 private struct SessionVideoTransferable: Transferable {

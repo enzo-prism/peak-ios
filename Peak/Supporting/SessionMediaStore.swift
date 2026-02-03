@@ -48,7 +48,7 @@ enum SessionMediaStore {
     }
 
     static func videoURL(for fileName: String) -> URL {
-        let directory = (try? mediaDirectoryURL()) ?? FileManager.default.temporaryDirectory
+        let directory = resolvedMediaDirectoryURL()
         return directory.appendingPathComponent(fileName)
     }
 
@@ -79,7 +79,46 @@ enum SessionMediaStore {
         try? FileManager.default.removeItem(at: url)
     }
 
+    private static func resolvedMediaDirectoryURL() -> URL {
+        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent(mediaFolderName, isDirectory: true)
+            if !FileManager.default.fileExists(atPath: directory.path) {
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            return directory
+        }
+
+        if let base = try? FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        ) {
+            let directory = base.appendingPathComponent(mediaFolderName, isDirectory: true)
+            if !FileManager.default.fileExists(atPath: directory.path) {
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            return directory
+        }
+
+        let fallback = FileManager.default.temporaryDirectory
+            .appendingPathComponent(mediaFolderName, isDirectory: true)
+        if !FileManager.default.fileExists(atPath: fallback.path) {
+            try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+        }
+        return fallback
+    }
+
     private static func mediaDirectoryURL() throws -> URL {
+        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent(mediaFolderName, isDirectory: true)
+            if !FileManager.default.fileExists(atPath: directory.path) {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            return directory
+        }
         let base = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,

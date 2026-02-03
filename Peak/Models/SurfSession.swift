@@ -10,6 +10,20 @@ final class SurfSession {
     var durationMinutes: Int?
     var windCondition: WindCondition?
     var waveHeight: WaveHeight?
+    var windSpeedKph: Double?
+    var windDirectionDegrees: Double?
+    var waveHeightMeters: Double?
+    var swellWaveHeightMeters: Double?
+    var swellWavePeriodSeconds: Double?
+    var swellWaveDirectionDegrees: Double?
+    var windWaveHeightMeters: Double?
+    var windWavePeriodSeconds: Double?
+    var windWaveDirectionDegrees: Double?
+    var seaSurfaceTemperatureC: Double?
+    var conditionsSource: String?
+    var conditionsFetchedAt: Date?
+    var conditionsLatitude: Double?
+    var conditionsLongitude: Double?
     var createdAt: Date
     var updatedAt: Date
     @Relationship(deleteRule: .nullify) var gear: [Gear]
@@ -26,6 +40,20 @@ final class SurfSession {
         durationMinutes: Int? = nil,
         windCondition: WindCondition? = nil,
         waveHeight: WaveHeight? = nil,
+        windSpeedKph: Double? = nil,
+        windDirectionDegrees: Double? = nil,
+        waveHeightMeters: Double? = nil,
+        swellWaveHeightMeters: Double? = nil,
+        swellWavePeriodSeconds: Double? = nil,
+        swellWaveDirectionDegrees: Double? = nil,
+        windWaveHeightMeters: Double? = nil,
+        windWavePeriodSeconds: Double? = nil,
+        windWaveDirectionDegrees: Double? = nil,
+        seaSurfaceTemperatureC: Double? = nil,
+        conditionsSource: String? = nil,
+        conditionsFetchedAt: Date? = nil,
+        conditionsLatitude: Double? = nil,
+        conditionsLongitude: Double? = nil,
         notes: String = "",
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -39,6 +67,20 @@ final class SurfSession {
         self.durationMinutes = SurfSession.normalizedDuration(durationMinutes)
         self.windCondition = windCondition
         self.waveHeight = waveHeight
+        self.windSpeedKph = windSpeedKph
+        self.windDirectionDegrees = windDirectionDegrees
+        self.waveHeightMeters = waveHeightMeters
+        self.swellWaveHeightMeters = swellWaveHeightMeters
+        self.swellWavePeriodSeconds = swellWavePeriodSeconds
+        self.swellWaveDirectionDegrees = swellWaveDirectionDegrees
+        self.windWaveHeightMeters = windWaveHeightMeters
+        self.windWavePeriodSeconds = windWavePeriodSeconds
+        self.windWaveDirectionDegrees = windWaveDirectionDegrees
+        self.seaSurfaceTemperatureC = seaSurfaceTemperatureC
+        self.conditionsSource = conditionsSource
+        self.conditionsFetchedAt = conditionsFetchedAt
+        self.conditionsLatitude = conditionsLatitude
+        self.conditionsLongitude = conditionsLongitude
         self.notes = notes
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -50,5 +92,20 @@ final class SurfSession {
         let step = 15
         let snapped = Int((Double(clamped) / Double(step)).rounded()) * step
         return max(step, min(snapped, 180))
+    }
+
+    var hasSurfConditions: Bool {
+        windSpeedKph != nil ||
+        windDirectionDegrees != nil ||
+        waveHeightMeters != nil ||
+        swellWaveHeightMeters != nil ||
+        swellWavePeriodSeconds != nil ||
+        swellWaveDirectionDegrees != nil ||
+        windWaveHeightMeters != nil ||
+        windWavePeriodSeconds != nil ||
+        windWaveDirectionDegrees != nil ||
+        seaSurfaceTemperatureC != nil ||
+        conditionsSource != nil ||
+        conditionsFetchedAt != nil
     }
 }
