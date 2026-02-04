@@ -23,6 +23,25 @@ struct SurfConditionsSnapshot: Sendable {
     var waveHeightCategory: WaveHeight? {
         SurfConditionsMapping.waveHeightCategory(for: waveHeightMeters)
     }
+
+    var hasWindReadings: Bool {
+        windSpeedKph != nil || windDirectionDegrees != nil
+    }
+
+    var hasWaveReadings: Bool {
+        waveHeightMeters != nil ||
+        swellWaveHeightMeters != nil ||
+        swellWavePeriodSeconds != nil ||
+        swellWaveDirectionDegrees != nil ||
+        windWaveHeightMeters != nil ||
+        windWavePeriodSeconds != nil ||
+        windWaveDirectionDegrees != nil ||
+        seaSurfaceTemperatureC != nil
+    }
+
+    var hasAnyReadings: Bool {
+        hasWindReadings || hasWaveReadings
+    }
 }
 
 enum SurfConditionsService {
@@ -32,37 +51,69 @@ enum SurfConditionsService {
         start: Date,
         durationMinutes: Int,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        session: URLSession = .shared
     ) async throws -> SurfConditionsSnapshot {
         let end = start.addingTimeInterval(Double(durationMinutes) * 60)
-        let marine = try await fetchMarineConditions(
+        try validateRange(start: start, end: end, maxPastDays: 92, maxForecastDays: 8)
+
+        async let marineResult = fetchMarineConditions(
             start: start,
             end: end,
             latitude: latitude,
-            longitude: longitude
+            longitude: longitude,
+            session: session
         )
-        let wind = try? await fetchWindConditions(
+        async let windResult = fetchWindConditions(
             start: start,
             end: end,
             latitude: latitude,
-            longitude: longitude
+            longitude: longitude,
+            session: session
         )
-        return SurfConditionsSnapshot(
+
+        var marine: MarineConditions?
+        var wind: WindConditions?
+        var errors: [Error] = []
+
+        do {
+            marine = try await marineResult
+        } catch {
+            errors.append(error)
+        }
+
+        do {
+            wind = try await windResult
+        } catch {
+            errors.append(error)
+        }
+
+        if marine == nil && wind == nil {
+            throw mostInformativeError(from: errors)
+        }
+
+        let snapshot = SurfConditionsSnapshot(
             source: sourceName,
             fetchedAt: Date(),
-            latitude: marine.latitude,
-            longitude: marine.longitude,
+            latitude: marine?.latitude ?? latitude,
+            longitude: marine?.longitude ?? longitude,
             windSpeedKph: wind?.windSpeedKph,
             windDirectionDegrees: wind?.windDirectionDegrees,
-            waveHeightMeters: marine.waveHeightMeters,
-            swellWaveHeightMeters: marine.swellWaveHeightMeters,
-            swellWavePeriodSeconds: marine.swellWavePeriodSeconds,
-            swellWaveDirectionDegrees: marine.swellWaveDirectionDegrees,
-            windWaveHeightMeters: marine.windWaveHeightMeters,
-            windWavePeriodSeconds: marine.windWavePeriodSeconds,
-            windWaveDirectionDegrees: marine.windWaveDirectionDegrees,
-            seaSurfaceTemperatureC: marine.seaSurfaceTemperatureC
+            waveHeightMeters: marine?.waveHeightMeters,
+            swellWaveHeightMeters: marine?.swellWaveHeightMeters,
+            swellWavePeriodSeconds: marine?.swellWavePeriodSeconds,
+            swellWaveDirectionDegrees: marine?.swellWaveDirectionDegrees,
+            windWaveHeightMeters: marine?.windWaveHeightMeters,
+            windWavePeriodSeconds: marine?.windWavePeriodSeconds,
+            windWaveDirectionDegrees: marine?.windWaveDirectionDegrees,
+            seaSurfaceTemperatureC: marine?.seaSurfaceTemperatureC
         )
+
+        guard snapshot.hasAnyReadings else {
+            throw SurfConditionsError.noDataAvailable
+        }
+
+        return snapshot
     }
 }
 
@@ -89,7 +140,8 @@ private extension SurfConditionsService {
         start: Date,
         end: Date,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        session: URLSession
     ) async throws -> MarineConditions {
         let url = try makeMarineURL(
             start: start,
@@ -97,7 +149,7 @@ private extension SurfConditionsService {
             latitude: latitude,
             longitude: longitude
         )
-        let response: OpenMeteoMarineResponse = try await fetchJSON(url: url)
+        let response: OpenMeteoMarineResponse = try await fetchJSON(url: url, session: session)
         let times = parseTimes(response.hourly.time)
         let indices = indices(in: times, start: start, end: end)
         guard !indices.isEmpty else {
@@ -131,7 +183,8 @@ private extension SurfConditionsService {
         start: Date,
         end: Date,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        session: URLSession
     ) async throws -> WindConditions {
         let url = try makeWindURL(
             start: start,
@@ -139,7 +192,7 @@ private extension SurfConditionsService {
             latitude: latitude,
             longitude: longitude
         )
-        let response: OpenMeteoWeatherResponse = try await fetchJSON(url: url)
+        let response: OpenMeteoWeatherResponse = try await fetchJSON(url: url, session: session)
         let times = parseTimes(response.hourly.time)
         let indices = indices(in: times, start: start, end: end)
         guard !indices.isEmpty else {
@@ -227,15 +280,21 @@ private extension SurfConditionsService {
         return url
     }
 
-    static func fetchJSON<T: Decodable>(url: URL) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(from: url)
+    static func fetchJSON<T: Decodable>(url: URL, session: URLSession) async throws -> T {
+        let (data, response) = try await session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
+            if let reason = decodeRemoteError(from: data) {
+                throw SurfConditionsError.remoteError(reason)
+            }
             throw SurfConditionsError.invalidResponse
         }
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
+            if let reason = decodeRemoteError(from: data) {
+                throw SurfConditionsError.remoteError(reason)
+            }
             throw SurfConditionsError.decodingFailed
         }
     }
@@ -267,7 +326,22 @@ private extension SurfConditionsService {
     }
 
     static func parseTimes(_ values: [String]) -> [Date] {
-        values.compactMap { hourFormatter.date(from: $0) }
+        values.compactMap { parseTime($0) }
+    }
+
+    static func parseTime(_ value: String) -> Date? {
+        if let date = iso8601Formatter.date(from: value) {
+            return date
+        }
+        if let date = iso8601FractionalFormatter.date(from: value) {
+            return date
+        }
+        for formatter in timeParsers {
+            if let date = formatter.date(from: value) {
+                return date
+            }
+        }
+        return nil
     }
 
     static func indices(in times: [Date], start: Date, end: Date) -> [Int] {
@@ -312,6 +386,18 @@ private extension SurfConditionsService {
         return total / Double(filtered.count)
     }
 
+    static func validateRange(start: Date, end: Date, maxPastDays: Int, maxForecastDays: Int) throws {
+        let calendar = utcCalendar
+        let startDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        let today = calendar.startOfDay(for: Date())
+        let earliest = calendar.date(byAdding: .day, value: -maxPastDays, to: today) ?? today
+        let latest = calendar.date(byAdding: .day, value: maxForecastDays, to: today) ?? today
+        guard startDay >= earliest, endDay <= latest else {
+            throw SurfConditionsError.outOfRange(maxPastDays: maxPastDays, maxForecastDays: maxForecastDays)
+        }
+    }
+
     static func floorToHour(_ date: Date) -> Date {
         let components = utcCalendar.dateComponents([.year, .month, .day, .hour], from: date)
         return utcCalendar.date(from: components) ?? date
@@ -337,6 +423,73 @@ private extension SurfConditionsService {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         return formatter
+    }
+
+    static var timeParsers: [DateFormatter] {
+        let formats = [
+            "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mmXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+        ]
+        return formats.map { format in
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = format
+            return formatter
+        }
+    }
+
+    static var iso8601Formatter: ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }
+
+    static var iso8601FractionalFormatter: ISO8601DateFormatter {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }
+
+    static func decodeRemoteError(from data: Data) -> String? {
+        guard let response = try? JSONDecoder().decode(OpenMeteoErrorResponse.self, from: data) else {
+            return nil
+        }
+        guard response.error == true || response.reason != nil else {
+            return nil
+        }
+        return response.reason ?? "Unknown error"
+    }
+
+    static func mostInformativeError(from errors: [Error]) -> Error {
+        let surfErrors = errors.compactMap { $0 as? SurfConditionsError }
+        if let best = surfErrors.sorted(by: { priority(for: $0) < priority(for: $1) }).first {
+            return best
+        }
+        return errors.first ?? SurfConditionsError.invalidResponse
+    }
+
+    static func priority(for error: SurfConditionsError) -> Int {
+        switch error {
+        case .outOfRange:
+            return 0
+        case .remoteError:
+            return 1
+        case .noMatchingHours:
+            return 2
+        case .invalidResponse:
+            return 3
+        case .decodingFailed:
+            return 4
+        case .invalidURL:
+            return 5
+        case .noDataAvailable:
+            return 6
+        }
     }
 }
 
@@ -377,6 +530,9 @@ enum SurfConditionsError: LocalizedError {
     case invalidResponse
     case decodingFailed
     case noMatchingHours
+    case noDataAvailable
+    case outOfRange(maxPastDays: Int, maxForecastDays: Int)
+    case remoteError(String)
 
     var errorDescription: String? {
         switch self {
@@ -388,6 +544,12 @@ enum SurfConditionsError: LocalizedError {
             return "Surf report data could not be read."
         case .noMatchingHours:
             return "Surf report data is unavailable for that time."
+        case .noDataAvailable:
+            return "Surf report data is unavailable for that location or time."
+        case .outOfRange(let maxPastDays, let maxForecastDays):
+            return "Surf report data is available for the past \(maxPastDays) days and the next \(maxForecastDays) days."
+        case .remoteError(let reason):
+            return "Surf report service error: \(reason)"
         }
     }
 }
@@ -418,4 +580,9 @@ private struct OpenMeteoWeatherResponse: Decodable {
         let wind_speed_10m: [Double?]?
         let wind_direction_10m: [Double?]?
     }
+}
+
+private struct OpenMeteoErrorResponse: Decodable {
+    let error: Bool?
+    let reason: String?
 }

@@ -1,0 +1,682 @@
+Xcode version: 26.2 (17C52)
+15:53:48.210 xcodebuild[1148:1643797] Beginning test session PeakTests-ADA98CDF-E902-46EF-8D0A-04C7ACADF001 at 2026-02-04 15:53:48.210 on target <DVTiPhoneSimulator: 0x87e0d1e00> {
+		SimDevice: iPhone 17 Pro Max (9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1, iOS 26.2, Booted)
+} (26.2 (23C54))
+15:53:48.210 xcodebuild[1148:1643797] 	/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild
+test
+-project
+/Users/enzo//Peak/Peak.xcodeproj
+-scheme
+Peak
+-configuration
+Debug
+-destination
+platform=iOS Simulator,id=9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1
+-derivedDataPath
+/Users/enzo//Peak/.derivedData
+-resultBundlePath
+/Users/enzo//Peak/artifacts/design-check/iphone/TestResults.xcresult
+CODE_SIGNING_ALLOWED=NO
+CODE_SIGNING_REQUIRED=NO
+15:53:48.211 xcodebuild[1148:1643797] Test standard output and standard error is at /Users/enzo//Peak/artifacts/design-check/iphone/TestResults.xcresult/Staging/1_Test/Diagnostics/PeakTests-F844D9DA-8E04-406F-9B3A-625411832C74-Configuration-Test Scheme Action-Iteration-1/PeakTests-A6D128E4-77CD-4244-AEB7-E1B959FF9F31/StandardOutputAndStandardError.txt
+15:53:48.216 xcodebuild[1148:1643821] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was issued, 2 claims exist.
+15:53:48.217 xcodebuild[1148:1643797] Setting up test runner session
+15:53:48.217 xcodebuild[1148:1643821] Sim iPhone 17 Pro Max: Unregistering for sim device notification with token 5
+15:53:48.217 xcodebuild[1148:1643821] Calling -[SimDevice getenv:error:] for TESTMANAGERD_SIM_SOCK
+15:53:48.217 xcodebuild[1148:1643797] Registering/updating daemon-based crash report observer for process names (
+    xctest,
+    debugserver,
+    FrontBoard,
+    assertiond,
+    runningboardd,
+    SpringBoard,
+    testmanagerd,
+    backboardd,
+    DTServiceHub,
+    PeakTests,
+    Peak
+)
+15:53:48.218 xcodebuild[1148:1643821] Sim iPhone 17 Pro Max has testmanagerd socket at /private/tmp/com.apple.launchd.HZJNdE5cAv/com.apple.testmanagerd.unix-domain.socket
+15:53:48.218 xcodebuild[1148:1643821] Validating test connection socket path (/private/tmp/com.apple.launchd.HZJNdE5cAv/com.apple.testmanagerd.unix-domain.socket)
+15:53:48.218 xcodebuild[1148:1643821] Constructing transport for test connection socket
+15:53:48.218 xcodebuild[1148:1643821] Connected socket 39 to testmanagerd for Sim iPhone 17 Pro Max
+15:53:48.218 xcodebuild[1148:1643812] Received connection for test runner session
+15:53:48.218 xcodebuild[1148:1643812] Listening for proxy connection request from the test bundle
+15:53:48.218 xcodebuild[1148:1643797] Test runner session acquired connection.
+15:53:48.219 xcodebuild[1148:1643812] Initiating session with identifier: ADA98CDF-E902-46EF-8D0A-04C7ACADF001
+15:53:48.220 xcodebuild[1148:1643797] Finished requesting crash reports. Continuing with testing.
+15:53:48.220 xcodebuild[1148:1643812] Got reply to session initiation request with identifier ADA98CDF-E902-46EF-8D0A-04C7ACADF001 (error: (null))
+15:53:48.227 xcodebuild[1148:1643797] Launch session started.
+15:53:48.231 xcodebuild[1148:1643809] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was issued, 2 claims exist.
+15:53:48.233 xcodebuild[1148:1643821] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was issued, 2 claims exist.
+15:53:48.233 xcodebuild[1148:1643821] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Registered for sim device notification, got token 8
+15:53:48.233 xcodebuild[1148:1643809] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Unregistering for sim device notification with token 8
+15:53:48.235 xcodebuild[1148:1643821] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Installing app at path: /Users/enzo//Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app and options: {
+    SkipWatchAppInstall = 1;
+}
+15:53:48.722 xcodebuild[1148:1643821] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Installed app at path: /Users/enzo//Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app and options: {
+    SkipWatchAppInstall = 1;
+}
+15:53:48.729 xcodebuild[1148:1643821] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Launching app with identifier: com.designprism.peak and options: {
+    "activate_suspended" = 0;
+    arguments =     (
+    );
+    environment =     {
+        "APP_DISTRIBUTOR_ID_OVERRIDE" = "com.apple.AppStore";
+        "CA_ASSERT_MAIN_THREAD_TRANSACTIONS" = 0;
+        "CA_DEBUG_TRANSACTIONS" = 0;
+        "DYLD_FRAMEWORK_PATH" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks";
+        "DYLD_INSERT_LIBRARIES" = "/usr/lib/libRPAC.dylib:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app/Frameworks/libXCTestBundleInject.dylib:/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app/Frameworks/libXCTestBundleInject.dylib:/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib";
+        "DYLD_LIBRARY_PATH" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib";
+        "LLVM_PROFILE_FILE" = "/dev/null";
+        NSUnbufferedIO = YES;
+        "OS_ACTIVITY_DT_MODE" = YES;
+        "PERFC_ENABLE_EXTENDED_DIAGNOSTIC_FORMAT" = 1;
+        "PERFC_ENABLE_PROFILE_MODE" = 1;
+        "PERFC_RESET_INSERT_LIBRARIES" = 1;
+        "PERFC_SUPPRESS_SYSTEM_REPORTS" = 1;
+        "RUN_DESTINATION_DEVICE_NAME" = "iPhone 17 Pro Max";
+        "RUN_DESTINATION_DEVICE_PLATFORM_IDENTIFIER" = "com.apple.platform.iphonesimulator";
+        "RUN_DESTINATION_DEVICE_UDID" = "9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1";
+        "SQLITE_ENABLE_THREAD_ASSERTIONS" = 1;
+        TERM = dumb;
+        XCInjectBundleInto = unused;
+        "XCODE_SCHEME_NAME" = Peak;
+        XCTestBundleInjectPath = "/usr/lib/libRPAC.dylib:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app/Frameworks/libXCTestBundleInject.dylib:/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app/Frameworks/libXCTestBundleInject.dylib:/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/usr/lib/libMainThreadChecker.dylib:/usr/lib/libRPAC.dylib";
+        XCTestBundlePath = "PlugIns/PeakTests.xctest";
+        XCTestConfigurationFilePath = "";
+        XCTestSessionIdentifier = "ADA98CDF-E902-46EF-8D0A-04C7ACADF001";
+        "__XCODE_BUILT_PRODUCTS_DIR_PATHS" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator";
+        "__XPC_DYLD_FRAMEWORK_PATH" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator";
+        "__XPC_DYLD_LIBRARY_PATH" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator:/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator";
+        "__XPC_LLVM_PROFILE_FILE" = "/dev/null";
+    };
+    stderr = "/dev/ttys028";
+    stdout = "/dev/ttys028";
+    "terminate_running_process" = 1;
+    "wait_for_debugger" = 1;
+}
+15:53:48.956 xcodebuild[1148:1643816] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Launched app with identifier: com.designprism.peak (pid = 1164)
+15:53:48.956 xcodebuild[1148:1643816] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> tracking pid 1164
+15:53:48.956 xcodebuild[1148:1643816] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> checking to see if pid 1164 is valid: kill(pid, 0) = 0 (YES, it's still running)
+15:53:48.957 xcodebuild[1148:1643799] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Registered for sim device notification, got token 10
+15:53:48.957 xcodebuild[1148:1643821] 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1: Unregistering for sim device notification with token 10
+15:53:49.167 xcodebuild[1148:1643797] Test process runnable PID is 1164.
+15:53:49.167 xcodebuild[1148:1643798] XCTHTestOperationStateMachine: Transitioning from state Initial to AcquiredPID
+15:53:51.137 xcodebuild[1148:1643821] Handling proxy channel request from test runner
+15:53:51.136 Peak[1164:1644216] Creating future for 'requesting test configuration' with timeout 600.00
+15:53:51.137 Peak[1164:1644216] Notifying test runner ready
+15:53:51.137 xcodebuild[1148:1643816] Test runner is ready with capabilities: <XCTCapabilities: 0x87b9e2dc0>: {
+    "delayed attachment transfer" = 1;
+    "fetch all test identifiers" = 1;
+    "ubiquitous test identifiers" = 1;
+}
+15:53:51.138 xcodebuild[1148:1643797] Test runner session successfully initiated.
+15:53:51.138 xcodebuild[1148:1643797] Authorizing test process ID 1164
+15:53:51.137 Peak[1164:1644216] <XCTWaiter: 0x600000c908d0> entering wait loop for 600.00s with expectations: `requesting test configuration`
+15:53:51.138 xcodebuild[1148:1643798] XCTHTestOperationStateMachine: Transitioning from state AcquiredPID to ReportedReady
+15:53:51.139 Peak[1164:1644395] Received test runner ready reply. Waiting for request to start running tests.
+15:53:51.139 xcodebuild[1148:1643797] Got authorization response from test daemon: Success
+15:53:51.140 xcodebuild[1148:1643797] Registering/updating daemon-based crash report observer for process names (
+    xctest,
+    debugserver,
+    FrontBoard,
+    assertiond,
+    runningboardd,
+    SpringBoard,
+    testmanagerd,
+    backboardd,
+    DTServiceHub,
+    PeakTests,
+    Peak
+)
+15:53:51.140 xcodebuild[1148:1643797] Telling test runner to start executing tests.
+15:53:51.140 Peak[1164:1644398] _IDE_startExecutingTestPlanWithProtocolVersion:36
+15:53:51.142 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c908d0>
+15:53:51.142 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001781140> completed after 0.005s
+15:53:51.142 Peak[1164:1644216] cleaning up requesting test configuration
+15:53:51.142 Peak[1164:1644216] Loading test bundle at: file:///Users/enzo/Library/Developer/CoreSimulator/Devices/9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1/data/Containers/Bundle/Application/B094AE4E-AEAB-469F-92CF-C7F1E7577213/Peak.app/PlugIns/PeakTests.xctest/
+15:53:51.142 Peak[1164:1644216] Finished loading test bundle
+15:53:52.548 Peak[1164:1644216] Registering in-process symbolication service with image names: PeakTests, Peak, PeakUITests-Runner
+15:53:52.548 Peak[1164:1644216] Running tests with active test configuration: <XCTestConfiguration: 0x103621800>
+	                  testBundleURL:file:///Users/enzo/Library/Developer/CoreSimulator/Devices/9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1/data/Containers/Bundle/Application/B094AE4E-AEAB-469F-92CF-C7F1E7577213/Peak.app/PlugIns/PeakTests.xctest/
+	         testBundleRelativePath:PlugIns/PeakTests.xctest
+	              productModuleName:PeakTests
+	                  testSelection:<XCTTestSelection: 0x600000c84420>
+	            identifiersToRun:(null)
+	            identifiersToSkip:
+	            tagsToRun:(null)
+	            tagsToSkip:<XCTTagSelection: 0x6000002d8060>
+	            mode:and
+	            tags:{(
+)}
+	  includeXCTests:NO
+
+
+	             reportResultsToIDE:YES
+	               testsDrivenByIDE:NO
+	inProcessParallelizationEnabled:YES
+	              sessionIdentifier:ADA98CDF-E902-46EF-8D0A-04C7ACADF001
+	      disablePerformanceMetrics:NO
+	treatMissingBaselinesAsFailures:NO
+	                baselineFileURL:(null)
+	       baselineFileRelativePath:(null)
+	          targetApplicationPath:(null)
+	      targetApplicationBundleID:(null)
+	 testApplicationDependencies:
+{
+    "Prism.PeakUITests.xctrunner" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/PeakUITests-Runner.app";
+    "com.designprism.peak" = "/Users/enzo/\Uf8ff/Peak/.derivedData/Build/Products/Debug-iphonesimulator/Peak.app";
+}
+	 bundleIDsForCrashReportEmphasis:
+{(
+    "Prism.PeakTests",
+    "com.designprism.peak",
+    "Prism.PeakUITests"
+)}
+	 testApplicationUserOverrides:(null)
+	     targetApplicationArguments:
+	   targetApplicationEnvironment:(null)
+	                  reportActivities:YES
+	          testsMustRunOnMainThread:NO
+	            initializeForUITesting:NO
+	            traceCollectionEnabled:(null)
+	 enablePerformanceTestsDiagnostics:(null)
+	 aggregateStatisticsBeforeCrash:
+{
+    XCSuiteRecordsKey =     {
+    };
+}
+	        automationFrameworkPath:/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/Developer/Library/PrivateFrameworks/XCTAutomationSupport.framework
+	                     emitOSLogs:NO
+	       systemAttachmentLifetime:deleteOnSuccess
+	         userAttachmentLifetime:deleteOnSuccess
+	   preferredScreenCaptureFormat:screenRecording
+	   gatherLocalizableStringsData:NO
+	          testExecutionOrdering:alphabetical
+	    randomExecutionOrderingSeed:(null)
+	               repetitionPolicy:<XCTRepetitionPolicy: 0x6000002d8a20>
+	            mode:None
+	            maximumIterations:1
+	            repeatInNewRunnerProcess:NO
+
+	       runtimeDiagnosticsPolicy:<XCTRuntimeDiagnosticsPolicy: 0x600000c2c270>
+	            otherRuntimeIssuesDetectionPolicy:<XCTRuntimeIssueDetectionPolicy: 0x6000002d85c0>
+	            detectionEnabled:YES
+	            severity:warning
+
+	            threadPerformanceCheckerRuntimeIssueDetectionPolicy:<XCTRuntimeIssueDetectionPolicy: 0x6000002d85c0>
+	            detectionEnabled:YES
+	            severity:warning
+
+	            mainThreadCheckerDetectionPolicy:<XCTRuntimeIssueDetectionPolicy: 0x6000002d85c0>
+	            detectionEnabled:YES
+	            severity:warning
+
+	            checkedAllocations:disabled
+
+	            testTimeoutsEnabled:NO
+	              leaksCheckingMode:off
+	 defaultTestExecutionTimeAllowance:600
+	 maximumTestExecutionTimeAllowance:0
+	                IDECapabilities:<XCTCapabilities: 0x600000024100>: {
+    "XCTIssue capability" = 1;
+    "daemon container sandbox extension" = 1;
+    "delayed attachment transfer" = 1;
+    "expected failure test capability" = 1;
+    "in-process test parallelization capability" = 1;
+    "request diagnostics for specific devices" = 1;
+    "runner plan" = 1;
+    "skipped suite capability" = 1;
+    "skipped test capability" = 1;
+    "test case run configurations" = 1;
+    "test iterations" = 2;
+    "test timeout capability" = 1;
+    traits = 1;
+    "ubiquitous test identifiers" = 1;
+    "unified issue recorded" = 1;
+}
+	         applicationBundleInfos:(null)
+
+15:53:52.549 Peak[1164:1644216] <XCTWaiter: 0x600000d12850> entering wait loop for 600.00s with expectations: `requesting ready for testing`
+15:53:52.549 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d12850>
+15:53:52.549 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001786640> completed after 0.000s
+15:53:52.549 Peak[1164:1644216] cleaning up requesting ready for testing
+15:53:52.549 Peak[1164:1644216] <XCTWaiter: 0x600000d1f120> entering wait loop for 600.00s with expectations: `IDE proxy`
+15:53:52.549 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d1f120>
+15:53:52.549 Peak[1164:1644216] Wait <XCTWaiterWait: 0x60000178b740> completed after 0.000s
+15:53:52.549 Peak[1164:1644216] cleaning up IDE proxy
+15:53:52.549 Peak[1164:1644216] Bypassing UI testing initialization because the test configuration does not request it.
+15:53:52.549 Peak[1164:1644216] Loading test suite...
+15:53:52.798 Peak[1164:1644216] Finished loading test suite, took 0.248s
+15:53:52.798 Peak[1164:1644216] <XCTWaiter: 0x600000c29770> entering wait loop for 597.75s with expectations: `preparing execution worker`
+15:53:52.841 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c29770>
+15:53:52.842 Peak[1164:1644216] Wait <XCTWaiterWait: 0x60000177bb40> completed after 0.044s
+15:53:52.842 Peak[1164:1644216] cleaning up preparing execution worker
+15:53:52.842 xcodebuild[1148:1643797] Test runner started executing tests.
+15:53:52.842 xcodebuild[1148:1643821] XCTHTestOperationStateMachine: Transitioning from state ReportedReady to ExecutingTests
+15:53:52.842 Peak[1164:1644216] Entering test execution event loop
+15:53:52.842 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testBundleWillStart:]
+15:53:52.842 Peak[1164:1644216] Running suite...
+15:53:52.842 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.842 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container ["All tests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.842 xcodebuild[1148:1643797] Nothing to delete
+Test Suite 'All tests' started at 2026-02-04 15:53:52.842.
+Test Suite 'PeakTests.xctest' started at 2026-02-04 15:53:52.842.
+Test Suite 'ContrastTests' started at 2026-02-04 15:53:52.842.
+Test Case '-[PeakTests.ContrastTests testContrastTokensMeetMinimums]' started.
+15:53:52.842 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.844 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container []> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.844 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.842 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.844 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ContrastTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.844 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.843 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.843 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.ContrastTests testContrastTokensMeetMinimums
+15:53:52.844 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ContrastTests", "testContrastTokensMeetMinimums"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e1528e0>
+15:53:52.844 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["ContrastTests", "testContrastTokensMeetMinimums"]>
+15:53:52.844 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.843 Peak[1164:1644216] <XCTWaiter: 0x600000d13360> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.843 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d13360>
+15:53:52.843 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001765040> completed after 0.000s
+15:53:52.843 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.844 Peak[1164:1644216] <XCTWaiter: 0x600000d1fd20> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.845 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.845 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.844 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d1fd20>
+15:53:52.844 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001780fc0> completed after 0.000s
+15:53:52.845 xcodebuild[1148:1643797] Nothing to delete
+Test Case '-[PeakTests.ContrastTests testContrastTokensMeetMinimums]' passed (0.001 seconds).
+Test Suite 'ContrastTests' passed at 2026-02-04 15:53:52.844.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'ExportImportTests' started at 2026-02-04 15:53:52.844.
+Test Case '-[PeakTests.ExportImportTests testExportImportMergeRoundTrip]' started.
+15:53:52.844 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.844 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.845 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ContrastTests", "testContrastTokensMeetMinimums"]> didFinishWithStatus:passed duration:0.0009469985961914062
+15:53:52.846 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["ContrastTests", "testContrastTokensMeetMinimums"]>) finished - enqueuing console chunks to delegate.
+15:53:52.846 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.844 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.846 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ContrastTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:1 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.0009469985961914062 totalDuration:0.001577019691467285
+15:53:52.846 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.844 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.847 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ExportImportTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.844 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.844 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.ExportImportTests testExportImportMergeRoundTrip
+15:53:52.847 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportMergeRoundTrip"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e152340>
+15:53:52.847 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportMergeRoundTrip"]>
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.845 Peak[1164:1644216] <XCTWaiter: 0x600000c89140> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.845 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c89140>
+15:53:52.845 Peak[1164:1644216] Wait <XCTWaiterWait: 0x60000174f700> completed after 0.000s
+15:53:52.845 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.847 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.849 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.849 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.ContrastTests testContrastTokensMeetMinimums]' passed (0.001 seconds).
+
+15:53:52.856 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.856 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.857 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.857 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.857 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.857 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.857 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.894 Peak[1164:1644216] <XCTWaiter: 0x600000d2ca50> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.895 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d2ca50>
+15:53:52.895 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001775600> completed after 0.000s
+15:53:52.895 Peak[1164:1644216] cleaning up failable invocation block completion
+Test Case '-[PeakTests.ExportImportTests testExportImportMergeRoundTrip]' passed (0.050 seconds).
+15:53:52.895 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.896 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.896 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportMergeRoundTrip"]> didFinishWithStatus:passed duration:0.05030107498168945
+15:53:52.896 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportMergeRoundTrip"]>) finished - enqueuing console chunks to delegate.
+15:53:52.896 xcodebuild[1148:1643797] Nothing to delete
+Test Case '-[PeakTests.ExportImportTests testExportImportReplaceClearsExisting]' started.
+15:53:52.895 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.895 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.ExportImportTests testExportImportReplaceClearsExisting
+15:53:52.896 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportReplaceClearsExisting"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e01c240>
+15:53:52.896 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportReplaceClearsExisting"]>
+15:53:52.896 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.895 Peak[1164:1644216] <XCTWaiter: 0x600000d18d50> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.895 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d18d50>
+15:53:52.895 Peak[1164:1644216] Wait <XCTWaiterWait: 0x60000176b7c0> completed after 0.000s
+15:53:52.895 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.896 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.ExportImportTests testExportImportMergeRoundTrip]' passed (0.050 seconds).
+
+15:53:52.897 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.897 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.902 Peak[1164:1644216] <XCTWaiter: 0x600000c8b4e0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.902 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c8b4e0>
+15:53:52.902 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001794180> completed after 0.000s
+15:53:52.902 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.902 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+Test Case '-[PeakTests.ExportImportTests testExportImportReplaceClearsExisting]' passed (0.007 seconds).
+15:53:52.903 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportReplaceClearsExisting"]> didFinishWithStatus:passed duration:0.007357954978942871
+15:53:52.903 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["ExportImportTests", "testExportImportReplaceClearsExisting"]>) finished - enqueuing console chunks to delegate.
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.902 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+Test Suite 'ExportImportTests' passed at 2026-02-04 15:53:52.902.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.058 (0.058) seconds
+Test Suite 'GearUsageCalculatorTests' started at 2026-02-04 15:53:52.903.
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyAllowsDeleteWhenUnused]' started.
+15:53:52.903 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ExportImportTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:2 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.05765902996063232 totalDuration:0.0582430362701416
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.903 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["GearUsageCalculatorTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.903 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.GearUsageCalculatorTests testGearPolicyAllowsDeleteWhenUnused
+15:53:52.903 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyAllowsDeleteWhenUnused"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87df94ee0>
+15:53:52.903 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyAllowsDeleteWhenUnused"]>
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] <XCTWaiter: 0x600000c4a9d0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.903 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c4a9d0>
+15:53:52.903 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.ExportImportTests testExportImportReplaceClearsExisting]' passed (0.007 seconds).
+
+15:53:52.904 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001794600> completed after 0.000s
+15:53:52.904 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.904 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] cleaning up failable invocation block completion
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyAllowsDeleteWhenUnused]' passed (0.000 seconds).
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyRequiresArchiveWhenUsed]' started.
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyRequiresArchiveWhenUsed]' passed (0.000 seconds).
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearUsageSummaryAndTopSpots]' started.
+15:53:52.903 Peak[1164:1644216] <XCTWaiter: 0x600000c19830> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.903 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c19830>
+15:53:52.903 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001795080> completed after 0.000s
+15:53:52.903 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.903 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.905 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyAllowsDeleteWhenUnused"]> didFinishWithStatus:passed duration:0.000435948371887207
+15:53:52.905 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyAllowsDeleteWhenUnused"]>) finished - enqueuing console chunks to delegate.
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.903 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.903 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.GearUsageCalculatorTests testGearPolicyRequiresArchiveWhenUsed
+15:53:52.905 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyRequiresArchiveWhenUsed"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87df95300>
+15:53:52.905 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyRequiresArchiveWhenUsed"]>
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.904 Peak[1164:1644216] <XCTWaiter: 0x600000d28900> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.904 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d28900>
+15:53:52.904 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001790ec0> completed after 0.000s
+15:53:52.904 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.904 Peak[1164:1644216] <XCTWaiter: 0x600000d282d0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.904 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d282d0>
+15:53:52.904 Peak[1164:1644216] Wait <XCTWaiterWait: 0x6000017900c0> completed after 0.000s
+15:53:52.904 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.904 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.905 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyRequiresArchiveWhenUsed"]> didFinishWithStatus:passed duration:0.0004259347915649414
+15:53:52.905 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearPolicyRequiresArchiveWhenUsed"]>) finished - enqueuing console chunks to delegate.
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.904 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.904 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.GearUsageCalculatorTests testGearUsageSummaryAndTopSpots
+15:53:52.905 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearUsageSummaryAndTopSpots"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87df95360>
+15:53:52.905 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearUsageSummaryAndTopSpots"]>
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.904 Peak[1164:1644216] <XCTWaiter: 0x600000d28030> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.904 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d28030>
+15:53:52.904 Peak[1164:1644216] Wait <XCTWaiterWait: 0x6000017913c0> completed after 0.000s
+15:53:52.904 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyAllowsDeleteWhenUnused]' passed (0.000 seconds).
+
+15:53:52.906 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.906 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.906 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.GearUsageCalculatorTests testGearPolicyRequiresArchiveWhenUsed]' passed (0.000 seconds).
+
+15:53:52.907 xcodebuild[1148:1643797] Nothing to delete
+Test Case '-[PeakTests.GearUsageCalculatorTests testGearUsageSummaryAndTopSpots]' passed (0.001 seconds).
+Test Suite 'GearUsageCalculatorTests' passed at 2026-02-04 15:53:52.905.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.003) seconds
+Test Suite 'ModelMigrationTests' started at 2026-02-04 15:53:52.905.
+Test Case '-[PeakTests.ModelMigrationTests testContainerInitializesWithMigrationPlan]' started.
+15:53:52.907 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 Peak[1164:1644216] <XCTWaiter: 0x600000d13a80> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.905 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d13a80>
+15:53:52.905 Peak[1164:1644216] Wait <XCTWaiterWait: 0x60000175ff80> completed after 0.000s
+15:53:52.905 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.905 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.907 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearUsageSummaryAndTopSpots"]> didFinishWithStatus:passed duration:0.001102924346923828
+15:53:52.907 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["GearUsageCalculatorTests", "testGearUsageSummaryAndTopSpots"]>) finished - enqueuing console chunks to delegate.
+15:53:52.907 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.907 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["GearUsageCalculatorTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:3 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.001964807510375977 totalDuration:0.00265800952911377
+15:53:52.907 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.907 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.907 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ModelMigrationTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.905 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.906 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.ModelMigrationTests testContainerInitializesWithMigrationPlan
+15:53:52.908 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ModelMigrationTests", "testContainerInitializesWithMigrationPlan"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87df965e0>
+15:53:52.908 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["ModelMigrationTests", "testContainerInitializesWithMigrationPlan"]>
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.906 Peak[1164:1644216] <XCTWaiter: 0x600000d13960> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.906 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d13960>
+15:53:52.906 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001784200> completed after 0.000s
+15:53:52.906 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.908 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.908 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.GearUsageCalculatorTests testGearUsageSummaryAndTopSpots]' passed (0.001 seconds).
+
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.909 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.918 Peak[1164:1644216] <XCTWaiter: 0x600000d18f00> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.918 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d18f00>
+15:53:52.918 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001755440> completed after 0.000s
+15:53:52.918 Peak[1164:1644216] cleaning up failable invocation block completion
+Test Case '-[PeakTests.ModelMigrationTests testContainerInitializesWithMigrationPlan]' passed (0.013 seconds).
+15:53:52.918 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["ModelMigrationTests", "testContainerInitializesWithMigrationPlan"]> didFinishWithStatus:passed duration:0.01275599002838135
+15:53:52.919 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["ModelMigrationTests", "testContainerInitializesWithMigrationPlan"]>) finished - enqueuing console chunks to delegate.
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+Test Suite 'ModelMigrationTests' passed at 2026-02-04 15:53:52.918.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.013 (0.013) seconds
+Test Suite 'SpotLimitTests' started at 2026-02-04 15:53:52.919.
+Test Case '-[PeakTests.SpotLimitTests testSpotLimitBlocksNewSpots]' started.
+15:53:52.918 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.919 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["ModelMigrationTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:1 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.01275599002838135 totalDuration:0.01306796073913574
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.919 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["SpotLimitTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.919 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.SpotLimitTests testSpotLimitBlocksNewSpots
+15:53:52.919 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["SpotLimitTests", "testSpotLimitBlocksNewSpots"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87df97660>
+15:53:52.919 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["SpotLimitTests", "testSpotLimitBlocksNewSpots"]>
+15:53:52.919 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.ModelMigrationTests testContainerInitializesWithMigrationPlan]' passed (0.013 seconds).
+
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 Peak[1164:1644216] <XCTWaiter: 0x600000d1a880> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.919 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d1a880>
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.919 Peak[1164:1644216] Wait <XCTWaiterWait: 0x6000017850c0> completed after 0.000s
+15:53:52.919 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.920 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.923 Peak[1164:1644216] <XCTWaiter: 0x600000d25aa0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.923 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d25aa0>
+15:53:52.923 Peak[1164:1644216] Wait <XCTWaiterWait: 0x6000017845c0> completed after 0.000s
+15:53:52.923 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.923 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+Test Case '-[PeakTests.SpotLimitTests testSpotLimitBlocksNewSpots]' passed (0.004 seconds).
+Test Suite 'SpotLimitTests' passed at 2026-02-04 15:53:52.923.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+15:53:52.924 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.924 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["SpotLimitTests", "testSpotLimitBlocksNewSpots"]> didFinishWithStatus:passed duration:0.004307985305786133
+15:53:52.924 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["SpotLimitTests", "testSpotLimitBlocksNewSpots"]>) finished - enqueuing console chunks to delegate.
+15:53:52.924 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.923 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.924 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.SpotLimitTests testSpotLimitBlocksNewSpots]' passed (0.004 seconds).
+
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+Test Suite 'UsageMetricsTests' started at 2026-02-04 15:53:52.923.
+Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearCountsUniqueDays]' started.
+Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearCountsUniqueDays]' passed (0.001 seconds).
+Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearWeekStreak]' started.
+Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearWeekStreak]' passed (0.000 seconds).
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["SpotLimitTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:1 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.004307985305786133 totalDuration:0.004598021507263184
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.923 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteWillStart:]
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["UsageMetricsTests"]> didStartAt:2026-02-04 23:53:52 +0000
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.923 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.923 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.UsageMetricsTests testSurfDaysThisYearCountsUniqueDays
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearCountsUniqueDays"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e299100>
+15:53:52.925 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearCountsUniqueDays"]>
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.924 Peak[1164:1644216] <XCTWaiter: 0x600000d260d0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.924 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d260d0>
+15:53:52.924 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001784b80> completed after 0.000s
+15:53:52.924 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.924 Peak[1164:1644216] <XCTWaiter: 0x600000d25ce0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.924 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d25ce0>
+15:53:52.924 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001786440> completed after 0.000s
+15:53:52.924 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.924 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearCountsUniqueDays"]> didFinishWithStatus:passed duration:0.0005700588226318359
+15:53:52.925 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearCountsUniqueDays"]>) finished - enqueuing console chunks to delegate.
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.924 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.924 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.UsageMetricsTests testSurfDaysThisYearWeekStreak
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearWeekStreak"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e299340>
+15:53:52.925 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearWeekStreak"]>
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.924 Peak[1164:1644216] <XCTWaiter: 0x600000d28270> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.924 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d28270>
+15:53:52.924 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001790800> completed after 0.000s
+15:53:52.924 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.925 Peak[1164:1644216] <XCTWaiter: 0x600000d28ed0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.925 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d28ed0>
+15:53:52.925 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001790980> completed after 0.000s
+15:53:52.925 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.925 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.925 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearWeekStreak"]> didFinishWithStatus:passed duration:0.0004909038543701172
+15:53:52.925 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testSurfDaysThisYearWeekStreak"]>) finished - enqueuing console chunks to delegate.
+15:53:52.925 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearCountsUniqueDays]' passed (0.001 seconds).
+
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.925 Peak[1164:1644216] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.925 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseWillStart:] PeakTests.UsageMetricsTests testUsageMetricsSummaries
+Test Case '-[PeakTests.UsageMetricsTests testUsageMetricsSummaries]' started.
+Test Case '-[PeakTests.UsageMetricsTests testUsageMetricsSummaries]' passed (0.000 seconds).
+Test Suite 'UsageMetricsTests' passed at 2026-02-04 15:53:52.926.
+	 Executed 3 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'PeakTests.xctest' passed at 2026-02-04 15:53:52.926.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.079 (0.083) seconds
+Test Suite 'All tests' passed at 2026-02-04 15:53:52.926.
+	 Executed 11 tests, with 0 failures (0 unexpected) in 0.079 (0.084) seconds
+15:53:52.927 xcodebuild[1148:1643797] _XCT_testCaseDidStartWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testUsageMetricsSummaries"]>testCaseRunConfiguration:<XCTestCaseRunConfiguration: 0x87e299980>
+15:53:52.927 xcodebuild[1148:1643797] Test case did start: <XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testUsageMetricsSummaries"]>
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.925 Peak[1164:1644216] <XCTWaiter: 0x600000d289f0> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.925 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d289f0>
+15:53:52.925 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001790f40> completed after 0.000s
+15:53:52.925 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.925 Peak[1164:1644216] <XCTWaiter: 0x600000d28b10> entering indefinite wait loop for expectations: `failable invocation block completion`
+15:53:52.925 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000d28b10>
+15:53:52.925 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001791200> completed after 0.000s
+15:53:52.925 Peak[1164:1644216] cleaning up failable invocation block completion
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.925 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testCaseDidFinish:]
+15:53:52.927 xcodebuild[1148:1643797] _XCT_testCaseWithIdentifier:<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testUsageMetricsSummaries"]> didFinishWithStatus:passed duration:0.000477910041809082
+15:53:52.927 xcodebuild[1148:1643797] Test case (<XCTTestIdentifier leaf, method, swift ["UsageMetricsTests", "testUsageMetricsSummaries"]>) finished - enqueuing console chunks to delegate.
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.927 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container, class ["UsageMetricsTests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:3 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.001538872718811035 totalDuration:0.002216100692749023
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.927 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container []> didFinishAt:2026-02-04 23:53:52 +0000 runCount:11 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.07917368412017822 totalDuration:0.08331704139709473
+15:53:52.927 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testSuiteDidFinish:]
+15:53:52.928 xcodebuild[1148:1643797] _XCT_testSuiteWithIdentifier:<XCTTestIdentifier container ["All tests"]> didFinishAt:2026-02-04 23:53:52 +0000 runCount:11 skipCount:0 failureCount:0 expectedFailureCount:0 uncaughtExceptionCount:0 testDuration:0.07917368412017822 totalDuration:0.08400893211364746
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.926 Peak[1164:1644216] Finished running suite.
+15:53:52.926 Peak[1164:1644216] <XCTWaiter: 0x600000c89f20> entering indefinite wait loop for expectations: `XCTAsyncEnumerateWithWaiter(<XCTest.SwiftTestingExecutionExtension: 0x104208210>)`
+15:53:52.926 Peak[1164:1644379] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.926 Peak[1164:1644379] -[XCTRuntimeIssueDetectionManager runtimeIssueDetectionEnabled] runtimeIssueDetectionEnabled based on XCTDisableRuntimeIssues and runtime diagnostics policies: YES
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.UsageMetricsTests testSurfDaysThisYearWeekStreak]' passed (0.000 seconds).
+
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.928 xcodebuild[1148:1643797] Finishing test with new console chunk Test Case '-[PeakTests.UsageMetricsTests testUsageMetricsSummaries]' passed (0.000 seconds).
+
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.927 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c89f20>
+15:53:52.927 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001791d80> completed after 0.001s
+15:53:52.927 Peak[1164:1644216] cleaning up XCTAsyncEnumerateWithWaiter(<XCTest.SwiftTestingExecutionExtension: 0x104208210>)
+15:53:52.928 Peak[1164:1644216] <XCTWaiter: 0x600000c89f20> entering indefinite wait loop for expectations: `XCTAsyncEnumerateWithWaiter(<XCTTestRunSession: 0x600000305300>)`
+15:53:52.928 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c89f20>
+15:53:52.928 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001782840> completed after 0.000s
+15:53:52.928 Peak[1164:1644216] cleaning up XCTAsyncEnumerateWithWaiter(<XCTTestRunSession: 0x600000305300>)
+15:53:52.928 Peak[1164:1644216] -[XCTRunnerIDESession(_XCTestObservationInternal) testBundleDidFinish:], Flushing connection to IDE...
+15:53:52.928 Peak[1164:1644216] Exited test execution event loop
+15:53:52.928 Peak[1164:1644216] Creating future for 'flushing telemetry' with timeout 10.00
+15:53:52.928 Peak[1164:1644216] <XCTWaiter: 0x600000c5ab50> entering wait loop for 10.00s with expectations: `flushing telemetry`
+15:53:52.928 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c5ab50>
+15:53:52.928 Peak[1164:1644216] Wait <XCTWaiterWait: 0x600001778400> completed after 0.000s
+15:53:52.928 Peak[1164:1644216] cleaning up flushing telemetry
+15:53:52.928 Peak[1164:1644216] Creating future for 'confirming end of session with the harness' with timeout 1800.00
+15:53:52.929 xcodebuild[1148:1643797] -[XCTTestRunnerSession _XCT_didFinishExecutingTestPlan]_block_invoke
+15:53:52.928 Peak[1164:1644216] <XCTWaiter: 0x600000c90e70> entering wait loop for 1800.00s with expectations: `confirming end of session with the harness`
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 xcodebuild[1148:1643797] Nothing to delete
+15:53:52.929 Peak[1164:1644216] Returning result XCTWaiterResultCompleted for synchronous waiter <XCTWaiter: 0x600000c90e70>
+15:53:52.929 Peak[1164:1644216] Wait <XCTWaiterWait: 0x6000017776c0> completed after 0.001s
+15:53:52.929 Peak[1164:1644216] cleaning up confirming end of session with the harness
+15:53:52.937 xcodebuild[1148:1643819] Closing socket 39 to testmanagerd for Sim iPhone 17 Pro Max
+15:53:52.937 xcodebuild[1148:1643799] <XCTTestRunnerSession: 0x87fdb8ff0> lost its connection.
+15:53:52.937 xcodebuild[1148:1643797] Lost connection to test process
+15:53:52.937 xcodebuild[1148:1643797] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> got death notice for pid 1164 (exit code: 0, signal: (null)), removing from SimulatorSessionMap
+15:53:52.937 xcodebuild[1148:1643797] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was relinquished, 1 claims remain.
+15:53:52.938 xcodebuild[1148:1643797] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was relinquished, 1 claims remain.
+15:53:52.938 xcodebuild[1148:1643797] 📱<DVTiPhoneSimulator (0x87e0d1e00), iPhone 17 Pro Max, unknown class, 26.2 (23C54), 9DE67F5E-7CF6-488D-B7EE-CD92ED9662F1> claim LaunchSessionClaim_0x87c726e80 on simulator was relinquished, 1 claims remain.
+15:53:52.938 xcodebuild[1148:1643797] Launch session expired.
+15:53:53.034 xcodebuild[1148:1643797] Nothing to delete
+15:53:53.192 xcodebuild[1148:1643797] <XCTHTestOperationCoordinator: 0x87c727780> finished receiving data from testing launch session
+15:53:53.192 xcodebuild[1148:1643797] <XCTHTestOperationCoordinator: 0x87c727780>: _considerFlushingDelegateBlockQueue - nothing to flush
+15:53:53.192 xcodebuild[1148:1643797] Nothing to delete
+15:53:53.192 xcodebuild[1148:1643797] Can finish test, forceToNotWaitForAsynchronousDiagnostics is NO. Finishing...
+15:53:53.192 xcodebuild[1148:1643797] _finishWithError:(null)
+15:53:53.192 xcodebuild[1148:1643797] Current state: testRunnerLaunchSessionHasFinishedReceivingData: YES, delegateBlockQueue.count: 0
+15:53:53.192 xcodebuild[1148:1643797] <XCTHTestOperationCoordinator: 0x87c727780>: _considerFlushingDelegateBlockQueue - nothing to flush

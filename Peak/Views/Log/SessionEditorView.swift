@@ -44,6 +44,7 @@ struct SessionEditorView: View {
     @State private var isFetchingConditions = false
     @State private var surfConditionsNotice: SurfConditionsNotice?
     @State private var showSurfConditionsOverwriteAlert = false
+    @State private var conditionsSourceDetails: SurfConditionsSourceDetails?
     @State private var didSave = false
     @State private var dismissAfterMediaAlert = false
     @FocusState private var focusedField: FocusField?
@@ -460,6 +461,9 @@ struct SessionEditorView: View {
                 draft.selectSpot(spot)
             }
         }
+        .sheet(item: $conditionsSourceDetails) { details in
+            SurfConditionsSourceView(details: details)
+        }
         .alert("Spot", isPresented: $showSpotAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -784,13 +788,52 @@ struct SessionEditorView: View {
     }
 
     private func successMessage(for snapshot: SurfConditionsSnapshot) -> String {
-        if let summary = SurfConditionsFormatter.compactSummary(
+        let summary = SurfConditionsFormatter.compactSummary(
             waveHeightMeters: snapshot.waveHeightMeters,
             windSpeedKph: snapshot.windSpeedKph
-        ) {
-            return "Filled from Open-Meteo: \(summary)."
+        )
+        switch (snapshot.hasWaveReadings, snapshot.hasWindReadings) {
+        case (true, true):
+            if let summary {
+                return "Filled from Open-Meteo: \(summary)."
+            }
+            return "Filled from Open-Meteo."
+        case (true, false):
+            if let summary {
+                return "Filled wave data from Open-Meteo (wind unavailable): \(summary)."
+            }
+            return "Filled wave data from Open-Meteo (wind unavailable)."
+        case (false, true):
+            if let summary {
+                return "Filled wind data from Open-Meteo (waves unavailable): \(summary)."
+            }
+            return "Filled wind data from Open-Meteo (waves unavailable)."
+        case (false, false):
+            return "Filled from Open-Meteo."
         }
-        return "Filled from Open-Meteo."
+    }
+
+    private func makeConditionsSourceDetails() -> SurfConditionsSourceDetails? {
+        guard let source = draft.conditionsSource else { return nil }
+        let durationMinutes = draft.durationMinutes
+        guard durationMinutes > 0 else { return nil }
+
+        let spotName: String?
+        if let selectedName = draft.selectedSpot?.name {
+            spotName = selectedName
+        } else {
+            spotName = draft.spotName.trimmedNonEmpty
+        }
+
+        return SurfConditionsSourceDetails(
+            source: source,
+            fetchedAt: draft.conditionsFetchedAt,
+            spotName: spotName,
+            latitude: draft.conditionsLatitude,
+            longitude: draft.conditionsLongitude,
+            sessionStart: draft.date,
+            durationMinutes: durationMinutes
+        )
     }
 
     private func errorMessage(for error: Error) -> String {
@@ -804,17 +847,36 @@ struct SessionEditorView: View {
     private func surfConditionsNoticeView(_ notice: SurfConditionsNotice) -> some View {
         let iconName = notice.style.iconName
         let accent = notice.style.accentColor
+        let details = makeConditionsSourceDetails()
+        let isTappable = notice.style == .success && details != nil
 
-        HStack(spacing: 8) {
+        let content = HStack(spacing: 8) {
             Image(systemName: iconName)
                 .foregroundStyle(accent)
             Text(notice.message)
                 .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
                 .foregroundStyle(Theme.textPrimary)
+            Spacer()
+            if isTappable {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textMuted)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: isTappable)
+
+        if let details, isTappable {
+            Button {
+                conditionsSourceDetails = details
+            } label: {
+                content
+            }
+            .buttonStyle(PressFeedbackButtonStyle())
+        } else {
+            content
+        }
     }
 
     private func addSpotTapped() {

@@ -1,0 +1,28 @@
+15:53:47.931 xcodebuild[1148:1643821] Sim iPhone 17 Pro Max: Unregistering for sim device notification with token 3
+15:53:47.931 xcodebuild[1148:1643821] Calling -[SimDevice getenv:error:] for TESTMANAGERD_SIM_SOCK
+15:53:47.932 xcodebuild[1148:1643821] Sim iPhone 17 Pro Max has testmanagerd socket at /private/tmp/com.apple.launchd.HZJNdE5cAv/com.apple.testmanagerd.unix-domain.socket
+15:53:47.932 xcodebuild[1148:1643821] Validating test connection socket path (/private/tmp/com.apple.launchd.HZJNdE5cAv/com.apple.testmanagerd.unix-domain.socket)
+15:53:47.932 xcodebuild[1148:1643821] Constructing transport for test connection socket
+15:53:47.932 xcodebuild[1148:1643821] Connected socket 36 to testmanagerd for Sim iPhone 17 Pro Max
+15:53:47.933 xcodebuild[1148:1643821] Initiating control session with IDE capabilities: <XCTCapabilities: 0x87b9e2910>: {
+}
+15:53:47.937 xcodebuild[1148:1643798] Got reply to control session initiation request (result:error): <XCTCapabilities: 0x87b9e2940>: {
+    "authorize test session capability" = 1;
+    "automation mode" = 1;
+    "daemon container sandbox extension" = 1;
+    "initiate daemon control session capability" = 4;
+    "initiate test runner session capability" = 2;
+    "record UI interaction capability" = 2;
+    "recording events as source code" = 1;
+    "report crashes capability" = 1;
+    "request log archive capability" = 1;
+    "supports delayed attachment transfers" = 1;
+}: (null)
+15:53:48.217 xcodebuild[1148:1643798] Requesting crash report collection for process names: FrontBoard, runningboardd, debugserver, xctest, assertiond, SpringBoard, testmanagerd, backboardd, PeakTests, DTServiceHub, Peak
+15:53:48.220 xcodebuild[1148:1643821] Got reply to crash report collection request (error: (null))
+15:53:51.138 xcodebuild[1148:1643816] Requesting authorization for pid 1164
+15:53:51.139 xcodebuild[1148:1643819] Got reply to authorization request for pid 1164 (result:error): 1: (null)
+15:53:53.205 xcodebuild[1148:1643821] Requesting crash report collection for process names: runningboardd, Peak, backboardd, FrontBoard, xctest, PeakUITests, testmanagerd, SpringBoard, PeakUITests-Runner, PeakTests, assertiond, debugserver, DTServiceHub
+15:53:53.206 xcodebuild[1148:1643821] Got reply to crash report collection request (error: (null))
+15:53:53.862 xcodebuild[1148:1643798] Requesting authorization for pid 1464
+15:53:53.863 xcodebuild[1148:1643798] Got reply to authorization request for pid 1464 (result:error): 1: (null)
