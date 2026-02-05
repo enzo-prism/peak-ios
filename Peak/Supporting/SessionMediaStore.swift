@@ -80,7 +80,7 @@ enum SessionMediaStore {
     }
 
     private static func resolvedMediaDirectoryURL() -> URL {
-        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+        if TestingDefaults.isRunningTests {
             let directory = FileManager.default.temporaryDirectory
                 .appendingPathComponent(mediaFolderName, isDirectory: true)
             if !FileManager.default.fileExists(atPath: directory.path) {
@@ -111,7 +111,7 @@ enum SessionMediaStore {
     }
 
     private static func mediaDirectoryURL() throws -> URL {
-        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+        if TestingDefaults.isRunningTests {
             let directory = FileManager.default.temporaryDirectory
                 .appendingPathComponent(mediaFolderName, isDirectory: true)
             if !FileManager.default.fileExists(atPath: directory.path) {

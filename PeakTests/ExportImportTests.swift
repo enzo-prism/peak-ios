@@ -127,6 +127,93 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(sessions.count, 1)
     }
 
+    func testSessionsCSVEscapesSpecialCharacters() {
+        let notes = "Line1, \"Line2\"\nLine3"
+        let session = SurfSession(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 1),
+            spot: nil,
+            notes: notes
+        )
+
+        let csv = PeakExportManager.sessionsCSV(sessions: [session])
+
+        XCTAssertTrue(csv.contains("\"Line1, \"\"Line2\"\"\nLine3\""))
+    }
+
+    func testApplyImportRejectsUnsupportedSchema() throws {
+        let export = PeakExport(
+            schemaVersion: "unsupported",
+            exportedAt: ExportDateFormatter.string(from: TestCalendar.makeDate(year: 2026, month: 2, day: 1)),
+            sessions: [],
+            spots: [],
+            gear: [],
+            buddies: []
+        )
+
+        let container = try makeContainer()
+        XCTAssertThrowsError(try PeakExportManager.applyImport(export, mode: .merge, context: container.mainContext)) { error in
+            guard case ExportError.unsupportedSchema = error else {
+                XCTFail("Expected unsupportedSchema but got \(error)")
+                return
+            }
+        }
+    }
+
+    func testApplyImportCreatesSpotFromNameWhenMissing() throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 2, day: 1, hour: 6)
+        let createdString = ExportDateFormatter.string(from: createdAt)
+
+        let sessionExport = SessionExport(
+            id: createdString,
+            date: createdString,
+            spotId: nil,
+            spotName: "New Spot",
+            rating: 4,
+            durationMinutes: 60,
+            windCondition: nil,
+            waveHeight: nil,
+            windSpeedKph: nil,
+            windDirectionDegrees: nil,
+            waveHeightMeters: nil,
+            swellWaveHeightMeters: nil,
+            swellWavePeriodSeconds: nil,
+            swellWaveDirectionDegrees: nil,
+            windWaveHeightMeters: nil,
+            windWavePeriodSeconds: nil,
+            windWaveDirectionDegrees: nil,
+            seaSurfaceTemperatureC: nil,
+            conditionsSource: nil,
+            conditionsFetchedAt: nil,
+            conditionsLatitude: nil,
+            conditionsLongitude: nil,
+            notes: "",
+            buddyIds: [],
+            gearIds: ["missing-gear"],
+            createdAt: createdString,
+            updatedAt: createdString
+        )
+
+        let export = PeakExport(
+            schemaVersion: PeakExportManager.schemaVersion,
+            exportedAt: createdString,
+            sessions: [sessionExport],
+            spots: [],
+            gear: [],
+            buddies: []
+        )
+
+        let container = try makeContainer()
+        try PeakExportManager.applyImport(export, mode: .merge, context: container.mainContext)
+
+        let spots = try container.mainContext.fetch(FetchDescriptor<Spot>())
+        XCTAssertEqual(spots.count, 1)
+        XCTAssertEqual(spots.first?.name, "New Spot")
+
+        let sessions = try container.mainContext.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertTrue(sessions.first?.gear.isEmpty ?? false)
+    }
+
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)

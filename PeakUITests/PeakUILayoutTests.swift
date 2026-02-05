@@ -11,6 +11,7 @@ final class PeakUILayoutTests: XCTestCase {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         app.launch()
     }
 
@@ -59,8 +60,8 @@ final class PeakUILayoutTests: XCTestCase {
 
         let scrollView = app.scrollViews.firstMatch
         let photoThumb = app.buttons.matching(identifier: "session.media.photo").firstMatch
-        assertExists(photoThumb)
         scrollToVisible(photoThumb, in: scrollView)
+        assertExists(photoThumb)
         photoThumb.tap()
 
         let photoViewer = element(named: "media.viewer.photo")
@@ -84,8 +85,8 @@ final class PeakUILayoutTests: XCTestCase {
 
         let scrollView = app.scrollViews.firstMatch
         let videoThumb = app.buttons.matching(identifier: "session.media.video").firstMatch
-        assertExists(videoThumb)
         scrollToVisible(videoThumb, in: scrollView)
+        assertExists(videoThumb)
         videoThumb.tap()
 
         let videoViewer = element(named: "media.viewer.video")
@@ -786,15 +787,15 @@ private extension PeakUILayoutTests {
     func openHistorySession(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         tapTab(named: "History")
 
-        let row = app.staticTexts[name]
-        if row.waitForExistence(timeout: 2) {
-            row.tap()
+        let cell = app.cells.containing(.staticText, identifier: name).firstMatch
+        if cell.waitForExistence(timeout: 2) {
+            cell.tap()
             return
         }
 
-        let cell = historyRowCell()
-        assertExists(cell, file: file, line: line)
-        cell.tap()
+        let row = historyRowCell()
+        assertExists(row, file: file, line: line)
+        row.tap()
     }
 
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {

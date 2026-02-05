@@ -15,7 +15,7 @@ struct PeakApp: App {
 
     init() {
         Self.configureTabBarAppearance()
-        let isUITest = ProcessInfo.processInfo.environment["UITESTS"] == "1"
+        let isUITest = TestingDefaults.isUITest
         let schema = Schema(versionedSchema: PeakSchemaV7.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITest)
         do {
@@ -24,7 +24,7 @@ struct PeakApp: App {
             fatalError("Failed to initialize data store: \(error)")
         }
         if isUITest {
-            PreviewData.seed(context: container.mainContext)
+            PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
             if ProcessInfo.processInfo.environment["UITESTS_DISABLE_ANIMATIONS"] == "1" {
                 UIView.setAnimationsEnabled(false)
             }

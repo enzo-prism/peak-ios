@@ -80,18 +80,7 @@ struct HistoryView: View {
     }
 
     private var filteredSessions: [SurfSession] {
-        sessions.filter { session in
-            if let spot = filters.spot, session.spot?.persistentModelID != spot.persistentModelID {
-                return false
-            }
-            if let gear = filters.gear, !session.gear.contains(where: { $0.persistentModelID == gear.persistentModelID }) {
-                return false
-            }
-            if let buddy = filters.buddy, !session.buddies.contains(where: { $0.persistentModelID == buddy.persistentModelID }) {
-                return false
-            }
-            return true
-        }
+        sessions.filter { filters.matches(session: $0) }
     }
 
     private var groupedSessions: [(key: Date, value: [SurfSession])] {

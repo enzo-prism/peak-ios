@@ -11,11 +11,11 @@ enum PreviewData {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])
         let context = container.mainContext
-        seed(context: context)
+        seed(context: context, baseDate: TestingDefaults.fixedSeedDate ?? Date())
         return container
     }()
 
-    static func seed(context: ModelContext) {
+    static func seed(context: ModelContext, baseDate: Date = Date()) {
         let trestles = Spot(name: "Trestles")
         let oceanBeach = Spot(name: "Ocean Beach")
         let mexPoint = Spot(name: "Point Break")
@@ -54,7 +54,7 @@ enum PreviewData {
         context.insert(longBuddy)
 
         let session1 = SurfSession(
-            date: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date(),
+            date: Calendar.current.date(byAdding: .day, value: -1, to: baseDate) ?? baseDate,
             spot: longSpot,
             gear: [longBoard, wetsuit],
             buddies: [longBuddy],
@@ -65,7 +65,7 @@ enum PreviewData {
         )
 
         let session2 = SurfSession(
-            date: Calendar.current.date(byAdding: .day, value: -2, to: Date()) ?? Date(),
+            date: Calendar.current.date(byAdding: .day, value: -2, to: baseDate) ?? baseDate,
             spot: trestles,
             gear: [board, wetsuit, fins],
             buddies: [buddyA],
@@ -85,7 +85,7 @@ enum PreviewData {
         session2.windWaveDirectionDegrees = 300
         session2.seaSurfaceTemperatureC = 17.5
         session2.conditionsSource = "Open-Meteo"
-        session2.conditionsFetchedAt = Date()
+        session2.conditionsFetchedAt = baseDate
 
         if let photoMedia = makeSamplePhotoMedia(createdAt: session2.date) {
             context.insert(photoMedia)
@@ -98,7 +98,7 @@ enum PreviewData {
         }
 
         let session3 = SurfSession(
-            date: Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date(),
+            date: Calendar.current.date(byAdding: .day, value: -7, to: baseDate) ?? baseDate,
             spot: oceanBeach,
             gear: [board, wetsuit],
             buddies: [buddyB],
@@ -107,7 +107,7 @@ enum PreviewData {
         )
 
         let session4 = SurfSession(
-            date: Calendar.current.date(byAdding: .day, value: -14, to: Date()) ?? Date(),
+            date: Calendar.current.date(byAdding: .day, value: -14, to: baseDate) ?? baseDate,
             spot: mexPoint,
             gear: [board, fins],
             buddies: [buddyA, buddyB],
@@ -147,7 +147,7 @@ enum PreviewData {
     }
 
     private static func makeSamplePhotoData() -> Data? {
-        if ProcessInfo.processInfo.environment["UITESTS"] == "1" {
+        if TestingDefaults.isUITest {
             return fallbackPhotoData
         }
         let size = CGSize(width: 1200, height: 900)

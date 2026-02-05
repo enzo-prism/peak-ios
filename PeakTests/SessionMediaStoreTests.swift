@@ -16,11 +16,12 @@ final class SessionMediaStoreTests: XCTestCase {
             }
         }
 
-        let stored = try SessionMediaStore.storeVideo(from: sourceURL, thumbnailData: nil)
+        let expectedThumbnail = Data([0x01, 0x02, 0x03])
+        let stored = try SessionMediaStore.storeVideo(from: sourceURL, thumbnailData: expectedThumbnail)
         let storedURL = SessionMediaStore.videoURL(for: stored.fileName)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: storedURL.path))
-        XCTAssertNotNil(stored.thumbnailData)
+        XCTAssertEqual(stored.thumbnailData, expectedThumbnail)
         XCTAssertFalse(FileManager.default.fileExists(atPath: sourceURL.path))
     }
 

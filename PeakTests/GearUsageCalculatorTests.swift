@@ -61,4 +61,51 @@ final class GearUsageCalculatorTests: XCTestCase {
         XCTAssertTrue(policy.canDelete)
         XCTAssertFalse(policy.canArchive)
     }
+
+    func testSummaryHandlesUnknownSpot() {
+        let gear = Gear(name: "Step-Up", kind: .board)
+        let date = TestCalendar.makeDate(year: 2026, month: 2, day: 8, hour: 7)
+        let sessions = [
+            SurfSession(date: date, spot: nil, gear: [gear], rating: 4)
+        ]
+
+        let summary = GearUsageCalculator.summary(
+            for: gear,
+            sessions: sessions,
+            calendar: TestCalendar.gmt,
+            referenceDate: date
+        )
+
+        XCTAssertEqual(summary.topSpots.first?.name, "Unknown spot")
+        XCTAssertEqual(summary.totalUses, 1)
+    }
+
+    func testSummarySortsTopSpotsByNameOnTie() {
+        let gear = Gear(name: "Groveler", kind: .board)
+        let spotA = Spot(name: "A Spot")
+        let spotB = Spot(name: "B Spot")
+        let sessions = [
+            SurfSession(date: TestCalendar.makeDate(year: 2026, month: 2, day: 10), spot: spotB, gear: [gear], rating: 3),
+            SurfSession(date: TestCalendar.makeDate(year: 2026, month: 2, day: 11), spot: spotA, gear: [gear], rating: 4)
+        ]
+
+        let summary = GearUsageCalculator.summary(
+            for: gear,
+            sessions: sessions,
+            calendar: TestCalendar.gmt,
+            referenceDate: TestCalendar.makeDate(year: 2026, month: 2, day: 12)
+        )
+
+        XCTAssertEqual(summary.topSpots.map(\.name), ["A Spot", "B Spot"])
+    }
+
+    func testUsageCountMatchesSessions() {
+        let gear = Gear(name: "Twin Pin", kind: .board)
+        let sessions = [
+            SurfSession(date: TestCalendar.makeDate(year: 2026, month: 2, day: 1), spot: nil, gear: [gear]),
+            SurfSession(date: TestCalendar.makeDate(year: 2026, month: 2, day: 2), spot: nil, gear: [])
+        ]
+
+        XCTAssertEqual(GearUsageCalculator.usageCount(for: gear, sessions: sessions), 1)
+    }
 }

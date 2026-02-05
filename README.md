@@ -61,6 +61,7 @@ Optional overrides:
 - UI layout tests:  
   `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' -only-testing:PeakUITests test`
 - UI tests seed in-memory data when `UITESTS=1` is set (handled by the test target)
+- Optional: set `UITESTS_FIXED_DATE=2026-02-01T12:00:00Z` to make seeded UI test data deterministic
 
 ## Privacy and support
 - Privacy policy: `PRIVACY.md`
