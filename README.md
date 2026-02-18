@@ -50,16 +50,30 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Boot the simulator: `./scripts/boot-sim.sh`
 - Build for simulator: `./scripts/build-sim.sh`
 - Run unit + UI tests: `./scripts/test.sh`
+- Full tooling health check (ASC + sim build path): `./scripts/tooling-doctor.sh`
 
 Optional overrides:
 - `SCHEME=Peak ./scripts/test.sh`
 - `DESTINATION_NAME="iPhone 16 Pro" ./scripts/build-sim.sh`
+- `DESTINATION_NAME="iPhone 17 Pro" DESTINATION_OS=26.2 ./scripts/test.sh`
+- `STRICT_DESTINATION=1 ./scripts/build-sim.sh` (fail if preferred simulator is unavailable)
+
+## App Store Connect CLI (ASC)
+- Project ASC defaults live in `.asc/project.json`:
+  - `app_id`: `6757644027` (`peak.surf`)
+  - `default_key_name`: `codex`
+- Optional local overrides can live in `.asc/config.json` (ignored by git).
+- Auth + health check: `./scripts/asc-sync.sh doctor`
+- App/version status: `./scripts/asc-sync.sh status`
+- Latest build: `./scripts/asc-sync.sh latest-build`
+- Next build number for a version: `./scripts/asc-sync.sh next-build 1.7 IOS`
+- Full snapshot (app, versions, latest build, submission): `./scripts/asc-sync.sh snapshot`
 
 ## Testing
 - Unit tests (contrast):  
-  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' -only-testing:PeakTests test`
+  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' -only-testing:PeakTests test`
 - UI layout tests:  
-  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' -only-testing:PeakUITests test`
+  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' -only-testing:PeakUITests test`
 - UI tests seed in-memory data when `UITESTS=1` is set (handled by the test target)
 - Optional: set `UITESTS_FIXED_DATE=2026-02-01T12:00:00Z` to make seeded UI test data deterministic
 

@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/_common.sh"
 init_common
 
 export DESTINATION_NAME
+export DESTINATION_UDID
 "${SCRIPT_DIR}/boot-sim.sh"
 
 mkdir -p "$(dirname "${RESULT_BUNDLE}")"

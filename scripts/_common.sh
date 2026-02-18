@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CONFIGURATION="${CONFIGURATION:-Debug}"
 DERIVED_DATA="${DERIVED_DATA:-${ROOT_DIR}/.derivedData}"
 RESULT_BUNDLE="${RESULT_BUNDLE:-${ROOT_DIR}/.build/TestResults.xcresult}"
+DEFAULT_DESTINATION_NAME="${DEFAULT_DESTINATION_NAME:-iPhone 16 Pro}"
+DEFAULT_DESTINATION_OS="${DEFAULT_DESTINATION_OS:-18.5}"
 
 die() {
   echo "error: $*" >&2
@@ -74,19 +76,42 @@ detect_scheme() {
 }
 
 resolve_destination() {
-  local requested_name="${DESTINATION_NAME:-}"
+  local requested_name="${DESTINATION_NAME:-${DEFAULT_DESTINATION_NAME}}"
+  local requested_os=""
+  local strict_destination="${STRICT_DESTINATION:-0}"
   local output=""
-  if [[ -n "${requested_name}" ]]; then
-    output="$(python3 - "${requested_name}" <<'PY'
+  if [[ -n "${DESTINATION_OS:-}" ]]; then
+    requested_os="${DESTINATION_OS}"
+  elif [[ -z "${DESTINATION_NAME:-}" ]]; then
+    requested_os="${DEFAULT_DESTINATION_OS}"
+  fi
+
+  if ! output="$(python3 - "${requested_name}" "${requested_os}" "${strict_destination}" <<'PY' 2>&1
 import json
 import re
 import subprocess
 import sys
 
-requested = sys.argv[1]
+requested_name = (sys.argv[1] or "").strip() or None
+requested_os_raw = (sys.argv[2] or "").strip() or None
+strict = (sys.argv[3] or "0").strip().lower() in {"1", "true", "yes", "on"}
+
+def parse_os(raw: str):
+    if raw.lower() in {"latest", "any"}:
+        return None
+    m = re.match(r"^(\d+)(?:\.(\d+))?$", raw)
+    if not m:
+        raise ValueError(f"Invalid DESTINATION_OS '{raw}'. Use formats like 18.5 or 26.2.")
+    return (int(m.group(1)), int(m.group(2) or 0))
+
+requested_os = None
+if requested_os_raw:
+    requested_os = parse_os(requested_os_raw)
+
 data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
 devices = data.get("devices", {})
-by_name = {}
+
+candidates = []
 for runtime, device_list in devices.items():
     if "iOS" not in runtime:
         continue
@@ -100,46 +125,32 @@ for runtime, device_list in devices.items():
         udid = device.get("udid")
         if not udid:
             continue
-        by_name.setdefault(name, []).append(((major, minor), udid))
+        candidates.append({"name": name, "udid": udid, "major": major, "minor": minor})
 
-if requested not in by_name:
-    sys.exit(f"Simulator '{requested}' not found.")
+if not candidates:
+    print("No available iPhone simulators found.", file=sys.stderr)
+    sys.exit(2)
 
-by_name[requested].sort(key=lambda item: item[0], reverse=True)
-runtime, udid = by_name[requested][0]
-print(f"{requested}|{udid}")
-PY
-)"
-  else
-    output="$(python3 - <<'PY'
-import json
-import re
-import subprocess
-import sys
+filtered = list(candidates)
+constraints = []
+if requested_name:
+    filtered = [c for c in filtered if c["name"] == requested_name]
+    constraints.append(f"name '{requested_name}'")
+if requested_os:
+    filtered = [c for c in filtered if (c["major"], c["minor"]) == requested_os]
+    constraints.append(f"iOS {requested_os[0]}.{requested_os[1]}")
 
-data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
-devices = data.get("devices", {})
-by_name = {}
-for runtime, device_list in devices.items():
-    if "iOS" not in runtime:
-        continue
-    m = re.search(r"iOS-(\d+)(?:-(\d+))?", runtime)
-    major = int(m.group(1)) if m else 0
-    minor = int(m.group(2) or 0) if m else 0
-    for device in device_list:
-        name = device.get("name", "")
-        if not name.startswith("iPhone"):
-            continue
-        udid = device.get("udid")
-        if not udid:
-            continue
-        by_name.setdefault(name, []).append(((major, minor), udid))
+matched = bool(filtered)
+if not filtered:
+    if strict:
+        detail = " and ".join(constraints) if constraints else "requested criteria"
+        print(f"No available iPhone simulator matches {detail}.", file=sys.stderr)
+        sys.exit(2)
+    filtered = list(candidates)
 
-if not by_name:
-    sys.exit("No available iPhone simulators found.")
-
-def score(name):
-    m = re.search(r"(\\d+)", name)
+def score(item):
+    name = item["name"]
+    m = re.search(r"iPhone (\d+)", name)
     number = int(m.group(1)) if m else 0
     variant = 0
     if "Pro Max" in name:
@@ -148,14 +159,15 @@ def score(name):
         variant = 2
     elif "Plus" in name:
         variant = 1
-    return (number, variant, name)
+    return (number, variant, item["major"], item["minor"], name)
 
-best_name = sorted(by_name.keys(), key=score, reverse=True)[0]
-by_name[best_name].sort(key=lambda item: item[0], reverse=True)
-runtime, udid = by_name[best_name][0]
-print(f"{best_name}|{udid}")
+best = max(filtered, key=score)
+runtime = f"{best['major']}.{best['minor']}"
+status = "exact" if matched else "fallback"
+print(f"{best['name']}|{best['udid']}|{runtime}|{status}")
 PY
-)"
+)"; then
+    die "${output}"
   fi
 
   if [[ -z "${output}" ]]; then
@@ -163,8 +175,16 @@ PY
   fi
 
   DESTINATION_NAME="${output%%|*}"
-  DESTINATION_UDID="${output##*|}"
+  local rest="${output#*|}"
+  DESTINATION_UDID="${rest%%|*}"
+  rest="${rest#*|}"
+  local destination_runtime="${rest%%|*}"
+  local destination_status="${rest##*|}"
   DESTINATION="platform=iOS Simulator,id=${DESTINATION_UDID}"
+
+  if [[ "${destination_status}" == "fallback" ]]; then
+    echo "warning: preferred simulator '${requested_name}'${requested_os:+ on iOS ${requested_os}} not available; using ${DESTINATION_NAME} (iOS ${destination_runtime}). Set STRICT_DESTINATION=1 to fail instead."
+  fi
 }
 
 init_common() {

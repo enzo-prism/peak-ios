@@ -8,6 +8,7 @@ source "${SCRIPT_DIR}/_common.sh"
 init_common
 
 export DESTINATION_NAME
+export DESTINATION_UDID
 "${SCRIPT_DIR}/boot-sim.sh"
 
 xcodebuild build \
@@ -15,6 +16,8 @@ xcodebuild build \
   -scheme "${SCHEME}" \
   -configuration "${CONFIGURATION}" \
   -destination "${DESTINATION}" \
-  -derivedDataPath "${DERIVED_DATA}"
+  -derivedDataPath "${DERIVED_DATA}" \
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO
 
 echo "Build succeeded for ${SCHEME} (${CONFIGURATION}) on ${DESTINATION_NAME}."

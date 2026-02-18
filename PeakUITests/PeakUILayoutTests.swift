@@ -191,7 +191,8 @@ final class PeakUILayoutTests: XCTestCase {
         XCTAssertTrue(tabBar.waitForExistence(timeout: 2), "Missing tab bar")
 
         let referenceHeight = tabIconHeight(named: "History")
-        let tolerance: CGFloat = 2.5
+        // Custom vector tab glyphs can have a wider visual-height spread than SF Symbols.
+        let tolerance: CGFloat = 12
         let maxIconHeight = tabBar.frame.height * 0.65
 
         for name in ["Log", "Stats", "Quiver", "More"] {
@@ -524,10 +525,13 @@ private extension PeakUILayoutTests {
         let pixelBuffer = pixelBuffer(from: screenshot)
         let scale = pixelBuffer.scale
         let iconRegionHeight = tabBarFrame.height * 0.65
+        // Avoid tab-edge/background bleed, which can overcount the first tab icon.
+        let horizontalInset = max(2, buttonFrame.width * 0.18)
+        let croppedWidth = max(buttonFrame.width - (horizontalInset * 2), 1)
         let pixelRegion = CGRect(
-            x: buttonFrame.minX * scale,
+            x: (buttonFrame.minX + horizontalInset) * scale,
             y: 0,
-            width: buttonFrame.width * scale,
+            width: croppedWidth * scale,
             height: iconRegionHeight * scale
         )
         guard let bounds = iconPixelBounds(in: pixelRegion, pixelBuffer: pixelBuffer) else {

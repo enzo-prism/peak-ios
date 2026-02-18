@@ -38,7 +38,8 @@ trap 'exit_code=$?; print_summary; if [[ $exit_code -ne 0 ]]; then echo "Design 
 pick_device() {
   local kind="$1"
   local override_name="${2:-}"
-  python3 - "${kind}" "${override_name}" <<'PY'
+  local strict_override="${3:-0}"
+  python3 - "${kind}" "${override_name}" "${strict_override}" <<'PY'
 import json
 import re
 import subprocess
@@ -47,6 +48,7 @@ import sys
 kind = sys.argv[1]
 override = sys.argv[2].strip() if len(sys.argv) > 2 else ""
 override = override or None
+strict = (sys.argv[3].strip().lower() in {"1", "true", "yes", "on"}) if len(sys.argv) > 3 else False
 
 data = json.loads(subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"]))
 devices = data.get("devices", {})
@@ -71,9 +73,16 @@ for runtime, device_list in devices.items():
         candidates.append((name, udid, runtime_key))
 
 if override:
-    candidates = [c for c in candidates if c[0] == override]
-    if not candidates:
-        sys.exit(f"No available {kind} simulator named '{override}'.")
+    exact = [c for c in candidates if c[0] == override]
+    if exact:
+        candidates = exact
+        status = "exact"
+    else:
+        if strict:
+            sys.exit(f"No available {kind} simulator named '{override}'.")
+        status = "fallback"
+else:
+    status = "auto"
 
 if not candidates:
     sys.exit(f"No available {kind} simulators found.")
@@ -113,7 +122,7 @@ if kind == "iphone":
 else:
     best = max(candidates, key=lambda c: ipad_score(c[0], c[2]))
 
-print(f"{best[0]}|{best[1]}")
+print(f"{best[0]}|{best[1]}|{status}")
 PY
 }
 
@@ -135,13 +144,28 @@ capture_screenshot() {
   xcrun simctl io "${udid}" screenshot "${path}"
 }
 
-IPHONE_INFO="$(pick_device "iphone" "${IPHONE_DESTINATION_NAME:-}")"
-IPAD_INFO="$(pick_device "ipad" "${IPAD_DESTINATION_NAME:-}")"
+IPHONE_PREF_NAME="${IPHONE_DESTINATION_NAME:-iPhone 16 Pro}"
+IPAD_PREF_NAME="${IPAD_DESTINATION_NAME:-iPad Pro 11-inch (M4)}"
+STRICT_DESIGN_DESTINATION="${STRICT_DESIGN_DESTINATION:-0}"
+
+IPHONE_INFO="$(pick_device "iphone" "${IPHONE_PREF_NAME}" "${STRICT_DESIGN_DESTINATION}")"
+IPAD_INFO="$(pick_device "ipad" "${IPAD_PREF_NAME}" "${STRICT_DESIGN_DESTINATION}")"
 
 IPHONE_NAME="${IPHONE_INFO%%|*}"
-IPHONE_UDID="${IPHONE_INFO##*|}"
+IPHONE_REST="${IPHONE_INFO#*|}"
+IPHONE_UDID="${IPHONE_REST%%|*}"
+IPHONE_STATUS="${IPHONE_INFO##*|}"
 IPAD_NAME="${IPAD_INFO%%|*}"
-IPAD_UDID="${IPAD_INFO##*|}"
+IPAD_REST="${IPAD_INFO#*|}"
+IPAD_UDID="${IPAD_REST%%|*}"
+IPAD_STATUS="${IPAD_INFO##*|}"
+
+if [[ "${IPHONE_STATUS}" == "fallback" ]]; then
+  echo "warning: preferred iPhone simulator '${IPHONE_PREF_NAME}' not available; using ${IPHONE_NAME} (${IPHONE_UDID}). Set STRICT_DESIGN_DESTINATION=1 to fail instead."
+fi
+if [[ "${IPAD_STATUS}" == "fallback" ]]; then
+  echo "warning: preferred iPad simulator '${IPAD_PREF_NAME}' not available; using ${IPAD_NAME} (${IPAD_UDID}). Set STRICT_DESIGN_DESTINATION=1 to fail instead."
+fi
 
 ARTIFACTS_DIR="${ROOT_DIR}/artifacts/design-check"
 IPHONE_DIR="${ARTIFACTS_DIR}/iphone"

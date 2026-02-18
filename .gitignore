@@ -6,3 +6,16 @@ build/
 *.xccheckout
 *.xcscmblueprint
 xcuserdata/
+
+# Local/dev artifacts
+.build/
+.derivedData/
+.xcodebuildmcp/
+
+# ASC local overrides (project defaults are tracked in .asc/project.json)
+.asc/config.json
+.asc/*.local.json
+
+# xcodemake generated files
+Makefile
+*xcodemake*build.log
