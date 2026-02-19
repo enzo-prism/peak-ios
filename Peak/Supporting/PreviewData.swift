@@ -10,7 +10,7 @@ enum PreviewData {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: schema, configurations: [configuration])
-        let context = container.mainContext
+        let context = ModelContext(container)
         seed(context: context, baseDate: TestingDefaults.fixedSeedDate ?? Date())
         return container
     }()

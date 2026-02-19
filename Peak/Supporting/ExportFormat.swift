@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-nonisolated struct PeakExport: Codable {
+struct PeakExport: Codable {
     let schemaVersion: String
     let exportedAt: String
     let sessions: [SessionExport]
@@ -19,7 +19,7 @@ nonisolated struct PeakExport: Codable {
     }
 }
 
-nonisolated struct SessionExport: Codable {
+struct SessionExport: Codable {
     let id: String
     let date: String
     let spotId: String?
@@ -79,7 +79,7 @@ nonisolated struct SessionExport: Codable {
     }
 }
 
-nonisolated struct SpotExport: Codable {
+struct SpotExport: Codable {
     let id: String
     let name: String
     let locationName: String?
@@ -97,7 +97,7 @@ nonisolated struct SpotExport: Codable {
     }
 }
 
-nonisolated struct GearExport: Codable {
+struct GearExport: Codable {
     let id: String
     let name: String
     let kind: String
@@ -125,7 +125,7 @@ nonisolated struct GearExport: Codable {
     }
 }
 
-nonisolated struct BuddyExport: Codable {
+struct BuddyExport: Codable {
     let id: String
     let name: String
     let createdAt: String
