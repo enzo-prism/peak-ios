@@ -9,7 +9,7 @@ final class ExportImportTests: XCTestCase {
         let createdAt = calendar.date(from: DateComponents(year: 2026, month: 2, day: 10, hour: 6))!
 
         let sourceContainer = try makeContainer()
-        let sourceContext = sourceContainer.mainContext
+        let sourceContext = ModelContext(sourceContainer)
 
         let spot = Spot(
             name: "Trestles",
@@ -61,7 +61,7 @@ final class ExportImportTests: XCTestCase {
         let decoded = try PeakExportManager.decodeJSON(data)
 
         let targetContainer = try makeContainer()
-        let targetContext = targetContainer.mainContext
+        let targetContext = ModelContext(targetContainer)
         let existingSpot = Spot(name: "Ocean Beach", createdAt: createdAt)
         targetContext.insert(existingSpot)
 
@@ -94,7 +94,7 @@ final class ExportImportTests: XCTestCase {
         let createdAt = calendar.date(from: DateComponents(year: 2026, month: 1, day: 5, hour: 9))!
 
         let sourceContainer = try makeContainer()
-        let sourceContext = sourceContainer.mainContext
+        let sourceContext = ModelContext(sourceContainer)
 
         let spot = Spot(name: "Trestles", createdAt: createdAt)
         let session = SurfSession(date: createdAt, spot: spot, createdAt: createdAt, updatedAt: createdAt)
@@ -113,7 +113,7 @@ final class ExportImportTests: XCTestCase {
         let decoded = try PeakExportManager.decodeJSON(data)
 
         let targetContainer = try makeContainer()
-        let targetContext = targetContainer.mainContext
+        let targetContext = ModelContext(targetContainer)
         let existingSpot = Spot(name: "Ocean Beach", createdAt: createdAt)
         targetContext.insert(existingSpot)
 
@@ -151,7 +151,8 @@ final class ExportImportTests: XCTestCase {
         )
 
         let container = try makeContainer()
-        XCTAssertThrowsError(try PeakExportManager.applyImport(export, mode: .merge, context: container.mainContext)) { error in
+        let context = ModelContext(container)
+        XCTAssertThrowsError(try PeakExportManager.applyImport(export, mode: .merge, context: context)) { error in
             guard case ExportError.unsupportedSchema = error else {
                 XCTFail("Expected unsupportedSchema but got \(error)")
                 return
@@ -203,13 +204,14 @@ final class ExportImportTests: XCTestCase {
         )
 
         let container = try makeContainer()
-        try PeakExportManager.applyImport(export, mode: .merge, context: container.mainContext)
+        let context = ModelContext(container)
+        try PeakExportManager.applyImport(export, mode: .merge, context: context)
 
-        let spots = try container.mainContext.fetch(FetchDescriptor<Spot>())
+        let spots = try context.fetch(FetchDescriptor<Spot>())
         XCTAssertEqual(spots.count, 1)
         XCTAssertEqual(spots.first?.name, "New Spot")
 
-        let sessions = try container.mainContext.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1)
         XCTAssertTrue(sessions.first?.gear.isEmpty ?? false)
     }

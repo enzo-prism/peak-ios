@@ -6,7 +6,7 @@ import XCTest
 final class SpotLimitTests: XCTestCase {
     func testSpotLimitBlocksNewSpots() throws {
         let container = try makeContainer()
-        let context = container.mainContext
+        let context = ModelContext(container)
 
         for index in 0..<Spot.maxCount {
             _ = try context.createSpot(

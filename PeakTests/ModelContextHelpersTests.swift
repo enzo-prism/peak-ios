@@ -6,7 +6,7 @@ import XCTest
 final class ModelContextHelpersTests: XCTestCase {
     func testUpsertSpotReturnsExisting() throws {
         let container = try TestModelContainer.make()
-        let context = container.mainContext
+        let context = ModelContext(container)
 
         let first = context.upsertSpot(named: "Trestles")
         let second = context.upsertSpot(named: "Trestles")
@@ -16,7 +16,7 @@ final class ModelContextHelpersTests: XCTestCase {
 
     func testUpsertGearUnarchivesExisting() throws {
         let container = try TestModelContainer.make()
-        let context = container.mainContext
+        let context = ModelContext(container)
 
         let gear = TestFixture.gear(name: "Step-Up", kind: .board, isArchived: true)
         context.insert(gear)
@@ -29,7 +29,7 @@ final class ModelContextHelpersTests: XCTestCase {
 
     func testResetAllDataClearsEntities() throws {
         let container = try TestModelContainer.make()
-        let context = container.mainContext
+        let context = ModelContext(container)
 
         let spot = TestFixture.spot()
         let gear = TestFixture.gear()
