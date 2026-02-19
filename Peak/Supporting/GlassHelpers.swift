@@ -10,59 +10,86 @@ struct GlassContainer<Content: View>: View {
     }
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer(spacing: spacing) {
+                    content()
+                }
+            } else {
                 content()
             }
-        } else {
+        #else
             content()
-        }
+        #endif
     }
 }
 
 extension View {
     @ViewBuilder
     func glassCard(cornerRadius: CGFloat = 20, tint: Color = Theme.glassTint, isInteractive: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
-            let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
-            self.glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
-        } else {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
+                self.glassEffect(glass, in: .rect(cornerRadius: cornerRadius))
+            } else {
+                self.background(
+                    GlassFallbackSurface(
+                        shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+                        tint: tint
+                    )
+                )
+            }
+        #else
             self.background(
                 GlassFallbackSurface(
                     shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
                     tint: tint
                 )
             )
-        }
+        #endif
     }
 
     @ViewBuilder
     func glassCapsule(tint: Color = Theme.glassTint, isInteractive: Bool = true) -> some View {
-        if #available(iOS 26.0, *) {
-            let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
-            self.glassEffect(glass, in: .capsule)
-        } else {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
+                self.glassEffect(glass, in: .capsule)
+            } else {
+                self.background(
+                    GlassFallbackSurface(shape: Capsule(), tint: tint)
+                )
+            }
+        #else
             self.background(
                 GlassFallbackSurface(shape: Capsule(), tint: tint)
             )
-        }
+        #endif
     }
 
     @ViewBuilder
     func glassButtonStyle(prominent: Bool = false) -> some View {
-        if #available(iOS 26.0, *) {
-            if prominent {
-                self.buttonStyle(.glassProminent)
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                if prominent {
+                    self.buttonStyle(.glassProminent)
+                } else {
+                    self.buttonStyle(.glass)
+                }
             } else {
-                self.buttonStyle(.glass)
+                if prominent {
+                    self.buttonStyle(.borderedProminent)
+                } else {
+                    self.buttonStyle(.bordered)
+                }
             }
-        } else {
+        #else
             if prominent {
                 self.buttonStyle(.borderedProminent)
             } else {
                 self.buttonStyle(.bordered)
             }
-        }
+        #endif
     }
 
     @ViewBuilder
@@ -72,11 +99,15 @@ extension View {
 
     @ViewBuilder
     func glassUnion(id: String, namespace: Namespace.ID) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffectUnion(id: id, namespace: namespace)
-        } else {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                self.glassEffectUnion(id: id, namespace: namespace)
+            } else {
+                self
+            }
+        #else
             self
-        }
+        #endif
     }
 }
 
