@@ -68,6 +68,7 @@ Optional overrides:
 - Latest build: `./scripts/asc-sync.sh latest-build`
 - Next build number for a version: `./scripts/asc-sync.sh next-build 1.7 IOS`
 - Full snapshot (app, versions, latest build, submission): `./scripts/asc-sync.sh snapshot`
+- Release response checklist: `RELEASE_PLAYBOOK.md`
 
 ## Testing
 - Unit tests (contrast):  
