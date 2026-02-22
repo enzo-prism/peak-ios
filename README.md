@@ -51,6 +51,9 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Build for simulator: `./scripts/build-sim.sh`
 - Run unit + UI tests: `./scripts/test.sh`
 - Full tooling health check (ASC + sim build path): `./scripts/tooling-doctor.sh`
+- Quick GitHub CLI status snapshot: `./scripts/gh-tooling.sh status`
+- Fast release sweep (local + ASC + GH): `./scripts/release-cli.sh [VERSION] [PLATFORM]`
+- Tooling setup and release workflow details: `TOOLING.md`
 
 Optional overrides:
 - `SCHEME=Peak ./scripts/test.sh`
@@ -62,13 +65,29 @@ Optional overrides:
 - Project ASC defaults live in `.asc/project.json`:
   - `app_id`: `6757644027` (`peak.surf`)
   - `default_key_name`: `codex`
+- Works with both `asc` and legacy `asc-codex` CLIs (prefers modern `asc` when available).
 - Optional local overrides can live in `.asc/config.json` (ignored by git).
 - Auth + health check: `./scripts/asc-sync.sh doctor`
 - App/version status: `./scripts/asc-sync.sh status`
 - Latest build: `./scripts/asc-sync.sh latest-build`
 - Next build number for a version: `./scripts/asc-sync.sh next-build 1.7 IOS`
-- Full snapshot (app, versions, latest build, submission): `./scripts/asc-sync.sh snapshot`
+- Full snapshot (app, versions, latest build): `./scripts/asc-sync.sh snapshot`
+- Advanced ASC workflow commands (requires modern `asc`): `./scripts/asc-ops.sh`
 - Release response checklist: `RELEASE_PLAYBOOK.md`
+
+## Xcode MCP
+- MCP defaults for this repo are stored in `.xcodebuildmcp/config.yaml`:
+  - `scheme: Peak`
+  - `platform: iOS`
+  - `workspacePath: Peak.xcodeproj/project.xcworkspace`
+  - `simulatorName: iPhone 16 Pro`
+- Reuse these defaults when doing MCP-driven boot/list/build/test/install flows.
+
+## GitHub CLI (gh)
+- Repo status (auth, repo summary, open PRs/issues, recent CI): `./scripts/gh-tooling.sh status`
+- Open PR list only: `./scripts/gh-tooling.sh prs 10`
+- Open issue list only: `./scripts/gh-tooling.sh issues 10`
+- Workflow run list only: `./scripts/gh-tooling.sh workflows 10`
 
 ## Testing
 - Unit tests (contrast):  
@@ -77,6 +96,7 @@ Optional overrides:
   `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' -only-testing:PeakUITests test`
 - UI tests seed in-memory data when `UITESTS=1` is set (handled by the test target)
 - Optional: set `UITESTS_FIXED_DATE=2026-02-01T12:00:00Z` to make seeded UI test data deterministic
+- Optional: set `UITESTS_SESSION_MARKER=<text>` to mark a newly created session and make history row lookup deterministic in end-to-end tests
 
 ## Privacy and support
 - Privacy policy: `PRIVACY.md`
