@@ -1,4 +1,6 @@
 {
   "app_id": "6757644027",
-  "default_key_name": "codex"
+  "bundle_id": "com.designprism.peak",
+  "default_key_name": "codex",
+  "default_platform": "IOS"
 }

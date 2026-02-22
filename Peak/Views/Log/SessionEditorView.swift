@@ -21,6 +21,12 @@ struct SessionEditorView: View {
     private enum FocusField: Hashable {
         case notes
     }
+    private enum SelectionMode: String, CaseIterable, Identifiable {
+        case recent = "Recent"
+        case all = "A-Z"
+
+        var id: String { rawValue }
+    }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -47,6 +53,9 @@ struct SessionEditorView: View {
     @State private var conditionsSourceDetails: SurfConditionsSourceDetails?
     @State private var didSave = false
     @State private var dismissAfterMediaAlert = false
+    @State private var spotSelectionMode: SelectionMode = .recent
+    @State private var gearSelectionMode: SelectionMode = .recent
+    @State private var showOptionalFields = false
     @FocusState private var focusedField: FocusField?
     @StateObject private var keyboardObserver = KeyboardObserver()
 
@@ -60,396 +69,26 @@ struct SessionEditorView: View {
         }
     }
 
+    private var spotSnapshots: [String: UsageSnapshot] {
+        UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        GlassContainer(spacing: 16) {
-                            VStack(alignment: .leading, spacing: 16) {
-                                EditorSection("Session") {
-                                DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
-                                    .datePickerStyle(.compact)
-                                    .tint(Theme.textPrimary)
-                                    .foregroundStyle(Theme.textPrimary)
-                                    .padding(12)
-                                    .glassInput()
-                                    .accessibilityIdentifier("session.editor.date")
-
-                                DatePicker("Start time", selection: $draft.date, displayedComponents: [.hourAndMinute])
-                                    .datePickerStyle(.compact)
-                                    .tint(Theme.textPrimary)
-                                    .foregroundStyle(Theme.textPrimary)
-                                    .padding(12)
-                                    .glassInput()
-                                    .accessibilityIdentifier("session.editor.startTime")
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Duration")
-                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
-                                            .foregroundStyle(Theme.textPrimary)
-                                        Spacer()
-                                        Text(durationLabel)
-                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
-                                    Slider(value: durationBinding, in: 0...180, step: 15)
-                                        .tint(Theme.textPrimary)
-                                        .accessibilityIdentifier("session.editor.duration")
-                                        .accessibilityValue(durationLabel)
-                                }
-                                .padding(12)
-                                .glassInput()
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Wind")
-                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
-                                            .foregroundStyle(Theme.textPrimary)
-                                        Spacer()
-                                        Text(windLabel)
-                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
-                                    Slider(
-                                        value: windBinding,
-                                        in: 0...Double(WindCondition.allCases.count),
-                                        step: 1
-                                    )
-                                    .tint(Theme.textPrimary)
-                                    .accessibilityIdentifier("session.editor.wind")
-                                    .accessibilityValue(windLabel)
-                                }
-                                .padding(12)
-                                .glassInput()
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        Text("Wave height")
-                                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
-                                            .foregroundStyle(Theme.textPrimary)
-                                        Spacer()
-                                        Text(waveHeightLabel)
-                                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
-                                    Slider(
-                                        value: waveHeightBinding,
-                                        in: 0...Double(WaveHeight.allCases.count),
-                                        step: 1
-                                    )
-                                    .tint(Theme.textPrimary)
-                                    .accessibilityIdentifier("session.editor.waveHeight")
-                                    .accessibilityValue(waveHeightLabel)
-                                }
-                                .padding(12)
-                                .glassInput()
-
-                                TextField(
-                                    "Spot",
-                                    text: $draft.spotName,
-                                    prompt: Text("Spot").foregroundStyle(Theme.textMuted)
-                                )
-                                    .textFieldStyle(.plain)
-                                    .foregroundStyle(Theme.textPrimary)
-                                    .padding(12)
-                                    .glassInput()
-                                    .accessibilityIdentifier("session.editor.spot")
-                                    .onChange(of: draft.spotName) { _, newValue in
-                                        if let selected = draft.selectedSpot, selected.name != newValue {
-                                            draft.selectedSpot = nil
-                                        }
-                                    }
-
-                                if !filteredSpots.isEmpty {
-                                    GlassContainer(spacing: 10) {
-                                        ScrollView(.horizontal, showsIndicators: false) {
-                                            HStack(spacing: 8) {
-                                                ForEach(filteredSpots) { spot in
-                                                    SelectableChip(
-                                                        label: spot.name,
-                                                        systemImage: "mappin",
-                                                        isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
-                                                    ) {
-                                                        draft.selectSpot(spot)
-                                                    }
-                                                }
-                                            }
-                                            .padding(.vertical, 4)
-                                        }
-                                    }
-                                } else if !spots.isEmpty {
-                                    Text("No matching spots. Add a surf break.")
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
-                                } else {
-                                    Text("No spots saved yet. Add your first surf break.")
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
-                                }
-
-                                Button {
-                                    addSpotTapped()
-                                } label: {
-                                    Label("Add Surf Break", systemImage: "mappin.and.ellipse")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .glassButtonStyle(prominent: false)
-                                .disabled(isSpotLimitReached)
-
-                                if isSpotLimitReached {
-                                    Text("You can save up to \(Spot.maxCount) surf breaks.")
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
-                                }
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Button {
-                                        autoFillConditionsTapped()
-                                    } label: {
-                                        HStack(spacing: 8) {
-                                            if isFetchingConditions {
-                                                ProgressView()
-                                                    .tint(Theme.textPrimary)
-                                            }
-                                            Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
-                                                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                    }
-                                    .glassButtonStyle(prominent: false)
-                                    .disabled(isFetchingConditions)
-
-                                    Text(conditionsHintText)
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
-
-                                    if let notice = surfConditionsNotice {
-                                        surfConditionsNoticeView(notice)
-                                    }
-                                }
-                            }
-
-                            EditorSection("Gear") {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack(spacing: 12) {
-                                        TextField(
-                                            "Add gear",
-                                            text: $newGearName,
-                                            prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
-                                        )
-                                            .textFieldStyle(.plain)
-                                            .foregroundStyle(Theme.textPrimary)
-                                            .accessibilityIdentifier("session.editor.gear")
-                                        Picker("Type", selection: $newGearKind) {
-                                            ForEach(GearKind.allCases) { kind in
-                                                Text(kind.label).tag(kind)
-                                            }
-                                        }
-                                        .pickerStyle(.menu)
-                                        .tint(Theme.textPrimary)
-                                        .foregroundStyle(Theme.textPrimary)
-                                    }
-                                    .padding(12)
-                                    .glassInput()
-
-                                    Button("Add Gear") {
-                                        addGear()
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .glassButtonStyle(prominent: false)
-                                    .disabled(newGearName.trimmedNonEmpty == nil)
-
-                                    if let lastSession = sessions.first, !lastSession.gear.isEmpty {
-                                        Button("Use last gear setup") {
-                                            draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .glassButtonStyle(prominent: false)
-                                    }
-                                }
-
-                                if !availableGear.isEmpty {
-                                    GlassContainer(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            ForEach(GearKind.allCases) { kind in
-                                                let items = sortedGear(for: kind)
-                                                if !items.isEmpty {
-                                                    VStack(alignment: .leading, spacing: 8) {
-                                                        Text(kind.label.uppercased())
-                                                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
-                                                            .foregroundStyle(Theme.textMuted)
-                                                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
-                                                            ForEach(items) { item in
-                                                                SelectableChip(
-                                                                    label: item.name,
-                                                                    systemImage: item.kind.systemImage,
-                                                                    isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
-                                                                ) {
-                                                                    draft.toggleGear(item)
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                }
-                            }
-
-                            EditorSection("Buddies") {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    HStack(spacing: 12) {
-                                        TextField(
-                                            "Add buddy",
-                                            text: $newBuddyName,
-                                            prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
-                                        )
-                                            .textFieldStyle(.plain)
-                                            .foregroundStyle(Theme.textPrimary)
-                                            .accessibilityIdentifier("session.editor.buddy")
-                                        Button("Add") {
-                                            addBuddy()
-                                        }
-                                        .glassButtonStyle(prominent: true)
-                                        .disabled(newBuddyName.trimmedNonEmpty == nil)
-                                    }
-                                    .padding(12)
-                                    .glassInput()
-                                }
-
-                                if !buddies.isEmpty {
-                                    GlassContainer(spacing: 10) {
-                                        let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
-                                        LazyVGrid(columns: columns, spacing: 8) {
-                                            ForEach(sortedBuddies) { buddy in
-                                                SelectableChip(
-                                                    label: buddy.name,
-                                                    systemImage: "person",
-                                                    isSelected: draft.selectedBuddies.contains(where: { $0.persistentModelID == buddy.persistentModelID })
-                                                ) {
-                                                    draft.toggleBuddy(buddy)
-                                                }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                }
-                            }
-
-                            EditorSection("Rating") {
-                                RatingPickerView(rating: $draft.rating)
-                                    .accessibilityIdentifier("session.editor.rating")
-                            }
-
-                            EditorSection("Media") {
-                                if draft.mediaItems.isEmpty {
-                                    Text("Add photos or videos from your library.")
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
-                                        .foregroundStyle(Theme.textMuted)
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
-                                } else {
-                                    let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
-                                    LazyVGrid(columns: columns, spacing: 12) {
-                                        ForEach(draft.mediaItems) { item in
-                                            ZStack(alignment: .topTrailing) {
-                                                SessionMediaThumbnailView(
-                                                    imageData: item.thumbnailData ?? item.photoData,
-                                                    isVideo: item.kind == .video
-                                                )
-                                                .frame(height: 110)
-                                                .frame(maxWidth: .infinity)
-                                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                                .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
-
-                                                Button {
-                                                    removeMediaItem(item)
-                                                } label: {
-                                                    Image(systemName: "xmark.circle.fill")
-                                                        .font(.system(size: 18, weight: .semibold))
-                                                        .foregroundStyle(Theme.textPrimary)
-                                                        .padding(6)
-                                                }
-                                                .buttonStyle(PressFeedbackButtonStyle())
-                                                .accessibilityLabel("Remove media")
-                                            }
-                                        }
-                                    }
-                                }
-
-                                PhotosPicker(
-                                    selection: $selectedMediaItems,
-                                    matching: .any(of: [.images, .videos])
-                                ) {
-                                    Label("Add Photos or Videos", systemImage: "photo.on.rectangle.angled")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .glassButtonStyle(prominent: false)
-                            }
-
-                                EditorSection("Notes") {
-                                    ZStack(alignment: .topLeading) {
-                                        TextEditor(text: $draft.notes)
-                                            .frame(minHeight: 120)
-                                            .scrollContentBackground(.hidden)
-                                            .foregroundStyle(Theme.textPrimary)
-                                            .accessibilityIdentifier("session.editor.notes")
-                                            .focused($focusedField, equals: .notes)
-                                            .id(FocusField.notes)
-                                        if draft.notes.isEmpty {
-                                            Text("Add any conditions, swell, or quick thoughts.")
-                                                .foregroundStyle(Theme.textMuted)
-                                                .padding(.top, 8)
-                                                .padding(.leading, 5)
-                                        }
-                                    }
-                                    .padding(12)
-                                    .glassInput()
-                                }
-                            }
-                            .padding()
-                        }
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .keyboardSafeAreaInset()
-                    .onChange(of: focusedField) { _, newValue in
-                        guard newValue == .notes else { return }
-                        DispatchQueue.main.async {
-                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: keyboardObserver.height) { _, height in
-                        guard height > 0, focusedField == .notes else { return }
-                        DispatchQueue.main.async {
-                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                        }
-                    }
-                }
-            }
+            editorScrollContainer
+        }
         .navigationTitle(mode.title)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
-            }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveSession()
-                    }
-                    .disabled(!draft.isReadyToSave)
+                Button("Cancel") {
+                    dismiss()
                 }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    saveSession()
+                }
+                .disabled(!draft.isReadyToSave)
             }
         }
         .tint(Theme.textPrimary)
@@ -490,11 +129,569 @@ struct SessionEditorView: View {
         .onChange(of: selectedMediaItems) { _, newValue in
             handleMediaSelection(newValue)
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                if let saveMessage = saveValidationMessage {
+                    Text(saveMessage)
+                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                }
+
+                Button("Save Session") {
+                    saveSession()
+                }
+                .glassButtonStyle(prominent: true)
+                .disabled(saveValidationMessage != nil)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal)
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+            .background(
+                Theme.background
+                    .ignoresSafeArea(edges: .bottom)
+            )
+        }
         .onDisappear {
             if !didSave {
                 cleanupPendingMedia()
             }
         }
+    }
+
+    private var editorScrollContainer: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            ScrollViewReader { proxy in
+                editorScrollContent(proxy: proxy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func editorScrollContent(proxy: ScrollViewProxy) -> some View {
+        ScrollView {
+            GlassContainer(spacing: 16) {
+                VStack(alignment: .leading, spacing: 16) {
+                    if case .new = mode {
+                        quickStartSection
+                    }
+
+                    sessionSection
+
+                    if showOptionalFields {
+                        conditionsSection
+                    }
+
+                    gearSection
+
+                    buddiesSection
+
+                    if showOptionalFields {
+                        VStack(alignment: .leading, spacing: 16) {
+                            ratingSection
+                            mediaSection
+                            notesSection
+                        }
+                        .padding()
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .keyboardSafeAreaInset()
+            .onChange(of: focusedField) { _, newValue in
+                guard newValue == .notes else { return }
+                DispatchQueue.main.async {
+                    proxy.scrollTo(FocusField.notes, anchor: .bottom)
+                }
+            }
+            .onChange(of: keyboardObserver.height) { _, height in
+                guard height > 0, focusedField == .notes else { return }
+                DispatchQueue.main.async {
+                    proxy.scrollTo(FocusField.notes, anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    private var sessionSection: some View {
+        EditorSection("Session") {
+            DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
+                .datePickerStyle(.compact)
+                .tint(Theme.textPrimary)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(12)
+                .glassInput()
+                .accessibilityIdentifier("session.editor.date")
+
+            DatePicker("Start time", selection: $draft.date, displayedComponents: [.hourAndMinute])
+                .datePickerStyle(.compact)
+                .tint(Theme.textPrimary)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(12)
+                .glassInput()
+                .accessibilityIdentifier("session.editor.startTime")
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Duration")
+                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(durationLabel)
+                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
+                }
+                Slider(value: durationBinding, in: 0...180, step: 15)
+                    .tint(Theme.textPrimary)
+                    .accessibilityIdentifier("session.editor.duration")
+                    .accessibilityValue(durationLabel)
+            }
+            .padding(12)
+            .glassInput()
+
+            TextField(
+                "Spot",
+                text: $draft.spotName,
+                prompt: Text("Spot").foregroundStyle(Theme.textMuted)
+            )
+                .textFieldStyle(.plain)
+                .foregroundStyle(Theme.textPrimary)
+                .padding(12)
+                .glassInput()
+                .accessibilityIdentifier("session.editor.spot")
+                .onChange(of: draft.spotName) { _, newValue in
+                    if let selected = draft.selectedSpot, selected.name != newValue {
+                        draft.selectedSpot = nil
+                    }
+                }
+
+            if !filteredSpots.isEmpty {
+                GlassContainer(spacing: 10) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(filteredSpots) { spot in
+                                SelectableChip(
+                                    label: spotChipLabel(spot),
+                                    systemImage: "mappin",
+                                    isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
+                                ) {
+                                    draft.selectSpot(spot)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            } else if !spots.isEmpty {
+                Text("No matching spots. Add a surf break.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            } else {
+                Text("No spots saved yet. Add your first surf break.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            }
+
+            Button {
+                addSpotTapped()
+            } label: {
+                Label("Add Surf Break", systemImage: "mappin.and.ellipse")
+                    .frame(maxWidth: .infinity)
+            }
+            .glassButtonStyle(prominent: false)
+            .disabled(isSpotLimitReached)
+
+            if isSpotLimitReached {
+                Text("You can save up to \(Spot.maxCount) surf breaks.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+            }
+
+            Picker("Spot list", selection: $spotSelectionMode) {
+                ForEach(SelectionMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Button {
+                withAnimation {
+                    showOptionalFields.toggle()
+                }
+            } label: {
+                Label(
+                    showOptionalFields ? "Hide optional fields" : "Show optional fields",
+                    systemImage: showOptionalFields ? "chevron.up.circle.fill" : "slider.horizontal.3"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .glassButtonStyle(prominent: false)
+        }
+    }
+
+    private var quickStartSection: some View {
+        EditorSection("Quick Start") {
+            if let lastSession = sessions.first {
+                VStack(alignment: .leading, spacing: 10) {
+                    Button {
+                        applyTemplateFromLastSession(lastSession)
+                    } label: {
+                        Label(
+                            "Use last session setup",
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .glassButtonStyle(prominent: false)
+
+                    Text("Fastest way to log: preload what you usually use, then tweak anything quick.")
+                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
+                }
+
+                if !quickStartSpotSuggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Recent spots")
+                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .foregroundStyle(Theme.textMuted)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(quickStartSpotSuggestions) { spot in
+                                    SelectableChip(
+                                        label: spot.name,
+                                        systemImage: "mappin",
+                                        isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
+                                    ) {
+                                        draft.selectSpot(spot)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+
+                if !quickStartGearSuggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("From last session")
+                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .foregroundStyle(Theme.textMuted)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(quickStartGearSuggestions) { item in
+                                    SelectableChip(
+                                        label: quickStartGearChipLabel(item),
+                                        systemImage: item.kind.systemImage,
+                                        isSelected: draft.selectedGear.contains { $0.persistentModelID == item.persistentModelID }
+                                    ) {
+                                        draft.toggleGear(item)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+
+            } else {
+                Text("Start your first session: pick a surf break and add a few essentials.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+            }
+        }
+    }
+
+    private var conditionsSection: some View {
+        EditorSection("Conditions") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Wind")
+                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(windLabel)
+                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
+                }
+                Slider(
+                    value: windBinding,
+                    in: 0...Double(WindCondition.allCases.count),
+                    step: 1
+                )
+                .tint(Theme.textPrimary)
+                .accessibilityIdentifier("session.editor.wind")
+                .accessibilityValue(windLabel)
+            }
+            .padding(12)
+            .glassInput()
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Wave height")
+                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(waveHeightLabel)
+                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .foregroundStyle(Theme.textMuted)
+                }
+                Slider(
+                    value: waveHeightBinding,
+                    in: 0...Double(WaveHeight.allCases.count),
+                    step: 1
+                )
+                .tint(Theme.textPrimary)
+                .accessibilityIdentifier("session.editor.waveHeight")
+                .accessibilityValue(waveHeightLabel)
+            }
+            .padding(12)
+            .glassInput()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    autoFillConditionsTapped()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isFetchingConditions {
+                            ProgressView()
+                                .tint(Theme.textPrimary)
+                        }
+                        Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
+                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("session.editor.autoFillConditions")
+                .glassButtonStyle(prominent: false)
+                .disabled(isFetchingConditions)
+
+                Text(conditionsHintText)
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+
+                if let notice = surfConditionsNotice {
+                    surfConditionsNoticeView(notice)
+                }
+            }
+        }
+    }
+
+    private var gearSection: some View {
+        EditorSection("Gear") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    TextField(
+                        "Add gear",
+                        text: $newGearName,
+                        prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
+                    )
+                        .textFieldStyle(.plain)
+                        .foregroundStyle(Theme.textPrimary)
+                        .accessibilityIdentifier("session.editor.gear")
+                    Picker("Type", selection: $newGearKind) {
+                        ForEach(GearKind.allCases) { kind in
+                            Text(kind.label).tag(kind)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Theme.textPrimary)
+                    .foregroundStyle(Theme.textPrimary)
+                }
+                .padding(12)
+                .glassInput()
+
+                Button("Add Gear") {
+                    addGear()
+                }
+                .frame(maxWidth: .infinity)
+                .glassButtonStyle(prominent: false)
+                .disabled(newGearName.trimmedNonEmpty == nil)
+
+                if let lastSession = sessions.first, !lastSession.gear.isEmpty {
+                    Button("Use last gear setup") {
+                        draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .glassButtonStyle(prominent: false)
+                }
+
+                Picker("Gear list", selection: $gearSelectionMode) {
+                    ForEach(SelectionMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if !availableGear.isEmpty {
+                GlassContainer(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(GearKind.allCases) { kind in
+                            let items = sortedGear(for: kind)
+                            if !items.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(kind.label.uppercased())
+                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                        .foregroundStyle(Theme.textMuted)
+
+                                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
+                                        ForEach(items) { item in
+                                            SelectableChip(
+                                                label: gearChipLabel(item),
+                                                systemImage: item.kind.systemImage,
+                                                isSelected: draft.selectedGear.contains(where: { $0.persistentModelID == item.persistentModelID })
+                                            ) {
+                                                draft.toggleGear(item)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    private var buddiesSection: some View {
+        EditorSection("Buddies") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    TextField(
+                        "Add buddy",
+                        text: $newBuddyName,
+                        prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
+                    )
+                        .textFieldStyle(.plain)
+                        .foregroundStyle(Theme.textPrimary)
+                        .accessibilityIdentifier("session.editor.buddy")
+                    Button("Add") {
+                        addBuddy()
+                    }
+                    .glassButtonStyle(prominent: true)
+                    .disabled(newBuddyName.trimmedNonEmpty == nil)
+                }
+                .padding(12)
+                .glassInput()
+            }
+
+            if !buddies.isEmpty {
+                GlassContainer(spacing: 10) {
+                    let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(sortedBuddies) { buddy in
+                            SelectableChip(
+                                label: buddy.name,
+                                systemImage: "person",
+                                isSelected: draft.selectedBuddies.contains(where: { $0.persistentModelID == buddy.persistentModelID })
+                            ) {
+                                draft.toggleBuddy(buddy)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    private var ratingSection: some View {
+        EditorSection("Rating") {
+            RatingPickerView(rating: $draft.rating)
+                .accessibilityIdentifier("session.editor.rating")
+        }
+    }
+
+    private var mediaSection: some View {
+        EditorSection("Media") {
+            if draft.mediaItems.isEmpty {
+                Text("Add photos or videos from your library.")
+                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            } else {
+                let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(draft.mediaItems) { item in
+                        ZStack(alignment: .topTrailing) {
+                            SessionMediaThumbnailView(
+                                imageData: item.thumbnailData ?? item.photoData,
+                                isVideo: item.kind == .video
+                            )
+                            .frame(height: 110)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+
+                            Button {
+                                removeMediaItem(item)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .padding(6)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityLabel("Remove media")
+                        }
+                    }
+                }
+            }
+
+            PhotosPicker(
+                selection: $selectedMediaItems,
+                matching: .any(of: [.images, .videos])
+            ) {
+                Label("Add Photos or Videos", systemImage: "photo.on.rectangle.angled")
+                    .frame(maxWidth: .infinity)
+            }
+            .glassButtonStyle(prominent: false)
+        }
+    }
+
+    private var notesSection: some View {
+        EditorSection("Notes") {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $draft.notes)
+                    .frame(minHeight: 120)
+                    .scrollContentBackground(.hidden)
+                    .foregroundStyle(Theme.textPrimary)
+                    .accessibilityIdentifier("session.editor.notes")
+                    .focused($focusedField, equals: .notes)
+                    .id(FocusField.notes)
+                if draft.notes.isEmpty {
+                    Text("Add any conditions, swell, or quick thoughts.")
+                        .foregroundStyle(Theme.textMuted)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                }
+            }
+            .padding(12)
+            .glassInput()
+        }
+    }
+
+    private var saveValidationMessage: String? {
+        guard draft.selectedSpot != nil else {
+            return "Pick a surf break to continue."
+        }
+        return nil
     }
 
     private var sortedBuddies: [Buddy] {
@@ -567,13 +764,20 @@ struct SessionEditorView: View {
 
     private func sortedGear(for kind: GearKind) -> [Gear] {
         let items = availableGear.filter { $0.kind == kind }
-        return items.sorted { lhs, rhs in
-            let lhsDate = gearSnapshots[lhs.key]?.lastUsed ?? .distantPast
-            let rhsDate = gearSnapshots[rhs.key]?.lastUsed ?? .distantPast
-            if lhsDate == rhsDate {
-                return lhs.name < rhs.name
+        switch gearSelectionMode {
+        case .recent:
+            return items.sorted { lhs, rhs in
+                let lhsDate = gearSnapshots[lhs.key]?.lastUsed ?? .distantPast
+                let rhsDate = gearSnapshots[rhs.key]?.lastUsed ?? .distantPast
+                if lhsDate == rhsDate {
+                    return lhs.name < rhs.name
+                }
+                return lhsDate > rhsDate
             }
-            return lhsDate > rhsDate
+        case .all:
+            return items.sorted { lhs, rhs in
+                lhs.name < rhs.name
+            }
         }
     }
 
@@ -606,6 +810,35 @@ struct SessionEditorView: View {
             draft.selectedBuddies.append(stored)
         }
         newBuddyName = ""
+    }
+
+    private func applyTemplateFromLastSession(_ session: SurfSession) {
+        draft.selectedSpot = session.spot
+        draft.spotName = session.spot?.name ?? ""
+        draft.selectedGear = session.gear
+        draft.selectedBuddies = session.buddies
+        draft.rating = session.rating
+        draft.durationMinutes = session.durationMinutes ?? 0
+        draft.windCondition = session.windCondition
+        draft.waveHeight = session.waveHeight
+        draft.windSpeedKph = session.windSpeedKph
+        draft.windDirectionDegrees = session.windDirectionDegrees
+        draft.waveHeightMeters = session.waveHeightMeters
+        draft.swellWaveHeightMeters = session.swellWaveHeightMeters
+        draft.swellWavePeriodSeconds = session.swellWavePeriodSeconds
+        draft.swellWaveDirectionDegrees = session.swellWaveDirectionDegrees
+        draft.windWaveHeightMeters = session.windWaveHeightMeters
+        draft.windWavePeriodSeconds = session.windWavePeriodSeconds
+        draft.windWaveDirectionDegrees = session.windWaveDirectionDegrees
+        draft.seaSurfaceTemperatureC = session.seaSurfaceTemperatureC
+        draft.conditionsSource = session.conditionsSource
+        draft.conditionsFetchedAt = session.conditionsFetchedAt
+        draft.conditionsLatitude = session.conditionsLatitude
+        draft.conditionsLongitude = session.conditionsLongitude
+        draft.notes = session.notes
+        draft.mediaItems = []
+        surfConditionsNotice = nil
+        showOptionalFields = true
     }
 
     private func saveSession() {
@@ -692,12 +925,96 @@ struct SessionEditorView: View {
     }
 
     private var filteredSpots: [Spot] {
-        guard let query = draft.spotName.trimmedNonEmpty else { return spots }
-        return spots.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let filteredSpots = draft.spotName.trimmedNonEmpty.map { query in
+            spots.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        } ?? spots
+        return sortedSpots(filteredSpots)
+    }
+
+    private func sortedSpots(_ spots: [Spot]) -> [Spot] {
+        switch spotSelectionMode {
+        case .recent:
+            return spots.sorted { lhs, rhs in
+                let lhsCount = spotSnapshots[lhs.key]?.count ?? 0
+                let rhsCount = spotSnapshots[rhs.key]?.count ?? 0
+
+                if lhsCount == rhsCount {
+                    let lhsDate = spotSnapshots[lhs.key]?.lastUsed ?? .distantPast
+                    let rhsDate = spotSnapshots[rhs.key]?.lastUsed ?? .distantPast
+
+                    if lhsDate == rhsDate {
+                        return lhs.name < rhs.name
+                    }
+                    return lhsDate > rhsDate
+                }
+
+                return lhsCount > rhsCount
+            }
+        case .all:
+            return spots.sorted { lhs, rhs in
+                lhs.name < rhs.name
+            }
+        }
+    }
+
+    private func spotChipLabel(_ spot: Spot) -> String {
+        let count = spotSnapshots[spot.key]?.count ?? 0
+        let lastUsed = spotSnapshots[spot.key]?.lastUsed
+        if let lastUsed {
+            return "\(spot.name) • \(count)x • \(lastUsed.formatted(.dateTime.month(.abbreviated).day()))"
+        }
+        return "\(spot.name) • \(count)x"
+    }
+
+    private func gearChipLabel(_ gear: Gear) -> String {
+        let count = gearSnapshots[gear.key]?.count ?? 0
+        let lastUsed = gearSnapshots[gear.key]?.lastUsed
+        if let lastUsed {
+            return "\(gear.name) • \(count)x • \(lastUsed.formatted(.dateTime.month(.abbreviated).day()))"
+        }
+        return "\(gear.name) • \(count)x"
     }
 
     private var isSpotLimitReached: Bool {
         spots.count >= Spot.maxCount
+    }
+
+    private var quickStartSpotSuggestions: [Spot] {
+        let usedSpots = spots.filter { spot in
+            (spotSnapshots[spot.key]?.count ?? 0) > 0
+        }
+        let ordered = (usedSpots.isEmpty ? spots : usedSpots).sorted { lhs, rhs in
+            let lhsDate = spotSnapshots[lhs.key]?.lastUsed ?? .distantPast
+            let rhsDate = spotSnapshots[rhs.key]?.lastUsed ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.name < rhs.name
+            }
+            return lhsDate > rhsDate
+        }
+        return Array(ordered.prefix(5))
+    }
+
+    private var quickStartGearSuggestions: [Gear] {
+        guard let lastSession = sessions.first else { return [] }
+        var unique: [Gear] = []
+        var seen: Set<String> = []
+
+        for item in lastSession.gear where !item.isArchived {
+            let key = item.key
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            unique.append(item)
+        }
+
+        return Array(unique.prefix(6))
+    }
+
+    private func quickStartGearChipLabel(_ gear: Gear) -> String {
+        let lastUsed = gearSnapshots[gear.key]?.lastUsed
+        if let lastUsed {
+            return "\(gear.name) • \(lastUsed.formatted(.dateTime.month(.abbreviated).day()))"
+        }
+        return gear.name
     }
 
     private var conditionsHintText: String {

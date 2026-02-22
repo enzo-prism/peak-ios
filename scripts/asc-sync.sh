@@ -4,10 +4,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-if ! command -v asc-codex >/dev/null 2>&1; then
-  echo "error: asc-codex not found. Install/setup ASC Codex tooling first." >&2
+resolve_asc_cmd() {
+  if command -v asc >/dev/null 2>&1; then
+    echo "asc"
+    return
+  fi
+
+  if command -v asc-codex >/dev/null 2>&1; then
+    echo "asc-codex"
+    return
+  fi
+
+  echo "error: ASC CLI not found. Install either 'asc' or 'asc-codex'." >&2
   exit 127
-fi
+}
+
+ASC_CMD="$(resolve_asc_cmd)"
+
+asc_exec() {
+  "$ASC_CMD" "$@"
+}
 
 read_json_key() {
   local file_path="$1"
@@ -60,20 +76,38 @@ Notes:
 USAGE
 }
 
+snapshot() {
+  local app_id="$1"
+
+  if [[ "${ASC_CMD}" == "asc-codex" ]] && command -v asc-codex-snapshot >/dev/null 2>&1; then
+    asc-codex-snapshot "${app_id}"
+    return
+  fi
+
+  echo "app"
+  asc_exec apps get --id "${app_id}" --output table
+  echo
+  echo "versions"
+  asc_exec versions list --app "${app_id}" --limit 5 --output table
+  echo
+  echo "builds"
+  asc_exec builds latest --app "${app_id}" --output table
+}
+
 cmd="${1:-status}"
 shift || true
 
 case "${cmd}" in
   doctor)
-    asc-codex auth doctor
-    asc-codex auth status --validate
+    asc_exec auth doctor
+    asc_exec auth status --validate
     ;;
   status)
-    asc-codex apps get --id "${app_id}" --output table
-    asc-codex versions list --app "${app_id}" --limit 5 --output table
+    asc_exec apps get --id "${app_id}" --output table
+    asc_exec versions list --app "${app_id}" --limit 5 --output table
     ;;
   latest-build)
-    asc-codex builds latest --app "${app_id}" --output table
+    asc_exec builds latest --app "${app_id}" --output table
     ;;
   next-build)
     version="${1:-}"
@@ -83,14 +117,16 @@ case "${cmd}" in
       echo "example: ./scripts/asc-sync.sh next-build 1.7 IOS" >&2
       exit 2
     fi
-    asc-codex builds latest --app "${app_id}" --version "${version}" --platform "${platform}" --next --output table
+    asc_exec builds latest --app "${app_id}" --version "${version}" --platform "${platform}" --next --output table
     ;;
   versions)
-    asc-codex versions list --app "${app_id}" --limit 10 --output table
-    asc-codex pre-release-versions list --app "${app_id}" --limit 10 --output table
+    asc_exec versions list --app "${app_id}" --limit 10 --output table
+    if ! asc_exec pre-release-versions list --app "${app_id}" --limit 10 --output table; then
+      echo "warning: pre-release versions endpoint is unavailable in this ASC CLI version." >&2
+    fi
     ;;
   snapshot)
-    asc-codex-snapshot "${app_id}"
+    snapshot "${app_id}"
     ;;
   --help|-h|help)
     usage

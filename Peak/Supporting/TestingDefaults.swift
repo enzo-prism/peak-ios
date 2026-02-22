@@ -5,6 +5,15 @@ enum TestingDefaults {
         ProcessInfo.processInfo.environment["UITESTS"] == "1"
     }
 
+    static var surfConditionsScenario: String? {
+        guard let value = ProcessInfo.processInfo.environment["UITESTS_SURF_CONDITIONS_SCENARIO"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
     static var isRunningTests: Bool {
         if isUITest {
             return true
@@ -33,6 +42,15 @@ enum TestingDefaults {
             }
         }
         return nil
+    }
+
+    static var sessionMarker: String? {
+        guard let value = ProcessInfo.processInfo.environment["UITESTS_SESSION_MARKER"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     private static var iso8601: ISO8601DateFormatter {

@@ -11,6 +11,11 @@ struct SessionDetailView: View {
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var selectedMedia: SessionMedia?
+    @State private var showSurfReportSection = true
+    @State private var showGearSection = false
+    @State private var showBuddiesSection = false
+    @State private var showMediaSection = false
+    @State private var showNotesSection = false
 
     var body: some View {
         ZStack {
@@ -19,59 +24,45 @@ struct SessionDetailView: View {
             ScrollView {
                 GlassContainer(spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            detailRow(title: "Date", value: session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
-                            detailRow(title: "Start time", value: session.date.formatted(.dateTime.hour().minute()))
-                            if let durationMinutes = session.durationMinutes {
-                                detailRow(title: "Duration", value: SessionDurationFormatter.string(from: durationMinutes))
-                            }
-                            if let windCondition = session.windCondition {
-                                detailRow(title: "Wind", value: windCondition.label)
-                            }
-                            if let waveHeight = session.waveHeight {
-                                detailRow(title: "Wave height", value: waveHeight.label)
-                            }
-                            detailRow(title: "Spot", value: session.spot?.name ?? "Unknown spot")
-                            if session.rating > 0 {
-                                detailRow(title: "Rating", value: "\(session.rating) / 5")
-                            }
-                        }
-                        .padding(16)
-                        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+                        heroCard
 
                         if !surfReportRows.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                sectionTitle("Surf report")
+                            detailDisclosureSection("Surf report", isExpanded: $showSurfReportSection) {
                                 ForEach(surfReportRows.indices, id: \.self) { index in
                                     let row = surfReportRows[index]
                                     detailRow(title: row.title, value: row.value)
                                 }
                             }
-                            .padding(16)
-                            .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
                         }
 
                         if !session.gear.isEmpty {
-                            infoCard(title: "Gear", items: session.gear.sorted(by: { $0.name < $1.name }).map { "\($0.name) (\($0.kind.label))" })
+                            detailDisclosureSection("Gear", isExpanded: $showGearSection) {
+                                ForEach(session.gear.sorted(by: { $0.name < $1.name }), id: \.persistentModelID) { gear in
+                                    detailRow(title: gear.kind.label, value: gear.name)
+                                }
+                            }
                         }
 
                         if !session.buddies.isEmpty {
-                            infoCard(title: "Buddies", items: session.buddies.sorted(by: { $0.name < $1.name }).map { $0.name })
+                            detailDisclosureSection("Buddies", isExpanded: $showBuddiesSection) {
+                                ForEach(session.buddies.sorted(by: { $0.name < $1.name }), id: \.persistentModelID) { buddy in
+                                    detailRow(title: "Buddy", value: buddy.name)
+                                }
+                            }
                         }
 
                         if !session.media.isEmpty {
-                            mediaSection
+                            detailDisclosureSection("Media", isExpanded: $showMediaSection) {
+                                mediaSection
+                            }
                         }
 
                         if !session.notes.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                sectionTitle("Notes")
+                            detailDisclosureSection("Notes", isExpanded: $showNotesSection) {
                                 Text(session.notes)
                                     .font(.custom("Avenir Next", size: 15, relativeTo: .body))
                                     .foregroundStyle(Theme.textSecondary)
                             }
-                            .padding(16)
-                            .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
                         }
 
                         Button(role: .destructive) {
@@ -112,6 +103,100 @@ struct SessionDetailView: View {
         }
     }
 
+    private var conditionsSummaryCount: Int { surfReportRows.count }
+
+    @ViewBuilder
+    private func detailDisclosureSection<Content: View>(
+        _ title: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder _ content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(isExpanded: isExpanded) {
+            VStack(alignment: .leading, spacing: 8) {
+                content()
+            }
+            .padding(.top, 8)
+        } label: {
+            Text(title.uppercased())
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .padding(14)
+        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+    }
+
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+
+                Text(session.spot?.name ?? "Unknown spot")
+                    .font(.custom("Avenir Next", size: 28, relativeTo: .largeTitle).weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+            }
+
+            HStack(spacing: 10) {
+                heroTag(SessionDurationFormatter.string(from: session.durationMinutes), icon: "timer")
+                heroTag(session.date.formatted(.dateTime.hour().minute()), icon: "clock")
+                if !session.gear.isEmpty {
+                    heroTag("\(session.gear.count) gear", icon: "surfboard")
+                }
+                if session.rating > 0 {
+                    heroRatingTag(session.rating)
+                }
+                if !session.buddies.isEmpty {
+                    heroTag("\(session.buddies.count) buddy\(session.buddies.count == 1 ? "" : "s")", icon: "person.2.fill")
+                }
+                if !session.media.isEmpty {
+                    heroTag("\(session.media.count) media", icon: "photo.on.rectangle")
+                }
+            }
+            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+
+            if conditionsSummaryCount > 0 {
+                heroTag("\(conditionsSummaryCount) condition details", icon: "chart.bar.fill")
+            }
+
+            if !session.notes.isEmpty {
+                Text(session.notes)
+                    .lineLimit(2)
+                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline))
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+    }
+
+    private func heroTag(_ text: String, icon: String? = nil) -> some View {
+        HStack(spacing: 6) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.caption)
+            }
+            Text(text)
+        }
+        .foregroundStyle(Theme.textPrimary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+    }
+
+    private func heroRatingTag(_ rating: Int) -> some View {
+        HStack(spacing: 2) {
+            ForEach(1...5, id: \.self) { value in
+                Image(systemName: value <= rating ? "star.fill" : "star")
+                    .font(.caption2)
+                    .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+    }
+
     @ViewBuilder
     private func detailRow(title: String, value: String) -> some View {
         HStack {
@@ -124,25 +209,6 @@ struct SessionDetailView: View {
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
-    }
-
-    @ViewBuilder
-    private func infoCard(title: String, items: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(title)
-            ForEach(items, id: \.self) { item in
-                Text(item)
-                    .foregroundStyle(Theme.textPrimary)
-            }
-        }
-        .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
-    }
-
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
-            .foregroundStyle(Theme.textMuted)
     }
 
     private var surfReportRows: [(title: String, value: String)] {
@@ -203,7 +269,6 @@ struct SessionDetailView: View {
 
     private var mediaSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Media")
             let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(session.media.sorted(by: { $0.createdAt < $1.createdAt }), id: \.persistentModelID) { media in
@@ -225,8 +290,6 @@ struct SessionDetailView: View {
                 }
             }
         }
-        .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
     }
 }
 

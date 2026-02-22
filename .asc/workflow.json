@@ -1,0 +1,64 @@
+{
+  "env": {
+    "APP_ID": "6757644027",
+    "PLATFORM": "IOS",
+    "BUNDLE_ID": "com.designprism.peak"
+  },
+  "workflows": {
+    "status": {
+      "description": "ASC app/build/version status snapshot",
+      "steps": [
+        {
+          "name": "ensure_app_id",
+          "run": "if [[ -z \"$APP_ID\" ]]; then echo \"Set APP_ID in .asc/project.json or pass APP_ID:...\" >&2; exit 1; fi"
+        },
+        {
+          "name": "app",
+          "run": "asc apps get --id \"$APP_ID\" --output table"
+        },
+        {
+          "name": "latest_build",
+          "run": "asc builds latest --app \"$APP_ID\" --platform \"$PLATFORM\" --output table"
+        },
+        {
+          "name": "versions",
+          "run": "asc versions list --app \"$APP_ID\" --platform \"$PLATFORM\" --limit 5 --output table"
+        }
+      ]
+    },
+    "release_readiness": {
+      "description": "Check latest version relationships + readiness validation",
+      "steps": [
+        {
+          "name": "ensure_app_id",
+          "run": "if [[ -z \"$APP_ID\" ]]; then echo \"Set APP_ID in .asc/project.json or pass APP_ID:...\" >&2; exit 1; fi"
+        },
+        {
+          "name": "latest_version_details",
+          "run": "VID=$(asc versions list --app \"$APP_ID\" --platform \"$PLATFORM\" --limit 200 --output json | jq -r '.data | sort_by(.attributes.createdDate // \"\") | reverse | .[0].id // empty'); if [[ -z \"$VID\" ]]; then echo \"No versions found for app $APP_ID\" >&2; exit 1; fi; asc versions get --version-id \"$VID\" --include-build --include-submission --output table"
+        },
+        {
+          "name": "submission_relationship",
+          "run": "VID=$(asc versions list --app \"$APP_ID\" --platform \"$PLATFORM\" --limit 200 --output json | jq -r '.data | sort_by(.attributes.createdDate // \"\") | reverse | .[0].id // empty'); asc versions relationships --version-id \"$VID\" --type appStoreVersionSubmission --output table"
+        },
+        {
+          "name": "validate",
+          "run": "VID=$(asc versions list --app \"$APP_ID\" --platform \"$PLATFORM\" --limit 200 --output json | jq -r '.data | sort_by(.attributes.createdDate // \"\") | reverse | .[0].id // empty'); asc validate --app \"$APP_ID\" --version-id \"$VID\" --platform \"$PLATFORM\" --output table"
+        }
+      ]
+    },
+    "next_build": {
+      "description": "Calculate next collision-safe build number",
+      "steps": [
+        {
+          "name": "ensure_inputs",
+          "run": "if [[ -z \"$APP_ID\" || -z \"${VERSION:-}\" ]]; then echo \"Pass APP_ID and VERSION (e.g. VERSION:1.2.3)\" >&2; exit 1; fi"
+        },
+        {
+          "name": "next_build",
+          "run": "asc builds latest --app \"$APP_ID\" --version \"$VERSION\" --platform \"$PLATFORM\" --next --output table"
+        }
+      ]
+    }
+  }
+}

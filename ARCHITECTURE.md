@@ -23,6 +23,7 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Log screen: `Peak/Views/Log/LogView.swift`
 - Editor: `Peak/Views/Log/SessionEditorView.swift`
 - Session editor writes to `SessionDraft`, then commits to `SurfSession`
+- New-session mode now includes a `Quick Start` block that pre-fills from the most recent session and exposes recent spot/gear chips for one-tap setup.
 - Required inputs: date/time and spot selection
 - Optional inputs: duration, rating, notes, gear, buddies, media
 

@@ -54,6 +54,17 @@ enum SurfConditionsService {
         longitude: Double,
         session: URLSession = .shared
     ) async throws -> SurfConditionsSnapshot {
+        if TestingDefaults.isUITest,
+           let scenario = TestingDefaults.surfConditionsScenario {
+            return try mockSnapshot(
+                for: scenario,
+                start: start,
+                durationMinutes: durationMinutes,
+                latitude: latitude,
+                longitude: longitude
+            )
+        }
+
         let end = start.addingTimeInterval(Double(durationMinutes) * 60)
         try validateRange(start: start, end: end, maxPastDays: 92, maxForecastDays: 8)
 
@@ -114,6 +125,46 @@ enum SurfConditionsService {
         }
 
         return snapshot
+    }
+
+    private static func mockSnapshot(
+        for scenario: String,
+        start: Date,
+        durationMinutes: Int,
+        latitude: Double,
+        longitude: Double
+    ) throws -> SurfConditionsSnapshot {
+        switch scenario.lowercased() {
+        case "success", "success_full", "default":
+            let end = start.addingTimeInterval(Double(durationMinutes) * 60)
+            guard start <= end else {
+                throw SurfConditionsError.outOfRange(maxPastDays: 92, maxForecastDays: 8)
+            }
+            return SurfConditionsSnapshot(
+                source: sourceName,
+                fetchedAt: Date(),
+                latitude: latitude,
+                longitude: longitude,
+                windSpeedKph: 12.4,
+                windDirectionDegrees: 270,
+                waveHeightMeters: 1.45,
+                swellWaveHeightMeters: 1.2,
+                swellWavePeriodSeconds: 11,
+                swellWaveDirectionDegrees: 268,
+                windWaveHeightMeters: 0.6,
+                windWavePeriodSeconds: 6,
+                windWaveDirectionDegrees: 298,
+                seaSurfaceTemperatureC: 17.8
+            )
+        case "no_data", "nodata":
+            throw SurfConditionsError.noDataAvailable
+        case "remote_error", "error":
+            throw SurfConditionsError.remoteError("Mock surf report service error")
+        case "out_of_range":
+            throw SurfConditionsError.outOfRange(maxPastDays: 92, maxForecastDays: 8)
+        default:
+            throw SurfConditionsError.invalidResponse
+        }
     }
 }
 

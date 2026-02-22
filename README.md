@@ -8,6 +8,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Quick session logging (date + spot required)
 - Optional wind and wave height conditions
 - Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
+- Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
 - Photo and video attachments per session
 - History timeline with filters (spot, gear, buddy)
 - Basic stats (totals, top spots, most-used gear)
@@ -110,3 +111,6 @@ Optional overrides:
 - App works fully offline and stores data locally
 - Accessible with Dynamic Type and VoiceOver basics
 - Auto-fill conditions only runs on tap and requires a duration + pinned spot
+
+## UX Notes
+- New-session logging now surfaces a `Quick Start` section with a one-tap "Use last session setup" action and recency-based spot/gear chips to reduce logging friction.

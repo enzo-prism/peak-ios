@@ -16,7 +16,12 @@ enum PreviewData {
     }()
 
     static func seed(context: ModelContext, baseDate: Date = Date()) {
-        let trestles = Spot(name: "Trestles")
+        let trestles = Spot(
+            name: "Trestles",
+            locationName: "Trestles, California, United States",
+            latitude: 33.3842,
+            longitude: -117.592
+        )
         let oceanBeach = Spot(name: "Ocean Beach")
         let mexPoint = Spot(name: "Point Break")
         let longSpot = Spot(

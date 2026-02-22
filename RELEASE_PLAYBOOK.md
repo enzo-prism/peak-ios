@@ -11,9 +11,11 @@
 Run:
 
 ```bash
+./scripts/release-cli.sh 1.7 IOS
 ./scripts/asc-sync.sh status
 ./scripts/asc-sync.sh latest-build
 ./scripts/asc-sync.sh next-build 1.7 IOS
+./scripts/gh-tooling.sh status
 ```
 
 ## If App Review rejects `1.7`

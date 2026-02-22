@@ -34,6 +34,7 @@ struct HistoryView: View {
                                     } label: {
                                         SessionRowView(session: session)
                                     }
+                                    .accessibilityIdentifier(sessionRowIdentifier(for: session))
                                     .buttonStyle(PressFeedbackButtonStyle())
                                     .listRowInsets(EdgeInsets())
                                     .listRowBackground(Color.clear)
@@ -89,6 +90,14 @@ struct HistoryView: View {
             let values = grouped[key, default: []].sorted { $0.date > $1.date }
             return (key: key, value: values)
         }
+    }
+
+    private func sessionRowIdentifier(for session: SurfSession) -> String {
+        guard let marker = TestingDefaults.sessionMarker,
+              session.notes.contains(marker) else {
+            return "history.row"
+        }
+        return "history.row.test-marker"
     }
 }
 
