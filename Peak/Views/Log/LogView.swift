@@ -2,10 +2,17 @@ import SwiftUI
 import SwiftData
 
 struct LogView: View {
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query private var sessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showNewSession = false
     @State private var showContent = false
+
+    init() {
+        // Only the three most recent sessions are shown, so don't fetch the whole table.
+        var descriptor = FetchDescriptor<SurfSession>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        descriptor.fetchLimit = 3
+        _sessions = Query(descriptor)
+    }
 
     var body: some View {
         NavigationStack {

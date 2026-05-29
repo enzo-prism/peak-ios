@@ -8,6 +8,8 @@ struct HistoryView: View {
     @State private var showFilters = false
     @State private var showNewSession = false
     @State private var searchText = ""
+    @State private var debouncedQuery = ""
+    @State private var groups: [(key: Date, value: [SurfSession])] = []
     @State private var deleteFeedbackTrigger = 0
 
     var body: some View {
@@ -21,7 +23,7 @@ struct HistoryView: View {
                         message: "Log your first surf and your timeline will show up here.",
                         systemImage: "wave.3.right"
                     )
-                } else if filteredSessions.isEmpty {
+                } else if groups.isEmpty && isNarrowed {
                     EmptyStateView(
                         title: "No matches",
                         message: "Try adjusting your search or filters to see more sessions.",
@@ -29,7 +31,7 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        ForEach(groupedSessions, id: \.key) { group in
+                        ForEach(groups, id: \.key) { group in
                             Section {
                                 ForEach(group.value) { session in
                                     NavigationLink {
@@ -66,6 +68,15 @@ struct HistoryView: View {
             }
             .searchable(text: $searchText, prompt: "Search spot, gear, buddy, or notes")
             .sensoryFeedback(.success, trigger: deleteFeedbackTrigger)
+            .onAppear { recompute() }
+            .onChange(of: sessions) { _, _ in recompute() }
+            .onChange(of: filters) { _, _ in recompute() }
+            .task(id: searchText) {
+                try? await Task.sleep(for: .milliseconds(220))
+                guard !Task.isCancelled else { return }
+                debouncedQuery = searchText
+                recompute()
+            }
             .navigationTitle("History")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -92,12 +103,22 @@ struct HistoryView: View {
         }
     }
 
-    private var filteredSessions: [SurfSession] {
-        sessions.filter { filters.matches(session: $0) && matchesSearch($0) }
+    private var isNarrowed: Bool {
+        filters.isActive || !debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func matchesSearch(_ session: SurfSession) -> Bool {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Filtering + grouping over the whole history is cached here and refreshed only when its
+    /// inputs change (sessions, filters, debounced search) — not on every body evaluation.
+    private func recompute() {
+        let query = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered = sessions.filter { filters.matches(session: $0) && matchesSearch($0, query: query) }
+        let grouped = Dictionary(grouping: filtered) { $0.date.startOfMonth }
+        groups = grouped.keys.sorted(by: >).map { key in
+            (key: key, value: grouped[key, default: []].sorted { $0.date > $1.date })
+        }
+    }
+
+    private func matchesSearch(_ session: SurfSession, query: String) -> Bool {
         guard !query.isEmpty else { return true }
         if session.spot?.name.localizedCaseInsensitiveContains(query) == true { return true }
         if session.notes.localizedCaseInsensitiveContains(query) { return true }
@@ -110,14 +131,6 @@ struct HistoryView: View {
         SessionMediaStore.deleteStoredMedia(for: session.media)
         modelContext.delete(session)
         deleteFeedbackTrigger += 1
-    }
-
-    private var groupedSessions: [(key: Date, value: [SurfSession])] {
-        let grouped = Dictionary(grouping: filteredSessions) { $0.date.startOfMonth }
-        return grouped.keys.sorted(by: >).map { key in
-            let values = grouped[key, default: []].sorted { $0.date > $1.date }
-            return (key: key, value: values)
-        }
     }
 
     private func sessionRowIdentifier(for session: SurfSession) -> String {

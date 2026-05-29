@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct HistoryFilters {
+struct HistoryFilters: Equatable {
     var spot: Spot?
     var gear: Gear?
     var buddy: Buddy?
