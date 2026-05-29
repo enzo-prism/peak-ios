@@ -139,7 +139,7 @@ struct GearEditorView: View {
                                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
                             } else {
                                 Text("Add a photo to personalize this board, suit, or fin set.")
-                                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                    .font(.peak(13, relativeTo: .caption))
                                     .foregroundStyle(Theme.textMuted)
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,7 +219,7 @@ struct GearEditorView: View {
     private func editorSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
             content()
         }

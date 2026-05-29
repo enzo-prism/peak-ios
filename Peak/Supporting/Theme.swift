@@ -13,6 +13,9 @@ enum Theme {
     static let glassDimTint = Color(white: 1.0, opacity: 0.06)
     static let surface = Color.white.opacity(0.06)
 
+    /// Opaque elevated surface used when the user enables Reduce Transparency.
+    static let opaqueSurface = Color(white: 0.16)
+
     static let textPrimary = foam
     static let textSecondary = foam.opacity(0.9)
     static let textMuted = foam.opacity(0.8)

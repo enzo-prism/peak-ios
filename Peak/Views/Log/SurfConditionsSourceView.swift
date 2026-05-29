@@ -75,7 +75,7 @@ struct SurfConditionsSourceView: View {
 
     private var footnote: some View {
         Text("Times shown in your local time zone. Auto-fill averages data across the session window.")
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.peak(12, relativeTo: .caption))
             .foregroundStyle(Theme.textMuted)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,11 +124,11 @@ struct SurfConditionsSourceView: View {
     private func detailRow(title: String, value: String) -> some View {
         HStack(alignment: .top) {
             Text(title)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .font(.peak(14, relativeTo: .subheadline))
                 .foregroundStyle(Theme.textMuted)
             Spacer()
             Text(value)
-                .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
+                .font(.peak(15, relativeTo: .body).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +137,7 @@ struct SurfConditionsSourceView: View {
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+            .font(.peak(12, relativeTo: .caption).weight(.semibold))
             .foregroundStyle(Theme.textMuted)
     }
 

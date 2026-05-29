@@ -60,7 +60,7 @@ struct SessionDetailView: View {
                         if !session.notes.isEmpty {
                             detailDisclosureSection("Notes", isExpanded: $showNotesSection) {
                                 Text(session.notes)
-                                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                                    .font(.peak(15, relativeTo: .body))
                                     .foregroundStyle(Theme.textSecondary)
                             }
                         }
@@ -118,7 +118,7 @@ struct SessionDetailView: View {
             .padding(.top, 8)
         } label: {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
         }
         .padding(14)
@@ -129,11 +129,11 @@ struct SessionDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                    .font(.peak(13, relativeTo: .caption).weight(.semibold))
                     .foregroundStyle(Theme.textMuted)
 
                 Text(session.spot?.name ?? "Unknown spot")
-                    .font(.custom("Avenir Next", size: 28, relativeTo: .largeTitle).weight(.semibold))
+                    .font(.peak(28, relativeTo: .largeTitle).weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
             }
 
@@ -153,7 +153,7 @@ struct SessionDetailView: View {
                     heroTag("\(session.media.count) media", icon: "photo.on.rectangle")
                 }
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.peak(12, relativeTo: .caption))
 
             if conditionsSummaryCount > 0 {
                 heroTag("\(conditionsSummaryCount) condition details", icon: "chart.bar.fill")
@@ -162,7 +162,7 @@ struct SessionDetailView: View {
             if !session.notes.isEmpty {
                 Text(session.notes)
                     .lineLimit(2)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline))
+                    .font(.peak(13, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textSecondary)
             }
         }
@@ -201,11 +201,11 @@ struct SessionDetailView: View {
     private func detailRow(title: String, value: String) -> some View {
         HStack {
             Text(title)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .font(.peak(14, relativeTo: .subheadline))
                 .foregroundStyle(Theme.textMuted)
             Spacer()
             Text(value)
-                .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
+                .font(.peak(15, relativeTo: .body).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .multilineTextAlignment(.trailing)
         }
@@ -369,7 +369,7 @@ private struct SessionMediaViewer: View {
             Button("Done") {
                 dismiss()
             }
-            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+            .font(.peak(14, relativeTo: .subheadline).weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -390,10 +390,10 @@ private struct SessionMediaViewer: View {
                 .foregroundStyle(Theme.textPrimary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(typeLabel)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline).weight(.semibold))
+                    .font(.peak(13, relativeTo: .subheadline).weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(dateLabel)
-                    .font(.custom("Avenir Next", size: 11, relativeTo: .caption))
+                    .font(.peak(11, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
             }
         }
@@ -435,7 +435,7 @@ private struct SessionMediaViewer: View {
             .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: false)
 
             Text(message)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .font(.peak(14, relativeTo: .subheadline))
                 .foregroundStyle(Theme.textMuted)
         }
         .padding()

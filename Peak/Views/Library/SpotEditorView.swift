@@ -77,21 +77,21 @@ struct SpotEditorView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("PIN LOCATION")
-                                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                .font(.peak(12, relativeTo: .caption).weight(.semibold))
                                 .foregroundStyle(Theme.textMuted)
 
                             mapPicker
 
                             if selectedCoordinate == nil {
                                 Text("Drop a pin to save this surf break.")
-                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                    .font(.peak(12, relativeTo: .caption))
                                     .foregroundStyle(Theme.textMuted)
                             }
                         }
 
                         if isLimitReached {
                             Text("You can save up to \(Spot.maxCount) surf breaks.")
-                                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                .font(.peak(12, relativeTo: .caption))
                                 .foregroundStyle(Theme.textMuted)
                         }
                     }
@@ -203,7 +203,7 @@ struct SpotEditorView: View {
             )
             .overlay(alignment: .topLeading) {
                 Label("Tap to drop a pin", systemImage: "mappin")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                    .font(.peak(12, relativeTo: .caption).weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 10)

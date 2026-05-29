@@ -14,14 +14,14 @@ struct MetricCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.semibold))
+                .font(.peak(11, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
             Text(value)
-                .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.bold))
+                .font(.peak(20, relativeTo: .title3).weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
             if let subtitle {
                 Text(subtitle)
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
             }
         }

@@ -108,11 +108,11 @@ private struct StatListSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             if items.isEmpty {
                 Text("Not enough data yet")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.peak(15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
             } else {
                 GlassContainer(spacing: 10) {
@@ -121,17 +121,17 @@ private struct StatListSection: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.name)
-                                        .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                                        .font(.peak(15, relativeTo: .subheadline).weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                     if let detail = item.detail {
                                         Text(detail)
-                                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                            .font(.peak(12, relativeTo: .caption))
                                             .foregroundStyle(Theme.textMuted)
                                     }
                                 }
                                 Spacer()
                                 Text("\(item.count)")
-                                    .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
+                                    .font(.peak(18, relativeTo: .headline).weight(.bold))
                                     .foregroundStyle(Theme.textPrimary)
                             }
                             .padding(12)

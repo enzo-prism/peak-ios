@@ -104,7 +104,7 @@ private struct BuddyRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(buddy.name)
-                .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                .font(.peak(16, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             HStack(spacing: 12) {
@@ -112,7 +112,7 @@ private struct BuddyRowView: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.peak(12, relativeTo: .caption))
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

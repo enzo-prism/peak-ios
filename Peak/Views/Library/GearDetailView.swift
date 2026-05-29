@@ -99,22 +99,22 @@ struct GearDetailView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(gear.name)
-                    .font(.custom("Avenir Next", size: 20, relativeTo: .headline).weight(.semibold))
+                    .font(.peak(20, relativeTo: .headline).weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
 
                 Text(gear.kind.label)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                    .font(.peak(13, relativeTo: .caption).weight(.semibold))
                     .foregroundStyle(Theme.textMuted)
 
                 if let summary = gear.profileSummary {
                     Text(summary)
-                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .font(.peak(13, relativeTo: .caption))
                         .foregroundStyle(Theme.textSecondary)
                 }
 
                 if gear.isArchived {
                     Text("Archived")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                        .font(.peak(12, relativeTo: .caption).weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -148,7 +148,7 @@ struct GearDetailView: View {
     private func usageSummarySection(summary: GearUsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Usage Summary")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             HStack(spacing: 12) {
@@ -166,12 +166,12 @@ struct GearDetailView: View {
     private func topSpotsSection(spots: [GearTopSpot]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Top Spots")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if spots.isEmpty {
                 Text("No spot data yet.")
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.peak(14, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
@@ -185,7 +185,7 @@ struct GearDetailView: View {
                             Text("\(spot.count)")
                                 .foregroundStyle(Theme.textSecondary)
                         }
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.peak(14, relativeTo: .subheadline))
                         .padding(12)
                         .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
                     }
@@ -199,11 +199,11 @@ struct GearDetailView: View {
             if let notes = gear.notes?.trimmedNonEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Notes")
-                        .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                        .font(.peak(18, relativeTo: .headline).weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
 
                     Text(notes)
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.peak(14, relativeTo: .subheadline))
                         .foregroundStyle(Theme.textSecondary)
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,12 +216,12 @@ struct GearDetailView: View {
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent Sessions")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if sessions.isEmpty {
                 Text("No sessions yet.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.peak(15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)

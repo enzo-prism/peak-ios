@@ -77,7 +77,7 @@ struct HistoryFilterSheetView: View {
     @ViewBuilder
     private func headerLabel(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+            .font(.peak(12, relativeTo: .caption).weight(.semibold))
             .foregroundStyle(Theme.textMuted)
     }
 }
@@ -91,7 +91,7 @@ private struct FilterRow: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                    .font(.peak(15, relativeTo: .body))
                     .foregroundStyle(isSelected ? Theme.textInverse : Theme.textPrimary)
                 Spacer()
                 if isSelected {

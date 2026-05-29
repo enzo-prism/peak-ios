@@ -5,13 +5,13 @@ import XCTest
 
 final class SurfConditionsServiceTests: XCTestCase {
     func testFetchParsesISO8601TimesWithTimezone() async throws {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let marineJSON = """
         {
           "latitude": 33.3,
           "longitude": -117.6,
           "hourly": {
-            "time": ["2026-02-04T10:00Z"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm'Z'"))"],
             "wave_height": [1.2],
             "swell_wave_height": [1.1],
             "swell_wave_period": [12.0],
@@ -26,7 +26,7 @@ final class SurfConditionsServiceTests: XCTestCase {
         let windJSON = """
         {
           "hourly": {
-            "time": ["2026-02-04T10:00:00Z"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm:ss'Z'"))"],
             "wind_speed_10m": [12.0],
             "wind_direction_10m": [280.0]
           }
@@ -63,7 +63,7 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 
     func testFetchDecodesRemoteErrorResponse() async {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let errorJSON = """
         {"error": true, "reason": "Invalid latitude"}
         """
@@ -96,13 +96,13 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 
     func testFetchReturnsPartialWhenWindFails() async throws {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let marineJSON = """
         {
           "latitude": 33.3,
           "longitude": -117.6,
           "hourly": {
-            "time": ["2026-02-04T10:00"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm"))"],
             "wave_height": [1.4],
             "swell_wave_height": [1.2],
             "swell_wave_period": [11.0],
@@ -148,13 +148,13 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 
     func testFetchThrowsNoDataWhenAllValuesNil() async {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let marineJSON = """
         {
           "latitude": 33.3,
           "longitude": -117.6,
           "hourly": {
-            "time": ["2026-02-04T10:00"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm"))"],
             "wave_height": [null],
             "swell_wave_height": [null],
             "swell_wave_period": [null],
@@ -169,7 +169,7 @@ final class SurfConditionsServiceTests: XCTestCase {
         let windJSON = """
         {
           "hourly": {
-            "time": ["2026-02-04T10:00"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm"))"],
             "wind_speed_10m": [null],
             "wind_direction_10m": [null]
           }
@@ -306,14 +306,14 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 
     func testFetchReturnsPartialWhenMarineFails() async throws {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let errorJSON = """
         {"error": true, "reason": "Marine endpoint unavailable"}
         """
         let windJSON = """
         {
           "hourly": {
-            "time": ["2026-02-04T10:00:00Z"],
+            "time": ["\(gmtString(start, format: "yyyy-MM-dd'T'HH:mm:ss'Z'"))"],
             "wind_speed_10m": [9.0],
             "wind_direction_10m": [250.0]
           }
@@ -349,7 +349,7 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 
     func testFetchThrowsNoMatchingHoursWhenTimesEmpty() async {
-        let start = makeGMTDate(year: 2026, month: 2, day: 4, hour: 10, minute: 0)
+        let start = recentGMTStart()
         let marineJSON = """
         {
           "latitude": 33.3,
@@ -423,9 +423,29 @@ private extension SurfConditionsServiceTests {
         HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
     }
 
-    func makeGMTDate(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date {
+    /// A GMT start time a few days in the past, on the hour, that stays inside the service's
+    /// 92-day past window regardless of when the suite runs (avoids hardcoded-date rot).
+    func recentGMTStart(hour: Int = 10) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+        let threeDaysAgo = calendar.date(byAdding: .day, value: -3, to: Date())!
+        let components = calendar.dateComponents([.year, .month, .day], from: threeDaysAgo)
+        return calendar.date(from: DateComponents(
+            year: components.year,
+            month: components.month,
+            day: components.day,
+            hour: hour,
+            minute: 0
+        ))!
+    }
+
+    /// Formats a GMT date with an explicit format so fixtures can mirror the exact timestamp
+    /// shapes (with/without seconds, with/without `Z`) that the parser is meant to handle.
+    func gmtString(_ date: Date, format: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = format
+        return formatter.string(from: date)
     }
 }

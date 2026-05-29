@@ -2,10 +2,13 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
     @State private var filters = HistoryFilters()
     @State private var showFilters = false
     @State private var showNewSession = false
+    @State private var searchText = ""
+    @State private var deleteFeedbackTrigger = 0
 
     var body: some View {
         NavigationStack {
@@ -21,7 +24,7 @@ struct HistoryView: View {
                 } else if filteredSessions.isEmpty {
                     EmptyStateView(
                         title: "No matches",
-                        message: "Try adjusting your filters to see more sessions.",
+                        message: "Try adjusting your search or filters to see more sessions.",
                         systemImage: "line.3.horizontal.decrease.circle"
                     )
                 } else {
@@ -40,10 +43,17 @@ struct HistoryView: View {
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .padding(.vertical, 6)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            delete(session)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             } header: {
                                 Text(group.key.monthTitle)
-                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                    .font(.peak(12, relativeTo: .caption).weight(.semibold))
                                     .foregroundStyle(Theme.textMuted)
                             }
                         }
@@ -54,6 +64,8 @@ struct HistoryView: View {
                     .accessibilityIdentifier("history.list")
                 }
             }
+            .searchable(text: $searchText, prompt: "Search spot, gear, buddy, or notes")
+            .sensoryFeedback(.success, trigger: deleteFeedbackTrigger)
             .navigationTitle("History")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -81,7 +93,23 @@ struct HistoryView: View {
     }
 
     private var filteredSessions: [SurfSession] {
-        sessions.filter { filters.matches(session: $0) }
+        sessions.filter { filters.matches(session: $0) && matchesSearch($0) }
+    }
+
+    private func matchesSearch(_ session: SurfSession) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        if session.spot?.name.localizedCaseInsensitiveContains(query) == true { return true }
+        if session.notes.localizedCaseInsensitiveContains(query) { return true }
+        if session.gear.contains(where: { $0.name.localizedCaseInsensitiveContains(query) }) { return true }
+        if session.buddies.contains(where: { $0.name.localizedCaseInsensitiveContains(query) }) { return true }
+        return false
+    }
+
+    private func delete(_ session: SurfSession) {
+        SessionMediaStore.deleteStoredMedia(for: session.media)
+        modelContext.delete(session)
+        deleteFeedbackTrigger += 1
     }
 
     private var groupedSessions: [(key: Date, value: [SurfSession])] {

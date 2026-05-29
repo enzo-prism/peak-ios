@@ -25,7 +25,7 @@ struct LogView: View {
                             GlassContainer(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Recent sessions")
-                                        .font(.custom("Avenir Next", size: 17, relativeTo: .headline).weight(.semibold))
+                                        .font(.peak(17, relativeTo: .headline).weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                         .accessibilityIdentifier("log.recent.title")
                                     ForEach(sessions.prefix(3)) { session in
@@ -74,17 +74,17 @@ struct LogView: View {
                     logoBadge
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Peak")
-                            .font(.custom("Avenir Next", size: 36, relativeTo: .largeTitle).weight(.semibold))
+                            .font(.peak(36, relativeTo: .largeTitle).weight(.semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .accessibilityIdentifier("log.hero.title")
                         Text("Surf Log")
-                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                            .font(.peak(13, relativeTo: .caption).weight(.semibold))
                             .foregroundStyle(Theme.textSecondary)
                     }
                 }
 
                 Text("Log a session in seconds. Date, spot, gear, buddies, and quick notes.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.peak(15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textSecondary)
                     .accessibilityIdentifier("log.hero.subtitle")
 
@@ -94,7 +94,7 @@ struct LogView: View {
                     HStack {
                         Image(systemName: "plus")
                         Text("Log Session")
-                            .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                            .font(.peak(18, relativeTo: .headline).weight(.semibold))
                     }
                     .foregroundStyle(Theme.textPrimary)
                     .padding(.vertical, 12)

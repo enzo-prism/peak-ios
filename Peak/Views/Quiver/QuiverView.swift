@@ -91,7 +91,7 @@ struct QuiverView: View {
     private func gearSection(kind: GearKind, items: [Gear]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(kind.pluralLabel.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
 
             ForEach(items) { item in
@@ -170,10 +170,10 @@ private struct QuiverGearRow: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(gear.name)
-                        .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                        .font(.peak(16, relativeTo: .headline).weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(gear.profileSummary ?? gear.kind.label)
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.peak(12, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
 
@@ -181,7 +181,7 @@ private struct QuiverGearRow: View {
 
                 if gear.isArchived {
                     Text("Archived")
-                        .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.semibold))
+                        .font(.peak(11, relativeTo: .caption).weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -194,7 +194,7 @@ private struct QuiverGearRow: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.peak(12, relativeTo: .caption))
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

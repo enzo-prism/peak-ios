@@ -14,7 +14,9 @@ struct SelectableChip: View {
                         .font(.caption)
                 }
                 Text(label)
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                    .font(.peak(15, relativeTo: .subheadline).weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
@@ -23,6 +25,7 @@ struct SelectableChip: View {
             .contentShape(Capsule())
         }
         .buttonStyle(PressFeedbackButtonStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
     }
 }
 

@@ -36,7 +36,7 @@ struct SpotLibraryView: View {
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
 
                     Text("\(spots.count) of \(Spot.maxCount) surf breaks saved")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.peak(12, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
 
                     if spots.isEmpty {
@@ -122,11 +122,11 @@ private struct SpotRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(spot.name)
-                .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                .font(.peak(16, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             Text(spot.locationName?.trimmedNonEmpty ?? "No location saved")
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .font(.peak(12, relativeTo: .caption))
                 .foregroundStyle(Theme.textMuted)
 
             HStack(spacing: 12) {
@@ -135,7 +135,7 @@ private struct SpotRowView: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.peak(12, relativeTo: .caption))
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -115,25 +115,44 @@ private struct GlassFallbackSurface<S: Shape>: View {
     let shape: S
     let tint: Color
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
     var body: some View {
-        shape
-            .fill(tint)
-            .overlay(
-                shape.stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .overlay(
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.22),
-                            Color.white.opacity(0.08),
-                            Color.clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        if reduceTransparency {
+            // Opaque, bordered surface when the user has reduced transparency — no see-through glass.
+            shape
+                .fill(Theme.opaqueSurface)
+                .overlay(shape.stroke(borderColor, lineWidth: borderWidth))
+        } else {
+            shape
+                .fill(tint)
+                .overlay(
+                    shape.stroke(borderColor, lineWidth: borderWidth)
                 )
-                .blendMode(.screen)
-            )
+                .overlay(
+                    shape.fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.22),
+                                Color.white.opacity(0.08),
+                                Color.clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .blendMode(.screen)
+                )
+        }
+    }
+
+    // Stronger edge when the user has increased contrast, so surfaces stay distinct.
+    private var borderColor: Color {
+        contrast == .increased ? Color.white.opacity(0.6) : Color.white.opacity(0.18)
+    }
+
+    private var borderWidth: CGFloat {
+        contrast == .increased ? 1.5 : 1
     }
 }

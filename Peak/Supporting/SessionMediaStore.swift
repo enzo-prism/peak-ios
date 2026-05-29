@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ImageIO
 import UIKit
 
 struct StoredSessionVideo {
@@ -21,8 +22,8 @@ enum SessionMediaStore {
             try FileManager.default.copyItem(at: sourceURL, to: destination)
             try? FileManager.default.removeItem(at: sourceURL)
         }
-        let resolvedThumbnail = thumbnailData ?? videoThumbnailData(from: destination)
-        return StoredSessionVideo(fileName: fileName, thumbnailData: resolvedThumbnail)
+        // The thumbnail is generated once at pick time and passed in.
+        return StoredSessionVideo(fileName: fileName, thumbnailData: thumbnailData)
     }
 
     static func compressedPhotoData(from data: Data) -> Data {
@@ -30,21 +31,31 @@ enum SessionMediaStore {
         return image.jpegData(compressionQuality: 0.85) ?? data
     }
 
-    static func thumbnailData(from imageData: Data, maxDimension: CGFloat = 420) -> Data? {
-        guard let image = UIImage(data: imageData) else { return nil }
-        let scaled = scaledImage(image, maxDimension: maxDimension)
-        return scaled.jpegData(compressionQuality: 0.75)
+    /// Generates a downsampled thumbnail via ImageIO without fully decoding the source image,
+    /// keeping peak memory low for large photos.
+    static func thumbnailData(from imageData: Data?, maxDimension: CGFloat = 420) -> Data? {
+        guard let imageData,
+              let source = CGImageSourceCreateWithData(imageData as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.75)
     }
 
-    static func videoThumbnailData(from url: URL, maxDimension: CGFloat = 420) -> Data? {
-        let asset = AVAsset(url: url)
+    static func videoThumbnailData(from url: URL, maxDimension: CGFloat = 420) async -> Data? {
+        let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+        // Ask the generator for a small image directly rather than scaling a full-resolution frame.
+        generator.maximumSize = CGSize(width: maxDimension, height: maxDimension)
         let time = CMTime(seconds: 0, preferredTimescale: 600)
-        guard let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) else { return nil }
-        let image = UIImage(cgImage: cgImage)
-        let scaled = scaledImage(image, maxDimension: maxDimension)
-        return scaled.jpegData(compressionQuality: 0.75)
+        guard let result = try? await generator.image(at: time) else { return nil }
+        return UIImage(cgImage: result.image).jpegData(compressionQuality: 0.75)
     }
 
     static func videoURL(for fileName: String) -> URL {
@@ -130,16 +141,5 @@ enum SessionMediaStore {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
         return directory
-    }
-
-    private static func scaledImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let maxSide = max(image.size.width, image.size.height)
-        guard maxSide > maxDimension else { return image }
-        let scale = maxDimension / maxSide
-        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
     }
 }

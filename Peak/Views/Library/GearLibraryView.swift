@@ -148,26 +148,26 @@ private struct GearRowView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(gear.name)
-                        .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                        .font(.peak(16, relativeTo: .headline).weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(gear.kind.label)
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.peak(12, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
                 Spacer()
                 Text("\(snapshot?.count ?? 0)x")
-                    .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.bold))
+                    .font(.peak(16, relativeTo: .headline).weight(.bold))
                     .foregroundStyle(Theme.textPrimary)
             }
 
             HStack(spacing: 12) {
                 Label("Times Used", systemImage: "chart.bar")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                 Text("\(snapshot?.count ?? 0)")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                    .font(.peak(12, relativeTo: .caption).weight(.semibold))
                 Spacer()
                 Text(lastUsedLabel)
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
             }
             .foregroundStyle(Theme.textSecondary)

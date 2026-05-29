@@ -133,7 +133,7 @@ struct SessionEditorView: View {
             VStack(spacing: 8) {
                 if let saveMessage = saveValidationMessage {
                     Text(saveMessage)
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.peak(12, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)
@@ -159,6 +159,7 @@ struct SessionEditorView: View {
                 cleanupPendingMedia()
             }
         }
+        .sensoryFeedback(.success, trigger: didSave)
     }
 
     private var editorScrollContainer: some View {
@@ -238,11 +239,11 @@ struct SessionEditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Duration")
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.peak(14, relativeTo: .subheadline))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Text(durationLabel)
-                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .font(.peak(13, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
                 Slider(value: durationBinding, in: 0...180, step: 15)
@@ -288,14 +289,14 @@ struct SessionEditorView: View {
                 }
             } else if !spots.isEmpty {
                 Text("No matching spots. Add a surf break.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
             } else {
                 Text("No spots saved yet. Add your first surf break.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -313,7 +314,7 @@ struct SessionEditorView: View {
 
             if isSpotLimitReached {
                 Text("You can save up to \(Spot.maxCount) surf breaks.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
             }
 
@@ -355,14 +356,14 @@ struct SessionEditorView: View {
                     .glassButtonStyle(prominent: false)
 
                     Text("Fastest way to log: preload what you usually use, then tweak anything quick.")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.peak(12, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
 
                 if !quickStartSpotSuggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Recent spots")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .font(.peak(12, relativeTo: .caption).weight(.semibold))
                             .foregroundStyle(Theme.textMuted)
 
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -385,7 +386,7 @@ struct SessionEditorView: View {
                 if !quickStartGearSuggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("From last session")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .font(.peak(12, relativeTo: .caption).weight(.semibold))
                             .foregroundStyle(Theme.textMuted)
 
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -407,7 +408,7 @@ struct SessionEditorView: View {
 
             } else {
                 Text("Start your first session: pick a surf break and add a few essentials.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
             }
         }
@@ -418,11 +419,11 @@ struct SessionEditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Wind")
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.peak(14, relativeTo: .subheadline))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Text(windLabel)
-                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .font(.peak(13, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
                 Slider(
@@ -440,11 +441,11 @@ struct SessionEditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Wave height")
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.peak(14, relativeTo: .subheadline))
                         .foregroundStyle(Theme.textPrimary)
                     Spacer()
                     Text(waveHeightLabel)
-                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .font(.peak(13, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
                 Slider(
@@ -469,7 +470,7 @@ struct SessionEditorView: View {
                                 .tint(Theme.textPrimary)
                         }
                         Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
-                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                            .font(.peak(14, relativeTo: .subheadline).weight(.semibold))
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -478,7 +479,7 @@ struct SessionEditorView: View {
                 .disabled(isFetchingConditions)
 
                 Text(conditionsHintText)
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
 
                 if let notice = surfConditionsNotice {
@@ -543,7 +544,7 @@ struct SessionEditorView: View {
                             if !items.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(kind.label.uppercased())
-                                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                        .font(.peak(12, relativeTo: .caption).weight(.semibold))
                                         .foregroundStyle(Theme.textMuted)
 
                                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], spacing: 8) {
@@ -620,7 +621,7 @@ struct SessionEditorView: View {
         EditorSection("Media") {
             if draft.mediaItems.isEmpty {
                 Text("Add photos or videos from your library.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1171,7 +1172,7 @@ struct SessionEditorView: View {
             Image(systemName: iconName)
                 .foregroundStyle(accent)
             Text(notice.message)
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .font(.peak(12, relativeTo: .caption))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
             if isTappable {
@@ -1229,7 +1230,7 @@ struct SessionEditorView: View {
 
     private func addMediaItem(_ item: PhotosPickerItem) async -> Bool {
         if let video = try? await item.loadTransferable(type: SessionVideoTransferable.self) {
-            let thumbnailData = SessionMediaStore.videoThumbnailData(from: video.url)
+            let thumbnailData = await SessionMediaStore.videoThumbnailData(from: video.url)
             await MainActor.run {
                 draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
             }
@@ -1380,7 +1381,7 @@ private struct EditorSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
             content
         }

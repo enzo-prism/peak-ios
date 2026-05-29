@@ -76,7 +76,7 @@ struct BuddyDetailView: View {
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Summary")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             HStack(spacing: 12) {
@@ -90,12 +90,12 @@ struct BuddyDetailView: View {
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sessions")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if sessions.isEmpty {
                 Text("No sessions yet.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.peak(15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)

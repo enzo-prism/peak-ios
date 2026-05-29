@@ -12,28 +12,30 @@ import UIKit
 @main
 struct PeakApp: App {
     let container: ModelContainer
+    private let storeState: PeakDataStore.LoadState
 
     init() {
         Self.configureTabBarAppearance()
         let isUITest = TestingDefaults.isUITest
-        let schema = Schema(versionedSchema: PeakSchemaV7.self)
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITest)
-        do {
-            container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
-        } catch {
-            fatalError("Failed to initialize data store: \(error)")
-        }
+
         if isUITest {
+            let result = PeakDataStore.makeContainer(inMemory: true)
+            container = result.container
+            storeState = .healthy
             PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
             if ProcessInfo.processInfo.environment["UITESTS_DISABLE_ANIMATIONS"] == "1" {
                 UIView.setAnimationsEnabled(false)
             }
+        } else {
+            // Reuse the process-wide container so App Intents write to the same store.
+            container = PeakDataStore.shared.container
+            storeState = PeakDataStore.shared.state
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(storeState: storeState)
                 .modelContainer(container)
                 .preferredColorScheme(.dark)
         }

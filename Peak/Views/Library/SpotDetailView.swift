@@ -79,7 +79,7 @@ struct SpotDetailView: View {
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Summary")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             HStack(spacing: 12) {
@@ -93,16 +93,16 @@ struct SpotDetailView: View {
     private func locationSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Location")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if let location = spot.locationName?.trimmedNonEmpty {
                 Text(location)
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.peak(14, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 Text("No location saved yet.")
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.peak(14, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
             }
 
@@ -110,7 +110,7 @@ struct SpotDetailView: View {
                 mapPreview(coordinate: coordinate)
             } else {
                 Text("Drop a pin in Edit to save the surf break location.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.peak(12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -122,12 +122,12 @@ struct SpotDetailView: View {
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sessions")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.peak(18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if sessions.isEmpty {
                 Text("No sessions yet.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.peak(15, relativeTo: .subheadline))
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)

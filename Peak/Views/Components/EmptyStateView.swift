@@ -25,10 +25,10 @@ struct EmptyStateView: View {
                 .foregroundStyle(Theme.textPrimary)
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.custom("Avenir Next", size: 22, relativeTo: .title2).weight(.bold))
+                    .font(.peak(22, relativeTo: .title2).weight(.bold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                    .font(.peak(15, relativeTo: .body))
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
             }

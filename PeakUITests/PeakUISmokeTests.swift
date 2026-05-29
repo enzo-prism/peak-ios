@@ -234,7 +234,7 @@ private extension PeakUISmokeTests {
         line: UInt = #line
     ) -> XCUIElement {
         if markerSessionNote != nil,
-           let row = firstHit(of: app.buttons["history.row.test-marker"], timeout: timeout) {
+           let row = firstHit(of: app.buttons.matching(identifier: "history.row.test-marker"), timeout: timeout) {
             return row
         }
 
