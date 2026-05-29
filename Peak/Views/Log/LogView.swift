@@ -3,6 +3,7 @@ import SwiftData
 
 struct LogView: View {
     @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showNewSession = false
     @State private var showContent = false
 
@@ -45,7 +46,7 @@ struct LogView: View {
                     .padding(.vertical)
                     .opacity(showContent ? 1 : 0)
                     .offset(y: showContent ? 0 : 12)
-                    .animation(.easeOut(duration: 0.6), value: showContent)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
                 }
             }
             .navigationTitle("Log")
