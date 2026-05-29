@@ -19,6 +19,7 @@ enum SessionEditorMode {
 
 struct SessionEditorView: View {
     private enum FocusField: Hashable {
+        case spot
         case notes
     }
     private enum SelectionMode: String, CaseIterable, Identifiable {
@@ -253,9 +254,20 @@ struct SessionEditorView: View {
                 .padding(12)
                 .glassInput()
                 .accessibilityIdentifier("session.editor.spot")
+                .focused($focusedField, equals: .spot)
+                .submitLabel(.done)
+                .onSubmit {
+                    focusedField = nil
+                }
                 .onChange(of: draft.spotName) { _, newValue in
-                    if let selected = draft.selectedSpot, selected.name != newValue {
+                    let exactKey = newValue.trimmedNonEmpty.map(Spot.makeKey(from:))
+                    if let selected = draft.selectedSpot, selected.key != exactKey {
                         draft.selectedSpot = nil
+                    }
+                    if draft.selectedSpot == nil,
+                       let exactKey,
+                       let exactSpot = spots.first(where: { $0.key == exactKey }) {
+                        draft.selectedSpot = exactSpot
                     }
                 }
 
@@ -271,6 +283,7 @@ struct SessionEditorView: View {
                                 ) {
                                     draft.selectSpot(spot)
                                 }
+                                .accessibilityIdentifier("session.editor.spotOption.\(spot.key)")
                             }
                         }
                         .padding(.vertical, 4)
@@ -366,6 +379,7 @@ struct SessionEditorView: View {
                                     ) {
                                         draft.selectSpot(spot)
                                     }
+                                    .accessibilityIdentifier("session.editor.quickStartSpot.\(spot.key)")
                                 }
                             }
                             .padding(.vertical, 4)
@@ -406,6 +420,33 @@ struct SessionEditorView: View {
 
     private var conditionsSection: some View {
         EditorSection("Conditions") {
+            VStack(alignment: .leading, spacing: 8) {
+                if let notice = surfConditionsNotice {
+                    surfConditionsNoticeView(notice)
+                }
+
+                Button {
+                    autoFillConditionsTapped()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isFetchingConditions {
+                            ProgressView()
+                                .tint(Theme.textPrimary)
+                        }
+                        Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
+                            .font(.peak(14, relativeTo: .subheadline).weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .accessibilityIdentifier("session.editor.autoFillConditions")
+                .glassButtonStyle(prominent: false)
+                .disabled(isFetchingConditions)
+
+                Text(conditionsHintText)
+                    .font(.peak(12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("Wind")
@@ -449,33 +490,6 @@ struct SessionEditorView: View {
             }
             .padding(12)
             .glassInput()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    autoFillConditionsTapped()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isFetchingConditions {
-                            ProgressView()
-                                .tint(Theme.textPrimary)
-                        }
-                        Text(isFetchingConditions ? "Fetching Conditions..." : "Auto-fill Conditions")
-                            .font(.peak(14, relativeTo: .subheadline).weight(.semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .accessibilityIdentifier("session.editor.autoFillConditions")
-                .glassButtonStyle(prominent: false)
-                .disabled(isFetchingConditions)
-
-                Text(conditionsHintText)
-                    .font(.peak(12, relativeTo: .caption))
-                    .foregroundStyle(Theme.textMuted)
-
-                if let notice = surfConditionsNotice {
-                    surfConditionsNoticeView(notice)
-                }
-            }
         }
     }
 
@@ -1175,6 +1189,9 @@ struct SessionEditorView: View {
                 content
             }
             .buttonStyle(PressFeedbackButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(notice.message)
+            .accessibilityIdentifier("session.editor.conditionsNotice")
         } else if canRetry {
             Button {
                 autoFillConditionsTapped()
@@ -1183,8 +1200,14 @@ struct SessionEditorView: View {
             }
             .buttonStyle(PressFeedbackButtonStyle())
             .accessibilityHint("Retry fetching conditions")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(notice.message)
+            .accessibilityIdentifier("session.editor.conditionsNotice")
         } else {
             content
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(notice.message)
+                .accessibilityIdentifier("session.editor.conditionsNotice")
         }
     }
 
