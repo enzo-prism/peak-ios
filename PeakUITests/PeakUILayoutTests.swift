@@ -59,6 +59,7 @@ final class PeakUILayoutTests: XCTestCase {
         openHistorySession(named: "Trestles")
 
         let scrollView = app.scrollViews.firstMatch
+        expandSection(named: "MEDIA", in: scrollView)
         let photoThumb = app.buttons.matching(identifier: "session.media.photo").firstMatch
         scrollToVisible(photoThumb, in: scrollView)
         assertExists(photoThumb)
@@ -84,6 +85,7 @@ final class PeakUILayoutTests: XCTestCase {
         openHistorySession(named: "Trestles")
 
         let scrollView = app.scrollViews.firstMatch
+        expandSection(named: "MEDIA", in: scrollView)
         let videoThumb = app.buttons.matching(identifier: "session.media.video").firstMatch
         scrollToVisible(videoThumb, in: scrollView)
         assertExists(videoThumb)
@@ -742,6 +744,16 @@ private extension PeakUILayoutTests {
         while !element.isHittable && attempts < maxSwipes {
             scrollView.swipeUp()
             attempts += 1
+        }
+    }
+
+    /// Detail sections are collapsible DisclosureGroups; tap the header to expand if needed.
+    func expandSection(named title: String, in scrollView: XCUIElement) {
+        let header = app.staticTexts[title]
+        guard header.waitForExistence(timeout: 2) else { return }
+        scrollToVisible(header, in: scrollView)
+        if header.isHittable {
+            header.tap()
         }
     }
 

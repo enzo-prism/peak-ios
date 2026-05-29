@@ -55,7 +55,7 @@ struct SessionEditorView: View {
     @State private var dismissAfterMediaAlert = false
     @State private var spotSelectionMode: SelectionMode = .recent
     @State private var gearSelectionMode: SelectionMode = .recent
-    @State private var showOptionalFields = false
+    @State private var showOptionalFields = TestingDefaults.isUITest
     @State private var spotSnapshots: [String: UsageSnapshot] = [:]
     @State private var gearSnapshots: [String: UsageSnapshot] = [:]
     @State private var buddySnapshots: [String: UsageSnapshot] = [:]
@@ -83,20 +83,21 @@ struct SessionEditorView: View {
     var body: some View {
         NavigationStack {
             editorScrollContainer
-        }
-        .navigationTitle(mode.title)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+                .navigationTitle(mode.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            saveSession()
+                        }
+                        .disabled(!draft.isReadyToSave)
+                    }
                 }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    saveSession()
-                }
-                .disabled(!draft.isReadyToSave)
-            }
         }
         .tint(Theme.textPrimary)
         .sheet(isPresented: $showSpotEditor) {
@@ -135,31 +136,6 @@ struct SessionEditorView: View {
         }
         .onChange(of: selectedMediaItems) { _, newValue in
             handleMediaSelection(newValue)
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                if let saveMessage = saveValidationMessage {
-                    Text(saveMessage)
-                        .font(.peak(12, relativeTo: .caption))
-                        .foregroundStyle(Theme.textMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                }
-
-                Button("Save Session") {
-                    saveSession()
-                }
-                .glassButtonStyle(prominent: true)
-                .disabled(saveValidationMessage != nil)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)
-            }
-            .padding(.top, 8)
-            .padding(.bottom, 10)
-            .background(
-                Theme.background
-                    .ignoresSafeArea(edges: .bottom)
-            )
         }
         .onDisappear {
             if !didSave {
@@ -350,6 +326,7 @@ struct SessionEditorView: View {
                 .frame(maxWidth: .infinity)
             }
             .glassButtonStyle(prominent: false)
+            .accessibilityIdentifier("session.editor.toggleOptionalFields")
         }
     }
 
@@ -699,13 +676,6 @@ struct SessionEditorView: View {
             .padding(12)
             .glassInput()
         }
-    }
-
-    private var saveValidationMessage: String? {
-        guard draft.selectedSpot != nil else {
-            return "Pick a surf break to continue."
-        }
-        return nil
     }
 
     private var sortedBuddies: [Buddy] {

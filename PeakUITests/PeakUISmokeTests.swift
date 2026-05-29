@@ -88,9 +88,18 @@ final class PeakUISmokeTests: XCTestCase {
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         assertExists(autoFillButton)
+        scrollToHittable(autoFillButton)
         autoFillButton.tap()
 
-        let successNotice = app.staticTexts.containing(
+        // Scrolling can nudge the wind/wave sliders, which prompts a replace confirmation.
+        let replaceConditions = app.buttons["Replace"]
+        if replaceConditions.waitForExistence(timeout: 1) {
+            replaceConditions.tap()
+        }
+
+        // The success notice is a tappable button (links to source details), so its text is
+        // absorbed into the button label — match any element, not just static text.
+        let successNotice = app.descendants(matching: .any).matching(
             NSPredicate(format: "label BEGINSWITH[c] %@", "Filled from Open-Meteo")
         ).firstMatch
         XCTAssertTrue(successNotice.waitForExistence(timeout: 5), "Expected successful auto-fill notice.")
@@ -140,7 +149,14 @@ final class PeakUISmokeTests: XCTestCase {
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         assertExists(autoFillButton)
+        scrollToHittable(autoFillButton)
         autoFillButton.tap()
+
+        // Scrolling can nudge the wind/wave sliders, which prompts a replace confirmation.
+        let replaceConditions = app.buttons["Replace"]
+        if replaceConditions.waitForExistence(timeout: 1) {
+            replaceConditions.tap()
+        }
 
         let errorNotice = app.staticTexts.containing(
             NSPredicate(format: "label CONTAINS[c] %@", "Mock surf report service error")
@@ -170,7 +186,14 @@ final class PeakUISmokeTests: XCTestCase {
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         assertExists(autoFillButton)
+        scrollToHittable(autoFillButton)
         autoFillButton.tap()
+
+        // Scrolling can nudge the wind/wave sliders, which prompts a replace confirmation.
+        let replaceConditions = app.buttons["Replace"]
+        if replaceConditions.waitForExistence(timeout: 1) {
+            replaceConditions.tap()
+        }
 
         let noDataNotice = app.staticTexts.containing(
             NSPredicate(format: "label CONTAINS[c] %@", "Surf report data is unavailable")
@@ -225,6 +248,16 @@ private extension PeakUISmokeTests {
 
     func assertExists(_ element: XCUIElement, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "Missing element: \(element)", file: file, line: line)
+    }
+
+    func scrollToHittable(_ element: XCUIElement, maxSwipes: Int = 8) {
+        // Swipe on the app rather than scrollViews.firstMatch — the editor has nested
+        // horizontal chip scroll views, so firstMatch isn't reliably the main vertical scroll.
+        var attempts = 0
+        while !element.isHittable && attempts < maxSwipes {
+            app.swipeUp()
+            attempts += 1
+        }
     }
 
     func latestHistoryRow(
