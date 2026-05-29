@@ -56,6 +56,9 @@ struct SessionEditorView: View {
     @State private var spotSelectionMode: SelectionMode = .recent
     @State private var gearSelectionMode: SelectionMode = .recent
     @State private var showOptionalFields = false
+    @State private var spotSnapshots: [String: UsageSnapshot] = [:]
+    @State private var gearSnapshots: [String: UsageSnapshot] = [:]
+    @State private var buddySnapshots: [String: UsageSnapshot] = [:]
     @FocusState private var focusedField: FocusField?
     @StateObject private var keyboardObserver = KeyboardObserver()
 
@@ -69,8 +72,12 @@ struct SessionEditorView: View {
         }
     }
 
-    private var spotSnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+    /// Usage aggregations are O(sessions × relationships); compute them once when the editor
+    /// appears (or sessions change) instead of on every keystroke/slider tick in `body`.
+    private func refreshUsageSnapshots() {
+        spotSnapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+        gearSnapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
+        buddySnapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
     }
 
     var body: some View {
@@ -160,6 +167,12 @@ struct SessionEditorView: View {
             }
         }
         .sensoryFeedback(.success, trigger: didSave)
+        .onAppear {
+            refreshUsageSnapshots()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshUsageSnapshots()
+        }
     }
 
     private var editorScrollContainer: some View {
@@ -782,18 +795,11 @@ struct SessionEditorView: View {
         }
     }
 
-    private var gearSnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.gearSnapshots(sessions: sessions)
-    }
-
     private var availableGear: [Gear] {
         let selectedKeys = Set(draft.selectedGear.map(\.key))
         return gear.filter { !$0.isArchived || selectedKeys.contains($0.key) }
     }
 
-    private var buddySnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.buddySnapshots(sessions: sessions)
-    }
 
     private func addGear() {
         guard let name = newGearName.trimmedNonEmpty else { return }
@@ -1166,7 +1172,14 @@ struct SessionEditorView: View {
         let iconName = notice.style.iconName
         let accent = notice.style.accentColor
         let details = makeConditionsSourceDetails()
-        let isTappable = notice.style == .success && details != nil
+        let canShowSource = notice.style == .success && details != nil
+        let canRetry = notice.style == .error && !isFetchingConditions
+
+        let trailingIcon: String? = {
+            if canShowSource { return "chevron.right" }
+            if canRetry { return "arrow.clockwise" }
+            return nil
+        }()
 
         let content = HStack(spacing: 8) {
             Image(systemName: iconName)
@@ -1175,23 +1188,31 @@ struct SessionEditorView: View {
                 .font(.peak(12, relativeTo: .caption))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
-            if isTappable {
-                Image(systemName: "chevron.right")
+            if let trailingIcon {
+                Image(systemName: trailingIcon)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.textMuted)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: isTappable)
+        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: canShowSource || canRetry)
 
-        if let details, isTappable {
+        if canShowSource, let details {
             Button {
                 conditionsSourceDetails = details
             } label: {
                 content
             }
             .buttonStyle(PressFeedbackButtonStyle())
+        } else if canRetry {
+            Button {
+                autoFillConditionsTapped()
+            } label: {
+                content
+            }
+            .buttonStyle(PressFeedbackButtonStyle())
+            .accessibilityHint("Retry fetching conditions")
         } else {
             content
         }

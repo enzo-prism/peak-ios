@@ -462,21 +462,24 @@ private extension SurfConditionsService {
         return utcCalendar.date(byAdding: .hour, value: 1, to: floored) ?? date
     }
 
-    static var utcCalendar: Calendar {
+    // DateFormatter/ISO8601DateFormatter creation is expensive; these are configured once and
+    // reused (parseTime is called once per hourly timestamp in a response). They're configured
+    // immutably after creation, so concurrent read access from the parallel fetches is safe.
+    static let utcCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         return calendar
-    }
+    }()
 
-    static var hourFormatter: DateFormatter {
+    static let hourFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         return formatter
-    }
+    }()
 
-    static var timeParsers: [DateFormatter] {
+    static let timeParsers: [DateFormatter] = {
         let formats = [
             "yyyy-MM-dd'T'HH:mm",
             "yyyy-MM-dd'T'HH:mm:ss",
@@ -492,19 +495,19 @@ private extension SurfConditionsService {
             formatter.dateFormat = format
             return formatter
         }
-    }
+    }()
 
-    static var iso8601Formatter: ISO8601DateFormatter {
+    static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
-    }
+    }()
 
-    static var iso8601FractionalFormatter: ISO8601DateFormatter {
+    static let iso8601FractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }
+    }()
 
     static func decodeRemoteError(from data: Data) -> String? {
         guard let response = try? JSONDecoder().decode(OpenMeteoErrorResponse.self, from: data) else {
