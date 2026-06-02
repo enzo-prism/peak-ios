@@ -1,24 +1,24 @@
 # Peak iOS Release Playbook
 
-## Current state (as of February 19, 2026)
+## Current state (as of June 2, 2026)
 - App: `peak.surf` (`com.designprism.peak`)
 - App ID: `6757644027`
-- Version `1.7`: `IN_REVIEW` (created February 4, 2026)
-- Latest observed build for `1.7`: `3`
-- Next expected build number for `1.7`: `4`
+- Public App Store version: `1.8`
+- Next release train: `1.9`
+- Next expected build number for `1.9`: `3`
 
 ## 30-second status check
 Run:
 
 ```bash
-./scripts/release-cli.sh 1.7 IOS
+./scripts/release-cli.sh 1.9 IOS
 ./scripts/asc-sync.sh status
 ./scripts/asc-sync.sh latest-build
-./scripts/asc-sync.sh next-build 1.7 IOS
+./scripts/asc-sync.sh next-build 1.9 IOS
 ./scripts/gh-tooling.sh status
 ```
 
-## If App Review rejects `1.7`
+## If App Review rejects `1.9`
 1. Pull rejection details and snapshot current state:
 ```bash
 ./scripts/asc-sync.sh snapshot
@@ -30,15 +30,15 @@ Run:
 ```
 4. Confirm the next build number (should be `4` unless a newer upload already exists):
 ```bash
-./scripts/asc-sync.sh next-build 1.7 IOS
+./scripts/asc-sync.sh next-build 1.9 IOS
 ```
-5. Archive/upload from Xcode or your upload path, then re-submit `1.7`.
+5. Archive/upload from Xcode or your upload path, then re-submit `1.9`.
 6. Re-check status immediately after upload:
 ```bash
 ./scripts/asc-sync.sh latest-build
 ./scripts/asc-sync.sh status
 ```
 
-## If App Review approves `1.7`
+## If App Review approves `1.9`
 1. Record approval date and build number in release notes/changelog.
-2. Start the next train (`1.8`) on a fresh branch with CI green before upload.
+2. Start the next train (`2.0` or the next planned version) on a fresh branch with CI green before upload.

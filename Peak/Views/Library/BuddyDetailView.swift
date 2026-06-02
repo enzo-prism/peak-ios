@@ -23,6 +23,8 @@ struct BuddyDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    headerCard(metrics: metrics)
+
                     summarySection(metrics: metrics)
 
                     UsageChartCard(
@@ -44,7 +46,8 @@ struct BuddyDetailView: View {
                 .padding()
             }
         }
-        .navigationTitle(buddy.name)
+        .navigationTitle("Buddy")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Edit") { showEditor = true }
@@ -73,13 +76,32 @@ struct BuddyDetailView: View {
         }
     }
 
+    private func headerCard(metrics: UsageSummary) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(buddy.name)
+                .font(.custom("Avenir Next", size: 24, relativeTo: .title2).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("\(metrics.count) shared session\(metrics.count == 1 ? "" : "s")")
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+    }
+
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Summary")
                 .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
-            HStack(spacing: 12) {
+            DetailMetricGrid {
                 MetricCardView(title: "Sessions", value: "\(metrics.count)")
                 MetricCardView(title: "Last Surfed", value: lastUsedLabel(metrics.lastUsed))
                 MetricCardView(title: "Avg Rating", value: averageRatingLabel(metrics.averageRating))

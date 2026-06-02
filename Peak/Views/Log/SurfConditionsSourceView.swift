@@ -122,17 +122,7 @@ struct SurfConditionsSourceView: View {
 
     @ViewBuilder
     private func detailRow(title: String, value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(title)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
-                .foregroundStyle(Theme.textMuted)
-            Spacer()
-            Text(value)
-                .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.trailing)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        DetailInfoRow(title: title, value: value)
     }
 
     private func sectionTitle(_ title: String) -> some View {

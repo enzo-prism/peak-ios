@@ -135,8 +135,8 @@ status() {
   local app_id
   app_id="$(resolve_app_id)"
 
-  asc apps get --id "$app_id" --output table
-  asc builds latest --app "$app_id" --platform "$platform" --output table
+  asc apps view --id "$app_id" --output table
+  asc builds info --app "$app_id" --latest --platform "$platform" --output table
   asc versions list --app "$app_id" --platform "$platform" --limit 5 --output table
 }
 
@@ -153,7 +153,7 @@ latest_version() {
     exit 3
   fi
 
-  asc versions get --version-id "$version_id" --include-build --include-submission --output table
+  asc versions view --version-id "$version_id" --include-build --include-submission --output table
 }
 
 relationships() {
@@ -170,14 +170,14 @@ relationships() {
     exit 3
   fi
 
-  asc versions relationships --version-id "$version_id" --type "$rel_type" --output table
+  asc versions links --version-id "$version_id" --type "$rel_type" --output table
 }
 
 next_build() {
   local version="${1:-}"
   if [[ -z "$version" ]]; then
     echo "error: VERSION is required." >&2
-    echo "example: ./scripts/asc-ops.sh next-build 1.7 IOS" >&2
+    echo "example: ./scripts/asc-ops.sh next-build 1.9 IOS" >&2
     exit 2
   fi
 
@@ -186,7 +186,7 @@ next_build() {
   local app_id
   app_id="$(resolve_app_id)"
 
-  asc builds latest --app "$app_id" --version "$version" --platform "$platform" --next --output table
+  asc builds next-build-number --app "$app_id" --version "$version" --platform "$platform" --output table
 }
 
 validate_latest() {

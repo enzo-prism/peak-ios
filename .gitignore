@@ -11,6 +11,7 @@ xcuserdata/
 .build/
 .derivedData/
 .xcodebuildmcp/
+artifacts/
 
 # ASC local overrides (project defaults are tracked in .asc/project.json)
 .asc/config.json

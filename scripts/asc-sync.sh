@@ -25,6 +25,30 @@ asc_exec() {
   "$ASC_CMD" "$@"
 }
 
+app_view() {
+  if asc_exec apps view --help >/dev/null 2>&1; then
+    asc_exec apps view --id "$1" --output table
+  else
+    asc_exec apps get --id "$1" --output table
+  fi
+}
+
+latest_build() {
+  if asc_exec builds info --help >/dev/null 2>&1; then
+    asc_exec builds info --app "$1" --latest --output table
+  else
+    asc_exec builds latest --app "$1" --output table
+  fi
+}
+
+next_build_number() {
+  if asc_exec builds next-build-number --help >/dev/null 2>&1; then
+    asc_exec builds next-build-number --app "$1" --version "$2" --platform "$3" --output table
+  else
+    asc_exec builds latest --app "$1" --version "$2" --platform "$3" --next --output table
+  fi
+}
+
 read_json_key() {
   local file_path="$1"
   local key="$2"
@@ -85,13 +109,13 @@ snapshot() {
   fi
 
   echo "app"
-  asc_exec apps get --id "${app_id}" --output table
+  app_view "${app_id}"
   echo
   echo "versions"
   asc_exec versions list --app "${app_id}" --limit 5 --output table
   echo
   echo "builds"
-  asc_exec builds latest --app "${app_id}" --output table
+  latest_build "${app_id}"
 }
 
 cmd="${1:-status}"
@@ -103,27 +127,24 @@ case "${cmd}" in
     asc_exec auth status --validate
     ;;
   status)
-    asc_exec apps get --id "${app_id}" --output table
+    app_view "${app_id}"
     asc_exec versions list --app "${app_id}" --limit 5 --output table
     ;;
   latest-build)
-    asc_exec builds latest --app "${app_id}" --output table
+    latest_build "${app_id}"
     ;;
   next-build)
     version="${1:-}"
     platform="${2:-IOS}"
     if [[ -z "${version}" ]]; then
       echo "error: VERSION is required for next-build." >&2
-      echo "example: ./scripts/asc-sync.sh next-build 1.7 IOS" >&2
+      echo "example: ./scripts/asc-sync.sh next-build 1.9 IOS" >&2
       exit 2
     fi
-    asc_exec builds latest --app "${app_id}" --version "${version}" --platform "${platform}" --next --output table
+    next_build_number "${app_id}" "${version}" "${platform}"
     ;;
   versions)
     asc_exec versions list --app "${app_id}" --limit 10 --output table
-    if ! asc_exec pre-release-versions list --app "${app_id}" --limit 10 --output table; then
-      echo "warning: pre-release versions endpoint is unavailable in this ASC CLI version." >&2
-    fi
     ;;
   snapshot)
     snapshot "${app_id}"

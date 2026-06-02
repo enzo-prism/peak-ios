@@ -88,7 +88,7 @@ struct SessionEditorView: View {
                 Button("Save") {
                     saveSession()
                 }
-                .disabled(!draft.isReadyToSave)
+                .disabled(saveValidationMessage != nil)
             }
         }
         .tint(Theme.textPrimary)
@@ -215,6 +215,7 @@ struct SessionEditorView: View {
                 }
             }
         }
+        .accessibilityIdentifier("session.editor.scroll")
     }
 
     private var sessionSection: some View {
@@ -260,10 +261,20 @@ struct SessionEditorView: View {
             )
                 .textFieldStyle(.plain)
                 .foregroundStyle(Theme.textPrimary)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled(true)
                 .padding(12)
                 .glassInput()
                 .accessibilityIdentifier("session.editor.spot")
                 .onChange(of: draft.spotName) { _, newValue in
+                    let key = Spot.makeKey(from: newValue)
+                    if let exactSpot = spots.first(where: { $0.key == key }) {
+                        if draft.selectedSpot?.persistentModelID != exactSpot.persistentModelID {
+                            draft.selectedSpot = exactSpot
+                        }
+                        return
+                    }
+
                     if let selected = draft.selectedSpot, selected.name != newValue {
                         draft.selectedSpot = nil
                     }
@@ -281,6 +292,7 @@ struct SessionEditorView: View {
                                 ) {
                                     draft.selectSpot(spot)
                                 }
+                                .accessibilityIdentifier("session.editor.spotSuggestion.\(spot.key)")
                             }
                         }
                         .padding(.vertical, 4)
@@ -375,6 +387,7 @@ struct SessionEditorView: View {
                                     ) {
                                         draft.selectSpot(spot)
                                     }
+                                    .accessibilityIdentifier("session.editor.quickStartSpot.\(spot.key)")
                                 }
                             }
                             .padding(.vertical, 4)
@@ -688,7 +701,7 @@ struct SessionEditorView: View {
     }
 
     private var saveValidationMessage: String? {
-        guard draft.selectedSpot != nil else {
+        guard selectedOrExactSpot != nil else {
             return "Pick a surf break to continue."
         }
         return nil
@@ -842,7 +855,7 @@ struct SessionEditorView: View {
     }
 
     private func saveSession() {
-        guard let spot = draft.selectedSpot else {
+        guard let spot = resolveSpotSelection() else {
             spotAlertMessage = "Select a surf break to save this session."
             showSpotAlert = true
             return
@@ -929,6 +942,49 @@ struct SessionEditorView: View {
             spots.filter { $0.name.localizedCaseInsensitiveContains(query) }
         } ?? spots
         return sortedSpots(filteredSpots)
+    }
+
+    private var selectedOrExactSpot: Spot? {
+        resolvedSpotForDraft()
+    }
+
+    private func resolvedSpotForDraft() -> Spot? {
+        let typedKey = Spot.makeKey(from: draft.spotName)
+        if let selectedSpot = draft.selectedSpot, selectedSpot.key == typedKey {
+            return selectedSpot
+        }
+        if let exactSpot = exactSpot(named: draft.spotName) {
+            return exactSpot
+        }
+        return draft.selectedSpot
+    }
+
+    @discardableResult
+    private func resolveSpotSelection() -> Spot? {
+        guard let spot = resolvedSpotForDraft() else { return nil }
+        if draft.selectedSpot?.persistentModelID != spot.persistentModelID {
+            draft.selectedSpot = spot
+            draft.spotName = spot.name
+        }
+        return spot
+    }
+
+    private func exactSpot(named name: String) -> Spot? {
+        guard name.trimmedNonEmpty != nil else { return nil }
+        let key = Spot.makeKey(from: name)
+        let availableSpots: [Spot]
+        if spots.isEmpty {
+            availableSpots = (try? modelContext.fetch(FetchDescriptor<Spot>())) ?? []
+        } else {
+            availableSpots = spots
+        }
+
+        if let exactSpot = availableSpots.first(where: { $0.key == key }) {
+            return exactSpot
+        }
+
+        let prefixMatches = availableSpots.filter { key.hasPrefix($0.key) }
+        return prefixMatches.count == 1 ? prefixMatches[0] : nil
     }
 
     private func sortedSpots(_ spots: [Spot]) -> [Spot] {
@@ -1025,6 +1081,7 @@ struct SessionEditorView: View {
     }
 
     private func autoFillConditionsTapped() {
+        resolveSpotSelection()
         if let message = missingConditionsMessage() {
             surfConditionsNotice = SurfConditionsNotice(style: .info, message: message)
             return
@@ -1039,7 +1096,7 @@ struct SessionEditorView: View {
     }
 
     private func fetchSurfConditions() {
-        guard let spot = draft.selectedSpot,
+        guard let spot = resolveSpotSelection(),
               let latitude = spot.latitude,
               let longitude = spot.longitude else {
             surfConditionsNotice = SurfConditionsNotice(
@@ -1086,8 +1143,9 @@ struct SessionEditorView: View {
 
     private func missingConditionsMessage() -> String? {
         let hasDuration = draft.durationMinutes > 0
-        let hasSpot = draft.selectedSpot != nil
-        let hasCoordinates = draft.selectedSpot?.latitude != nil && draft.selectedSpot?.longitude != nil
+        let spot = selectedOrExactSpot
+        let hasSpot = spot != nil
+        let hasCoordinates = spot?.latitude != nil && spot?.longitude != nil
 
         if hasDuration && hasSpot && hasCoordinates {
             return nil
@@ -1136,7 +1194,7 @@ struct SessionEditorView: View {
         guard durationMinutes > 0 else { return nil }
 
         let spotName: String?
-        if let selectedName = draft.selectedSpot?.name {
+        if let selectedName = selectedOrExactSpot?.name {
             spotName = selectedName
         } else {
             spotName = draft.spotName.trimmedNonEmpty
@@ -1191,8 +1249,13 @@ struct SessionEditorView: View {
                 content
             }
             .buttonStyle(PressFeedbackButtonStyle())
+            .accessibilityIdentifier("session.editor.conditionsNotice")
+            .accessibilityLabel(notice.message)
         } else {
             content
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("session.editor.conditionsNotice")
+                .accessibilityLabel(notice.message)
         }
     }
 

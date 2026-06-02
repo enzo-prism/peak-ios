@@ -28,7 +28,8 @@ print_summary() {
   echo "Design check summary:"
   echo "- iPhone: ${IPHONE_NAME} (${IPHONE_UDID})"
   echo "- iPad: ${IPAD_NAME} (${IPAD_UDID})"
-  echo "- iPhone xcresult: ${IPHONE_DIR}/TestResults.xcresult"
+  echo "- iPhone unit xcresult: ${IPHONE_DIR}/UnitTests.xcresult"
+  echo "- iPhone UI xcresult: ${IPHONE_DIR}/UITests.xcresult"
   echo "- iPad xcresult: ${IPAD_DIR}/UITests.xcresult"
   echo "- Screenshots: ${IPHONE_DIR}/screenshot.png, ${IPAD_DIR}/screenshot.png"
 }
@@ -144,6 +145,25 @@ capture_screenshot() {
   xcrun simctl io "${udid}" screenshot "${path}"
 }
 
+run_ui_tests() {
+  local label="$1"
+  local udid="$2"
+  local result_path="$3"
+
+  echo "Running UI tests on ${label}: ${UI_TEST_TARGET}"
+  rm -rf "${result_path}"
+  xcodebuild test \
+    "${XCODE_CONTAINER_ARGS[@]}" \
+    -scheme "${SCHEME}" \
+    -configuration "${CONFIGURATION}" \
+    -destination "platform=iOS Simulator,id=${udid}" \
+    -derivedDataPath "${DERIVED_DATA}" \
+    -resultBundlePath "${result_path}" \
+    -only-testing:"${UI_TEST_TARGET}" \
+    CODE_SIGNING_ALLOWED=NO \
+    CODE_SIGNING_REQUIRED=NO
+}
+
 IPHONE_PREF_NAME="${IPHONE_DESTINATION_NAME:-iPhone 16 Pro}"
 IPAD_PREF_NAME="${IPAD_DESTINATION_NAME:-iPad Pro 11-inch (M4)}"
 STRICT_DESIGN_DESTINATION="${STRICT_DESIGN_DESTINATION:-0}"
@@ -173,37 +193,27 @@ IPAD_DIR="${ARTIFACTS_DIR}/ipad"
 mkdir -p "${IPHONE_DIR}" "${IPAD_DIR}"
 SUMMARY_READY=1
 
-echo "Running full tests on iPhone: ${IPHONE_NAME}"
-rm -rf "${IPHONE_DIR}/TestResults.xcresult"
-RESULT_BUNDLE="${IPHONE_DIR}/TestResults.xcresult" \
+echo "Running unit tests on iPhone: ${IPHONE_NAME}"
+RESULT_BUNDLE="${IPHONE_DIR}/UnitTests.xcresult" \
 DESTINATION_NAME="${IPHONE_NAME}" \
 DERIVED_DATA="${DERIVED_DATA}" \
 CONFIGURATION="${CONFIGURATION}" \
-"${SCRIPT_DIR}/test.sh"
+"${SCRIPT_DIR}/test-unit.sh"
+
+UI_TEST_TARGET="${UI_TEST_TARGET:-$(detect_ui_test_target)}"
+if [[ -z "${UI_TEST_TARGET}" ]]; then
+  UI_TEST_TARGET="PeakUITests"
+  echo "warning: UI test target not found via xcodebuild -list; defaulting to ${UI_TEST_TARGET}."
+fi
+
+run_ui_tests "iPhone: ${IPHONE_NAME}" "${IPHONE_UDID}" "${IPHONE_DIR}/UITests.xcresult"
 
 echo "Booting iPad simulator: ${IPAD_NAME} (${IPAD_UDID})"
 xcrun simctl boot "${IPAD_UDID}" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "${IPAD_UDID}" -b
 open -a Simulator
 
-UI_TEST_TARGET="$(detect_ui_test_target)"
-if [[ -z "${UI_TEST_TARGET}" ]]; then
-  UI_TEST_TARGET="PeakUITests"
-  echo "warning: UI test target not found via xcodebuild -list; defaulting to ${UI_TEST_TARGET}."
-fi
-
-echo "Running UI tests on iPad: ${IPAD_NAME} (${UI_TEST_TARGET})"
-rm -rf "${IPAD_DIR}/UITests.xcresult"
-xcodebuild test \
-  "${XCODE_CONTAINER_ARGS[@]}" \
-  -scheme "${SCHEME}" \
-  -configuration "${CONFIGURATION}" \
-  -destination "platform=iOS Simulator,id=${IPAD_UDID}" \
-  -derivedDataPath "${DERIVED_DATA}" \
-  -resultBundlePath "${IPAD_DIR}/UITests.xcresult" \
-  -only-testing:"${UI_TEST_TARGET}" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO
+run_ui_tests "iPad: ${IPAD_NAME}" "${IPAD_UDID}" "${IPAD_DIR}/UITests.xcresult"
 
 if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
   capture_screenshot "${IPHONE_UDID}" "${IPHONE_DIR}/screenshot.png" "iPhone"

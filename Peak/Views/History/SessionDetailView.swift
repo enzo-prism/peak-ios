@@ -137,23 +137,7 @@ struct SessionDetailView: View {
                     .foregroundStyle(Theme.textPrimary)
             }
 
-            HStack(spacing: 10) {
-                heroTag(SessionDurationFormatter.string(from: session.durationMinutes), icon: "timer")
-                heroTag(session.date.formatted(.dateTime.hour().minute()), icon: "clock")
-                if !session.gear.isEmpty {
-                    heroTag("\(session.gear.count) gear", icon: "surfboard")
-                }
-                if session.rating > 0 {
-                    heroRatingTag(session.rating)
-                }
-                if !session.buddies.isEmpty {
-                    heroTag("\(session.buddies.count) buddy\(session.buddies.count == 1 ? "" : "s")", icon: "person.2.fill")
-                }
-                if !session.media.isEmpty {
-                    heroTag("\(session.media.count) media", icon: "photo.on.rectangle")
-                }
-            }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            heroTags
 
             if conditionsSummaryCount > 0 {
                 heroTag("\(conditionsSummaryCount) condition details", icon: "chart.bar.fill")
@@ -170,18 +154,34 @@ struct SessionDetailView: View {
         .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
     }
 
-    private func heroTag(_ text: String, icon: String? = nil) -> some View {
-        HStack(spacing: 6) {
+    @ViewBuilder
+    private func heroTag(
+        _ text: String,
+        icon: String? = nil,
+        accessibilityIdentifier: String? = nil
+    ) -> some View {
+        let tag = HStack(spacing: 6) {
             if let icon {
                 Image(systemName: icon)
                     .font(.caption)
             }
             Text(text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
         }
+        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
         .foregroundStyle(Theme.textPrimary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+
+        if let accessibilityIdentifier {
+            tag.accessibilityIdentifier(accessibilityIdentifier)
+        } else {
+            tag
+        }
     }
 
     private func heroRatingTag(_ rating: Int) -> some View {
@@ -197,18 +197,65 @@ struct SessionDetailView: View {
         .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
     }
 
+    private var heroTags: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                heroTagContent
+            }
+
+            LazyVGrid(columns: heroTagColumns, alignment: .leading, spacing: 10) {
+                heroTagContent
+            }
+        }
+    }
+
+    private var heroTagColumns: [GridItem] {
+        [
+            GridItem(
+                .adaptive(minimum: 118),
+                spacing: 10,
+                alignment: .leading
+            )
+        ]
+    }
+
+    @ViewBuilder
+    private var heroTagContent: some View {
+        heroTag(
+            SessionDurationFormatter.string(from: session.durationMinutes),
+            icon: "timer",
+            accessibilityIdentifier: "session.detail.heroTag.duration"
+        )
+        heroTag(
+            session.date.formatted(.dateTime.hour().minute()),
+            icon: "clock",
+            accessibilityIdentifier: "session.detail.heroTag.time"
+        )
+        if !session.gear.isEmpty {
+            heroTag(
+                "\(session.gear.count) gear",
+                icon: "surfboard",
+                accessibilityIdentifier: "session.detail.heroTag.gear"
+            )
+        }
+        if session.rating > 0 {
+            heroRatingTag(session.rating)
+        }
+        if !session.buddies.isEmpty {
+            heroTag(
+                "\(session.buddies.count) buddy\(session.buddies.count == 1 ? "" : "s")",
+                icon: "person.2.fill",
+                accessibilityIdentifier: "session.detail.heroTag.buddy"
+            )
+        }
+        if !session.media.isEmpty {
+            heroTag("\(session.media.count) media", icon: "photo.on.rectangle")
+        }
+    }
+
     @ViewBuilder
     private func detailRow(title: String, value: String) -> some View {
-        HStack {
-            Text(title)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
-                .foregroundStyle(Theme.textMuted)
-            Spacer()
-            Text(value)
-                .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .multilineTextAlignment(.trailing)
-        }
+        DetailInfoRow(title: title, value: value)
     }
 
     private var surfReportRows: [(title: String, value: String)] {

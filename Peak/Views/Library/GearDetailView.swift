@@ -49,7 +49,8 @@ struct GearDetailView: View {
                 .padding()
             }
         }
-        .navigationTitle(gear.name)
+        .navigationTitle("Gear")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Edit") {
@@ -151,12 +152,9 @@ struct GearDetailView: View {
                 .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
-            HStack(spacing: 12) {
+            DetailMetricGrid {
                 MetricCardView(title: "Total Uses", value: "\(summary.totalUses)")
                 MetricCardView(title: "First Used", value: dateLabel(summary.firstUsed))
-            }
-
-            HStack(spacing: 12) {
                 MetricCardView(title: "Last Used", value: dateLabel(summary.lastUsed))
                 MetricCardView(title: "Avg Rating", value: averageRatingLabel(summary.averageRating))
             }
@@ -178,14 +176,7 @@ struct GearDetailView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(spots) { spot in
-                        HStack {
-                            Text(spot.name)
-                                .foregroundStyle(Theme.textPrimary)
-                            Spacer()
-                            Text("\(spot.count)")
-                                .foregroundStyle(Theme.textSecondary)
-                        }
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        DetailInfoRow(title: spot.name, value: "\(spot.count)")
                         .padding(12)
                         .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
                     }

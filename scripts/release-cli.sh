@@ -10,7 +10,7 @@ Usage:
   ./scripts/release-cli.sh [options]
 
 Optional:
-  VERSION    target app version for next-build lookup (for example: 1.7)
+  VERSION    target app version for next-build lookup (for example: 1.9)
   PLATFORM   ASC platform (default: IOS)
 
 Options:

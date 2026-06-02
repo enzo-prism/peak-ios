@@ -61,6 +61,7 @@ No social/sharing, accounts, or backend for now.
 ### Definition of done (required)
 - Run tests: `./scripts/test.sh` (**must pass**).
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
+- Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
 - No new warnings or broken builds.
 - If UI layout/snapshot tests fail, update only what’s necessary and keep the UI consistent.
 - Provide a concise summary:
@@ -82,7 +83,9 @@ Prefer **XcodeBuildMCP** tools when you need to:
 If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` commands):
 - Boot simulator: `./scripts/boot-sim.sh`
 - Build (sim): `./scripts/build-sim.sh`
-- Test (unit + UI): `./scripts/test.sh`
+- Fast unit tests only: `./scripts/test-unit.sh`
+- Default test gate: `./scripts/test.sh`
+- iPhone UI tests: `./scripts/test-ui.sh`
 
 Project/scheme assumptions:
 - Scheme is likely `Peak`.

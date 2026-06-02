@@ -29,7 +29,9 @@ This document keeps the repository’s external tooling setup aligned for fast i
 - Use the repo scripts for fast local loops:
   - `./scripts/boot-sim.sh`
   - `./scripts/build-sim.sh`
+  - `./scripts/test-unit.sh`
   - `./scripts/test.sh`
+  - `./scripts/test-ui.sh`
 - Validate toolchain + ASC + sim path together:
   - `./scripts/tooling-doctor.sh`
 
@@ -49,9 +51,10 @@ This document keeps the repository’s external tooling setup aligned for fast i
 
 1. `./scripts/tooling-doctor.sh`
 2. `./scripts/test.sh`
-3. `./scripts/asc-sync.sh status`
-4. `./scripts/asc-sync.sh latest-build`
-5. `./scripts/asc-ops.sh next-build <VERSION> IOS`
+3. `./scripts/design-check.sh`
+4. `./scripts/asc-sync.sh status`
+5. `./scripts/asc-sync.sh latest-build`
+6. `./scripts/asc-ops.sh next-build <VERSION> IOS`
 
 ## Push flow (to `main`)
 
@@ -67,5 +70,11 @@ When local changes are ready:
 
 ## Test environment notes
 
+- `./scripts/test-unit.sh` uses the `PeakUnit` shared scheme so fast unit runs are isolated from UI-test compile/runtime failures.
+- `./scripts/test.sh` is the default local/CI gate and delegates to the fast unit lane.
+- `./scripts/test-ui.sh` runs the iPhone UI suite explicitly when a change needs app-flow coverage.
+- `UI_TEST_TARGET="PeakUITests/PeakUILayoutTests" ./scripts/test-ui.sh` runs one UI class on iPhone.
+- `UI_TEST_TARGET="PeakUITests/PeakUISmokeTests" ./scripts/design-check.sh` runs one UI class across iPhone and iPad.
+- `./scripts/design-check.sh` runs unit tests once, then UI tests on both iPhone and iPad, and writes ignored local artifacts under `artifacts/design-check/`.
 - For deterministic UI tests, we set `UITESTS_FIXED_DATE` and `UITESTS_SESSION_MARKER` in the test launch environment.
 - Marker flow allows E2E selectors to target the newly created session row that includes the marker note text.

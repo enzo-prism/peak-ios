@@ -50,16 +50,22 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 ## Development commands
 - Boot the simulator: `./scripts/boot-sim.sh`
 - Build for simulator: `./scripts/build-sim.sh`
-- Run unit + UI tests: `./scripts/test.sh`
+- Run fast unit tests only: `./scripts/test-unit.sh`
+- Run the default fast gate: `./scripts/test.sh`
+- Run iPhone UI tests: `./scripts/test-ui.sh`
+- Run UI/design checks on iPhone + iPad: `./scripts/design-check.sh`
 - Full tooling health check (ASC + sim build path): `./scripts/tooling-doctor.sh`
 - Quick GitHub CLI status snapshot: `./scripts/gh-tooling.sh status`
 - Fast release sweep (local + ASC + GH): `./scripts/release-cli.sh [VERSION] [PLATFORM]`
 - Tooling setup and release workflow details: `TOOLING.md`
 
 Optional overrides:
-- `SCHEME=Peak ./scripts/test.sh`
+- `SCHEME=PeakUnit ./scripts/test.sh`
+- `./scripts/test-unit.sh` (uses the `PeakUnit` shared scheme)
 - `DESTINATION_NAME="iPhone 16 Pro" ./scripts/build-sim.sh`
-- `DESTINATION_NAME="iPhone 17 Pro" DESTINATION_OS=26.2 ./scripts/test.sh`
+- `DESTINATION_NAME="iPhone 17 Pro" DESTINATION_OS=26.2 ./scripts/test-ui.sh`
+- `UI_TEST_TARGET="PeakUITests/PeakUILayoutTests" ./scripts/test-ui.sh`
+- `UI_TEST_TARGET="PeakUITests/PeakUISmokeTests" ./scripts/design-check.sh`
 - `STRICT_DESTINATION=1 ./scripts/build-sim.sh` (fail if preferred simulator is unavailable)
 
 ## App Store Connect CLI (ASC)
@@ -71,7 +77,7 @@ Optional overrides:
 - Auth + health check: `./scripts/asc-sync.sh doctor`
 - App/version status: `./scripts/asc-sync.sh status`
 - Latest build: `./scripts/asc-sync.sh latest-build`
-- Next build number for a version: `./scripts/asc-sync.sh next-build 1.7 IOS`
+- Next build number for a version: `./scripts/asc-sync.sh next-build 1.9 IOS`
 - Full snapshot (app, versions, latest build): `./scripts/asc-sync.sh snapshot`
 - Advanced ASC workflow commands (requires modern `asc`): `./scripts/asc-ops.sh`
 - Release response checklist: `RELEASE_PLAYBOOK.md`
@@ -91,10 +97,16 @@ Optional overrides:
 - Workflow run list only: `./scripts/gh-tooling.sh workflows 10`
 
 ## Testing
-- Unit tests (contrast):  
-  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' -only-testing:PeakTests test`
-- UI layout tests:  
-  `xcodebuild -project Peak.xcodeproj -scheme Peak -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' -only-testing:PeakUITests test`
+- Fast unit-only loop:  
+  `./scripts/test-unit.sh`
+- Default local/CI gate:  
+  `./scripts/test.sh`
+- iPhone UI suite:  
+  `./scripts/test-ui.sh`
+- UI/design validation across iPhone and iPad:  
+  `./scripts/design-check.sh`
+- Targeted UI run:  
+  `UI_TEST_TARGET="PeakUITests/PeakUILayoutTests" ./scripts/test-ui.sh`
 - UI tests seed in-memory data when `UITESTS=1` is set (handled by the test target)
 - Optional: set `UITESTS_FIXED_DATE=2026-02-01T12:00:00Z` to make seeded UI test data deterministic
 - Optional: set `UITESTS_SESSION_MARKER=<text>` to mark a newly created session and make history row lookup deterministic in end-to-end tests

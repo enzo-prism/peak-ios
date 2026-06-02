@@ -59,6 +59,8 @@ final class PeakUILayoutTests: XCTestCase {
         openHistorySession(named: "Trestles")
 
         let scrollView = app.scrollViews.firstMatch
+        expandDetailSection(named: "MEDIA", in: scrollView)
+
         let photoThumb = app.buttons.matching(identifier: "session.media.photo").firstMatch
         scrollToVisible(photoThumb, in: scrollView)
         assertExists(photoThumb)
@@ -84,6 +86,8 @@ final class PeakUILayoutTests: XCTestCase {
         openHistorySession(named: "Trestles")
 
         let scrollView = app.scrollViews.firstMatch
+        expandDetailSection(named: "MEDIA", in: scrollView)
+
         let videoThumb = app.buttons.matching(identifier: "session.media.video").firstMatch
         scrollToVisible(videoThumb, in: scrollView)
         assertExists(videoThumb)
@@ -180,6 +184,23 @@ final class PeakUILayoutTests: XCTestCase {
 
         let deleteButton = app.buttons["Delete Session"]
         assertExists(deleteButton)
+    }
+
+    func testSessionDetailHeroLabelsStayReadable() {
+        openHistorySession(named: "San Onofre State Beach - Old Man's")
+
+        for identifier in [
+            "session.detail.heroTag.duration",
+            "session.detail.heroTag.time",
+            "session.detail.heroTag.gear",
+            "session.detail.heroTag.buddy"
+        ] {
+            let tag = element(named: identifier)
+            assertExists(tag)
+            assertReadableHorizontalText(tag)
+        }
+
+        attachScreenshot(name: "Session Detail Readable Hero")
     }
 
     func testTabBarIconSizesMatchSystem() throws {
@@ -367,7 +388,9 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(newSession)
         newSession.tap()
 
-        let scrollView = app.scrollViews.firstMatch
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        assertExists(scrollView)
+        showOptionalFields(in: scrollView)
 
         let spotField = app.textFields["session.editor.spot"]
         assertExists(spotField)
@@ -375,6 +398,7 @@ final class PeakUILayoutTests: XCTestCase {
         spotField.tap()
         app.typeText("San Onofre State Beach")
         assertNotCoveredByKeyboard(spotField)
+        dismissKeyboard()
 
         let gearField = app.textFields["session.editor.gear"]
         assertExists(gearField)
@@ -382,6 +406,7 @@ final class PeakUILayoutTests: XCTestCase {
         gearField.tap()
         app.typeText("7'4\" Midlength")
         assertNotCoveredByKeyboard(gearField)
+        dismissKeyboard()
 
         let buddyField = app.textFields["session.editor.buddy"]
         assertExists(buddyField)
@@ -389,10 +414,11 @@ final class PeakUILayoutTests: XCTestCase {
         buddyField.tap()
         app.typeText("Chris")
         assertNotCoveredByKeyboard(buddyField)
+        dismissKeyboard()
 
         let notesField = app.textViews["session.editor.notes"]
-        assertExists(notesField)
         scrollToVisible(notesField, in: scrollView)
+        assertExists(notesField)
         notesField.tap()
         app.typeText("Long notes to confirm the editor stays visible above the keyboard.")
         assertNotCoveredByKeyboard(notesField)
@@ -736,13 +762,34 @@ private extension PeakUILayoutTests {
         XCTAssertLessThanOrEqual(elementFrame.maxY, windowFrame.maxY + tolerance, "\(element) maxY out of bounds", file: file, line: line)
     }
 
-    func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 6) {
+    func assertReadableHorizontalText(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        let frame = element.frame
+        XCTAssertGreaterThan(
+            frame.width,
+            frame.height,
+            "\(element) collapsed into vertical text",
+            file: file,
+            line: line
+        )
+    }
+
+    func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !element.isHittable && attempts < maxSwipes {
+        while !isComfortablyVisible(element) && attempts < maxSwipes {
             scrollView.swipeUp()
             attempts += 1
         }
+    }
+
+    func isComfortablyVisible(_ element: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+
+        let window = app.windows.firstMatch
+        guard window.exists else { return true }
+
+        let visibleFrame = window.frame.insetBy(dx: 0, dy: 88)
+        return visibleFrame.contains(element.frame)
     }
 
     func attachScreenshot(name: String) {
@@ -791,6 +838,12 @@ private extension PeakUILayoutTests {
     func openHistorySession(named name: String, file: StaticString = #filePath, line: UInt = #line) {
         tapTab(named: "History")
 
+        let matchingLabel = app.staticTexts[name]
+        if matchingLabel.waitForExistence(timeout: 2) {
+            matchingLabel.tap()
+            return
+        }
+
         let cell = app.cells.containing(.staticText, identifier: name).firstMatch
         if cell.waitForExistence(timeout: 2) {
             cell.tap()
@@ -800,6 +853,61 @@ private extension PeakUILayoutTests {
         let row = historyRowCell()
         assertExists(row, file: file, line: line)
         row.tap()
+    }
+
+    func showOptionalFields(in scrollView: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        if app.buttons["Hide optional fields"].exists {
+            return
+        }
+
+        let showButton = app.buttons["Show optional fields"]
+        scrollToVisible(showButton, in: scrollView)
+        assertExists(showButton, file: file, line: line)
+        tapElement(showButton)
+
+        let hideButton = app.buttons["Hide optional fields"]
+        assertExists(hideButton, file: file, line: line)
+    }
+
+    func expandDetailSection(
+        named name: String,
+        in scrollView: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let sectionButton = app.buttons[name]
+        if sectionButton.waitForExistence(timeout: 2) {
+            scrollToVisible(sectionButton, in: scrollView)
+            tapElement(sectionButton)
+            return
+        }
+
+        let sectionLabel = app.staticTexts[name]
+        scrollToVisible(sectionLabel, in: scrollView)
+        assertExists(sectionLabel, file: file, line: line)
+        tapElement(sectionLabel)
+    }
+
+    func dismissKeyboard() {
+        let keyboard = app.keyboards.firstMatch
+        guard keyboard.exists else { return }
+
+        let doneButton = app.keyboards.buttons["Done"]
+        if doneButton.exists {
+            doneButton.tap()
+            _ = keyboard.waitForNonExistence(timeout: 2)
+            return
+        }
+
+        let returnButton = app.keyboards.buttons["return"]
+        if returnButton.exists {
+            returnButton.tap()
+            _ = keyboard.waitForNonExistence(timeout: 2)
+            return
+        }
+
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        _ = keyboard.waitForNonExistence(timeout: 2)
     }
 
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
@@ -817,21 +925,29 @@ private extension PeakUILayoutTests {
         let predicate = NSPredicate(format: "label == %@", name)
 
         if let element = firstHittable(in: app.buttons.matching(predicate)) {
-            element.tap()
+            tapElement(element)
             return
         }
 
         if let element = firstHittable(in: app.cells.matching(predicate)) {
-            element.tap()
+            tapElement(element)
             return
         }
 
         if let element = firstHittable(in: app.staticTexts.matching(predicate)) {
-            element.tap()
+            tapElement(element)
             return
         }
 
         XCTFail("Missing element: \(name)", file: file, line: line)
+    }
+
+    func tapElement(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
     }
 
     func popupContainer(for title: String) -> XCUIElement {

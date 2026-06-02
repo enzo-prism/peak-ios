@@ -33,16 +33,9 @@ final class PeakUISmokeTests: XCTestCase {
         assertExists(cta)
         cta.tap()
 
-        let spotField = app.textFields["session.editor.spot"]
-        assertExists(spotField)
-        spotField.tap()
-        spotField.typeText("Trestles")
+        selectSpot(key: "trestles", fallbackText: "Trestles")
 
-        tapRow(label: "Trestles")
-
-        let saveButton = app.buttons["Save"]
-        assertExists(saveButton)
-        saveButton.tap()
+        saveSession()
 
         tapTab(named: "History")
         XCTAssertTrue(app.staticTexts["Trestles"].waitForExistence(timeout: 3))
@@ -75,34 +68,29 @@ final class PeakUISmokeTests: XCTestCase {
         assertExists(cta)
         cta.tap()
 
-        let spotField = app.textFields["session.editor.spot"]
-        assertExists(spotField)
-        spotField.tap()
-        spotField.typeText("Trestles")
-
-        tapRow(label: "Trestles")
+        selectSpot(key: "trestles", fallbackText: "Trestles")
 
         let duration = app.sliders["session.editor.duration"]
         assertExists(duration)
         duration.adjust(toNormalizedSliderPosition: 0.5)
 
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
+        scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
         autoFillButton.tap()
 
-        let successNotice = app.staticTexts.containing(
-            NSPredicate(format: "label BEGINSWITH[c] %@", "Filled from Open-Meteo")
-        ).firstMatch
-        XCTAssertTrue(successNotice.waitForExistence(timeout: 5), "Expected successful auto-fill notice.")
+        assertConditionsNotice(beginsWith: "Filled from Open-Meteo")
 
         let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
         assertExists(notes)
         notes.tap()
         notes.typeText(e2eSessionMarker)
 
-        let saveButton = app.buttons["Save"]
-        assertExists(saveButton)
-        saveButton.tap()
+        saveSession()
 
         tapTab(named: "History")
         let latestSession = latestHistoryRow(markerSessionNote: e2eSessionMarker)
@@ -127,25 +115,21 @@ final class PeakUISmokeTests: XCTestCase {
         assertExists(cta)
         cta.tap()
 
-        let spotField = app.textFields["session.editor.spot"]
-        assertExists(spotField)
-        spotField.tap()
-        spotField.typeText("Trestles")
-
-        tapRow(label: "Trestles")
+        selectSpot(key: "trestles", fallbackText: "Trestles")
 
         let duration = app.sliders["session.editor.duration"]
         assertExists(duration)
         duration.adjust(toNormalizedSliderPosition: 0.5)
 
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
+        scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
         autoFillButton.tap()
 
-        let errorNotice = app.staticTexts.containing(
-            NSPredicate(format: "label CONTAINS[c] %@", "Mock surf report service error")
-        ).firstMatch
-        XCTAssertTrue(errorNotice.waitForExistence(timeout: 5), "Expected remote error notice.")
+        assertConditionsNotice(contains: "Mock surf report service error")
     }
 
     func testAutoFillConditionsShowsNoDataNotice() {
@@ -157,25 +141,21 @@ final class PeakUISmokeTests: XCTestCase {
         assertExists(cta)
         cta.tap()
 
-        let spotField = app.textFields["session.editor.spot"]
-        assertExists(spotField)
-        spotField.tap()
-        spotField.typeText("Trestles")
-
-        tapRow(label: "Trestles")
+        selectSpot(key: "trestles", fallbackText: "Trestles")
 
         let duration = app.sliders["session.editor.duration"]
         assertExists(duration)
         duration.adjust(toNormalizedSliderPosition: 0.5)
 
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
+        scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
         autoFillButton.tap()
 
-        let noDataNotice = app.staticTexts.containing(
-            NSPredicate(format: "label CONTAINS[c] %@", "Surf report data is unavailable")
-        ).firstMatch
-        XCTAssertTrue(noDataNotice.waitForExistence(timeout: 5), "Expected no-data notice.")
+        assertConditionsNotice(contains: "Surf report data is unavailable")
     }
 }
 
@@ -223,8 +203,116 @@ private extension PeakUISmokeTests {
         XCTFail("Missing row: \(label)", file: file, line: line)
     }
 
+    func selectSpotSuggestion(key: String, file: StaticString = #filePath, line: UInt = #line) {
+        dismissKeyboard()
+
+        let exactChips = app.buttons.matching(identifier: "session.editor.spotSuggestion.\(key)")
+        if exactChips.firstMatch.waitForExistence(timeout: 2),
+           let exactChip = firstHittable(in: exactChips) {
+            tapElement(exactChip)
+            return
+        }
+
+        let quickStartChips = app.buttons.matching(identifier: "session.editor.quickStartSpot.\(key)")
+        if quickStartChips.firstMatch.waitForExistence(timeout: 2),
+           let quickStartChip = firstHittable(in: quickStartChips) {
+            tapElement(quickStartChip)
+            return
+        }
+
+        XCTFail("Missing spot suggestion for key: \(key)", file: file, line: line)
+    }
+
+    func selectSpot(key: String, fallbackText: String, file: StaticString = #filePath, line: UInt = #line) {
+        let quickStartChips = app.buttons.matching(identifier: "session.editor.quickStartSpot.\(key)")
+        if quickStartChips.firstMatch.waitForExistence(timeout: 1),
+           let quickStartChip = firstHittable(in: quickStartChips) {
+            tapElement(quickStartChip)
+            return
+        }
+
+        let spotField = app.textFields["session.editor.spot"]
+        assertExists(spotField, file: file, line: line)
+        tapElement(spotField)
+        spotField.typeText(fallbackText)
+        selectSpotSuggestion(key: key, file: file, line: line)
+    }
+
+    func dismissKeyboard() {
+        guard app.keyboards.firstMatch.exists else { return }
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+    }
+
+    func tapElement(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+    }
+
     func assertExists(_ element: XCUIElement, timeout: TimeInterval = 3, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "Missing element: \(element)", file: file, line: line)
+    }
+
+    func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
+        guard scrollView.exists else { return }
+        var attempts = 0
+        while !element.isHittable && attempts < maxSwipes {
+            scrollView.swipeUp()
+            attempts += 1
+        }
+    }
+
+    func showOptionalFields(in scrollView: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        if app.buttons["Hide optional fields"].exists {
+            return
+        }
+
+        let showButton = app.buttons["Show optional fields"]
+        scrollToVisible(showButton, in: scrollView)
+        assertExists(showButton, file: file, line: line)
+        showButton.tap()
+    }
+
+    func saveSession(file: StaticString = #filePath, line: UInt = #line) {
+        let primarySave = app.buttons["Save Session"]
+        if primarySave.waitForExistence(timeout: 2) {
+            primarySave.tap()
+            return
+        }
+
+        let toolbarSave = app.buttons["Save"]
+        assertExists(toolbarSave, file: file, line: line)
+        toolbarSave.tap()
+    }
+
+    func assertConditionsNotice(
+        beginsWith prefix: String? = nil,
+        contains substring: String? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let notice = app.descendants(matching: .any)["session.editor.conditionsNotice"]
+        assertExists(notice, timeout: 5, file: file, line: line)
+
+        if let prefix {
+            XCTAssertTrue(
+                notice.label.lowercased().hasPrefix(prefix.lowercased()),
+                "Expected conditions notice to begin with \(prefix), got: \(notice.label)",
+                file: file,
+                line: line
+            )
+        }
+
+        if let substring {
+            XCTAssertTrue(
+                notice.label.localizedCaseInsensitiveContains(substring),
+                "Expected conditions notice to contain \(substring), got: \(notice.label)",
+                file: file,
+                line: line
+            )
+        }
     }
 
     func latestHistoryRow(
@@ -234,7 +322,7 @@ private extension PeakUISmokeTests {
         line: UInt = #line
     ) -> XCUIElement {
         if markerSessionNote != nil,
-           let row = firstHit(of: app.buttons["history.row.test-marker"], timeout: timeout) {
+           let row = firstHit(of: app.buttons.matching(identifier: "history.row.test-marker"), timeout: timeout) {
             return row
         }
 

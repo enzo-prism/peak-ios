@@ -16,13 +16,20 @@ struct MetricCardView: View {
             Text(title.uppercased())
                 .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text(value)
                 .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
             if let subtitle {
                 Text(subtitle)
                     .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
                     .foregroundStyle(Theme.textMuted)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
