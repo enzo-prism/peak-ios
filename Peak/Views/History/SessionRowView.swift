@@ -9,10 +9,10 @@ struct SessionRowView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.date.sessionTitle)
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.textMuted)
                     Text(session.spot?.name ?? "Unknown spot")
-                        .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
+                        .font(.headline.weight(.bold))
                         .foregroundStyle(Theme.textPrimary)
                 }
                 Spacer()
@@ -24,8 +24,8 @@ struct SessionRowView: View {
             GlassContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     if !session.gear.isEmpty {
-                        Label("\(session.gear.count)", systemImage: "wrench.and.screwdriver")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                        Label("\(session.gear.count)", systemImage: "surfboard")
+                            .font(.caption.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
@@ -33,7 +33,7 @@ struct SessionRowView: View {
                     }
                     if !session.buddies.isEmpty {
                         Label("\(session.buddies.count)", systemImage: "person.2")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .font(.caption.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
@@ -41,7 +41,7 @@ struct SessionRowView: View {
                     }
                     if !session.media.isEmpty {
                         Label("\(session.media.count)", systemImage: "photo.on.rectangle")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .font(.caption.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
@@ -49,7 +49,7 @@ struct SessionRowView: View {
                     }
                     if !session.notes.isEmpty {
                         Label("Notes", systemImage: "note.text")
-                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                            .font(.caption.weight(.semibold))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
@@ -60,8 +60,8 @@ struct SessionRowView: View {
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("history.row")
     }
@@ -74,7 +74,7 @@ private struct RatingStarsView: View {
         HStack(spacing: 2) {
             ForEach(1...5, id: \.self) { value in
                 Image(systemName: value <= rating ? "star.fill" : "star")
-                    .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
+                    .font(.caption2)
                     .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.4))
             }
         }

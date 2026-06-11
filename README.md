@@ -30,8 +30,11 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - **Export/Import**: `PeakExportManager` handles JSON/CSV export and JSON restore.
 
 ## Design system
-- Black and white palette with liquid-glass inspired surfaces and depth
-- Contrast tokens are enforced by automated tests (4.5:1 body, 7:1 key text)
+- Adaptive monochrome palette with full light and dark mode support (ink on paper / foam on ocean)
+- Liquid-glass surfaces on iOS 26 with system-material fallbacks on iOS 17–18
+- System font (SF Pro) with Dynamic Type text styles; SF Symbols throughout
+- Spacing and corner-radius tokens in `Theme.Spacing` / `Theme.Radius`
+- Contrast tokens are enforced by automated tests in both color schemes (4.5:1 body, 7:1 key text)
 - Theming lives in `Peak/Supporting/Theme.swift` and related helpers
 
 ## Architecture

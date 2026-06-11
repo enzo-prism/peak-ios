@@ -21,20 +21,20 @@ struct EmptyStateView: View {
         VStack(spacing: 16) {
             image
                 .renderingMode(.template)
-                .font(.system(size: 42, weight: .semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             VStack(spacing: 8) {
                 Text(title)
-                    .font(.custom("Avenir Next", size: 22, relativeTo: .title2).weight(.bold))
+                    .font(.title2.weight(.bold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(message)
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                    .font(.body)
                     .foregroundStyle(Theme.textSecondary)
                     .multilineTextAlignment(.center)
             }
         }
-        .padding(24)
-        .glassCard(cornerRadius: 26, tint: Color.black, isInteractive: false)
+        .padding(Theme.Spacing.xl)
+        .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassDimTint, isInteractive: false)
         .padding()
     }
 }

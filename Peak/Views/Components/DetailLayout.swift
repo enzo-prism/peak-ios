@@ -58,14 +58,14 @@ struct DetailInfoRow: View {
 
     private var titleText: some View {
         Text(title)
-            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+            .font(.subheadline)
             .foregroundStyle(Theme.textMuted)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var valueText: some View {
         Text(value)
-            .font(.custom("Avenir Next", size: 15, relativeTo: .body).weight(.semibold))
+            .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
             .fixedSize(horizontal: false, vertical: true)
     }

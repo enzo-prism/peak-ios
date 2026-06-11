@@ -12,7 +12,7 @@ struct DocumentView: View {
 
             ScrollView {
                 Text(.init(content))
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                    .font(.body)
                     .foregroundStyle(Theme.textPrimary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()

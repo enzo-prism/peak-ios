@@ -1,44 +1,51 @@
-import Foundation
 import SwiftUI
+import UIKit
 import XCTest
 
 @testable import Peak
 
-private struct ContrastSample {
-    let name: String
-    let foreground: Color
-    let background: RGBA
-    let minimumRatio: CGFloat
-}
-
+/// Verifies the design tokens meet the project's contrast bar (7:1 for text,
+/// 4.5:1 for inverse text on strong fills) in BOTH light and dark mode, since
+/// every Theme color is now a dynamic color.
 final class ContrastTests: XCTestCase {
-    func testContrastTokensMeetMinimums() {
-        let baseMid = composedBackground(base: Theme.oceanMid)
-        let baseDeep = composedBackground(base: Theme.oceanDeep)
-        let glassDim = composedBackground(base: Theme.oceanMid, overlays: [Theme.glassDimTint])
-        let glassTint = composedBackground(base: Theme.oceanMid, overlays: [Theme.glassTint])
-        let strongGlass = composedBackground(base: Theme.oceanDeep, overlays: [Theme.glassStrongTint])
-        let inputSurface = composedBackground(base: Theme.oceanMid, overlays: [Theme.glassDimTint, Theme.surface])
+    func testContrastTokensMeetMinimumsInLightAndDark() {
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            let name = style == .dark ? "dark" : "light"
 
-        let samples = [
-            ContrastSample(name: "textPrimary on oceanDeep", foreground: Theme.textPrimary, background: baseDeep, minimumRatio: 7.0),
-            ContrastSample(name: "textPrimary on oceanMid", foreground: Theme.textPrimary, background: baseMid, minimumRatio: 7.0),
-            ContrastSample(name: "textPrimary on glassDim", foreground: Theme.textPrimary, background: glassDim, minimumRatio: 7.0),
-            ContrastSample(name: "textPrimary on glassTint", foreground: Theme.textPrimary, background: glassTint, minimumRatio: 7.0),
-            ContrastSample(name: "textPrimary on inputSurface", foreground: Theme.textPrimary, background: inputSurface, minimumRatio: 7.0),
-            ContrastSample(name: "textSecondary on oceanMid", foreground: Theme.textSecondary, background: baseMid, minimumRatio: 7.0),
-            ContrastSample(name: "textSecondary on glassDim", foreground: Theme.textSecondary, background: glassDim, minimumRatio: 7.0),
-            ContrastSample(name: "textSecondary on glassTint", foreground: Theme.textSecondary, background: glassTint, minimumRatio: 7.0),
-            ContrastSample(name: "textSecondary on inputSurface", foreground: Theme.textSecondary, background: inputSurface, minimumRatio: 7.0),
-            ContrastSample(name: "textMuted on oceanMid", foreground: Theme.textMuted, background: baseMid, minimumRatio: 7.0),
-            ContrastSample(name: "textMuted on glassDim", foreground: Theme.textMuted, background: glassDim, minimumRatio: 7.0),
-            ContrastSample(name: "textMuted on glassTint", foreground: Theme.textMuted, background: glassTint, minimumRatio: 7.0),
-            ContrastSample(name: "textMuted on inputSurface", foreground: Theme.textMuted, background: inputSurface, minimumRatio: 7.0),
-            ContrastSample(name: "textInverse on glassStrong", foreground: Theme.textInverse, background: strongGlass, minimumRatio: 4.5)
-        ]
+            func resolved(_ color: Color) -> RGBA {
+                rgba(UIColor(color).resolvedColor(with: traits))
+            }
 
-        for sample in samples {
-            assertContrast(sample)
+            let base = resolved(Theme.background)
+            let card = blend(resolved(Theme.glassTint), over: base)
+            let dim = blend(resolved(Theme.glassDimTint), over: base)
+            let input = blend(resolved(Theme.surface), over: dim)
+            let strong = blend(resolved(Theme.glassStrongTint), over: base)
+
+            let samples: [(String, Color, RGBA, CGFloat)] = [
+                ("textPrimary on background (\(name))", Theme.textPrimary, base, 7.0),
+                ("textPrimary on card (\(name))", Theme.textPrimary, card, 7.0),
+                ("textPrimary on dim (\(name))", Theme.textPrimary, dim, 7.0),
+                ("textPrimary on input (\(name))", Theme.textPrimary, input, 7.0),
+                ("textSecondary on card (\(name))", Theme.textSecondary, card, 7.0),
+                ("textSecondary on dim (\(name))", Theme.textSecondary, dim, 7.0),
+                ("textSecondary on input (\(name))", Theme.textSecondary, input, 7.0),
+                ("textMuted on card (\(name))", Theme.textMuted, card, 7.0),
+                ("textMuted on dim (\(name))", Theme.textMuted, dim, 7.0),
+                ("textMuted on input (\(name))", Theme.textMuted, input, 7.0),
+                ("textInverse on strong (\(name))", Theme.textInverse, strong, 4.5)
+            ]
+
+            for (label, foreground, background, minimum) in samples {
+                let fg = blendIfTranslucent(resolved(foreground), over: background)
+                let ratio = contrastRatio(fg, background)
+                XCTAssertGreaterThanOrEqual(
+                    ratio,
+                    minimum,
+                    "\(label) contrast \(String(format: "%.2f", ratio)) below \(minimum)"
+                )
+            }
         }
     }
 }
@@ -50,28 +57,17 @@ private struct RGBA {
     let a: CGFloat
 }
 
-private func rgba(_ color: Color) -> RGBA {
-    guard let cgColor = color.cgColor, let components = cgColor.components else {
-        return RGBA(r: 0, g: 0, b: 0, a: 1)
-    }
-
-    if components.count == 2 {
-        return RGBA(r: components[0], g: components[0], b: components[0], a: components[1])
-    }
-
-    if components.count >= 3 {
-        return RGBA(r: components[0], g: components[1], b: components[2], a: cgColor.alpha)
-    }
-
-    return RGBA(r: 0, g: 0, b: 0, a: 1)
+private func rgba(_ color: UIColor) -> RGBA {
+    var r: CGFloat = 0
+    var g: CGFloat = 0
+    var b: CGFloat = 0
+    var a: CGFloat = 0
+    color.getRed(&r, green: &g, blue: &b, alpha: &a)
+    return RGBA(r: r, g: g, b: b, a: a)
 }
 
-private func composedBackground(base: Color, overlays: [Color] = []) -> RGBA {
-    var result = rgba(base)
-    for overlay in overlays {
-        result = blend(rgba(overlay), over: result)
-    }
-    return result
+private func blendIfTranslucent(_ foreground: RGBA, over background: RGBA) -> RGBA {
+    foreground.a < 1 ? blend(foreground, over: background) : foreground
 }
 
 private func blend(_ foreground: RGBA, over background: RGBA) -> RGBA {
@@ -87,17 +83,8 @@ private func blend(_ foreground: RGBA, over background: RGBA) -> RGBA {
     return RGBA(r: r, g: g, b: b, a: outAlpha)
 }
 
-private func assertContrast(_ sample: ContrastSample, file: StaticString = #filePath, line: UInt = #line) {
-    let ratio = contrastRatio(foreground: sample.foreground, background: sample.background)
-    let formattedRatio = String(format: "%.2f", ratio)
-    let message = "\(sample.name) contrast \(formattedRatio) below \(sample.minimumRatio)"
-    XCTAssertGreaterThanOrEqual(ratio, sample.minimumRatio, message, file: file, line: line)
-}
-
-private func contrastRatio(foreground: Color, background: RGBA) -> CGFloat {
-    let fg = rgba(foreground)
-    let composite = fg.a < 1 ? blend(fg, over: background) : fg
-    let l1 = relativeLuminance(composite)
+private func contrastRatio(_ foreground: RGBA, _ background: RGBA) -> CGFloat {
+    let l1 = relativeLuminance(foreground)
     let l2 = relativeLuminance(background)
     let lighter = max(l1, l2)
     let darker = min(l1, l2)

@@ -129,14 +129,14 @@ struct GearEditorView: View {
                                     .frame(maxWidth: .infinity)
                                     .clipped()
                                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                             } else {
                                 Text("Add a photo to personalize this board, suit, or fin set.")
-                                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                                    .font(.caption)
                                     .foregroundStyle(Theme.textMuted)
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                             }
 
                             PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
@@ -196,12 +196,12 @@ struct GearEditorView: View {
     private func editorSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
             content()
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: true)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
     }
 
     private func save() {

@@ -16,7 +16,7 @@ struct MoreView: View {
                                 Label("Settings", systemImage: "gearshape")
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
@@ -27,7 +27,7 @@ struct MoreView: View {
                                 Label("Library", systemImage: "books.vertical")
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())

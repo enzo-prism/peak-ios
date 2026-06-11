@@ -27,7 +27,7 @@ struct LogView: View {
                             GlassContainer(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Recent sessions")
-                                        .font(.custom("Avenir Next", size: 17, relativeTo: .headline).weight(.semibold))
+                                        .font(.headline.weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                         .accessibilityIdentifier("log.recent.title")
                                     ForEach(sessions) { session in
@@ -76,50 +76,40 @@ struct LogView: View {
                     logoBadge
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Peak")
-                            .font(.custom("Avenir Next", size: 36, relativeTo: .largeTitle).weight(.semibold))
+                            .font(.largeTitle.weight(.semibold))
                             .foregroundStyle(Theme.textPrimary)
                             .accessibilityIdentifier("log.hero.title")
                         Text("Surf Log")
-                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                            .font(.caption.weight(.semibold))
                             .foregroundStyle(Theme.textSecondary)
                     }
                 }
 
                 Text("Log a session in seconds. Date, spot, gear, buddies, and quick notes.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
                     .accessibilityIdentifier("log.hero.subtitle")
 
                 Button {
                     showNewSession = true
                 } label: {
-                    HStack {
-                        Image(systemName: "plus")
-                        Text("Log Session")
-                            .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
-                    }
-                    .foregroundStyle(Theme.textPrimary)
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.black)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                            )
-                    )
+                    Label("Log Session", systemImage: "plus")
+                        .font(.headline)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PressFeedbackButtonStyle())
+                .glassButtonStyle(prominent: true)
                 .accessibilityIdentifier("log.hero.cta")
             }
-            .padding(22)
-            .glassCard(cornerRadius: 28, tint: Color.black, isInteractive: true)
+            .padding(Theme.Spacing.xl)
+            .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassTint, isInteractive: true)
             .padding(.horizontal)
             .accessibilityIdentifier("log.hero.card")
         }
     }
 
+    // The logo mark is drawn for a dark backdrop, so the badge keeps an
+    // app-icon-style dark tile in both color schemes.
     private var logoBadge: some View {
         Image("LogoMark")
             .resizable()
@@ -128,10 +118,10 @@ struct LogView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.black)
+                    .fill(Color(white: 0.04))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(Theme.glassStroke, lineWidth: 1)
                     )
             )
             .accessibilityHidden(true)

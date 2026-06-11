@@ -48,7 +48,7 @@ struct SurfConditionsSourceView: View {
             detailRow(title: "Fetched", value: fetchedAtLabel)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private var locationSection: some View {
@@ -58,7 +58,7 @@ struct SurfConditionsSourceView: View {
             detailRow(title: "Coordinates", value: coordinatesLabel)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private var timeSection: some View {
@@ -70,16 +70,16 @@ struct SurfConditionsSourceView: View {
             detailRow(title: "Duration", value: durationLabel)
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private var footnote: some View {
         Text("Times shown in your local time zone. Auto-fill averages data across the session window.")
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.caption)
             .foregroundStyle(Theme.textMuted)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private var fetchedAtLabel: String {
@@ -127,7 +127,7 @@ struct SurfConditionsSourceView: View {
 
     private func sectionTitle(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+            .font(.caption.weight(.semibold))
             .foregroundStyle(Theme.textMuted)
     }
 

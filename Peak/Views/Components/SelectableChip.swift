@@ -14,7 +14,7 @@ struct SelectableChip: View {
                         .font(.caption)
                 }
                 Text(label)
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }

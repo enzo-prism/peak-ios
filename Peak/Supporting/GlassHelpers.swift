@@ -26,7 +26,7 @@ struct GlassContainer<Content: View>: View {
 
 extension View {
     @ViewBuilder
-    func glassCard(cornerRadius: CGFloat = 20, tint: Color = Theme.glassTint, isInteractive: Bool = false) -> some View {
+    func glassCard(cornerRadius: CGFloat = Theme.Radius.card, tint: Color = Theme.glassTint, isInteractive: Bool = false) -> some View {
         #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)
@@ -67,18 +67,22 @@ extension View {
         #endif
     }
 
+    // Prominent buttons fill with the monochrome accent (ink/foam), so the
+    // label must use the inverse text color in both color schemes.
     @ViewBuilder
     func glassButtonStyle(prominent: Bool = false) -> some View {
         #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 if prominent {
                     self.buttonStyle(.glassProminent)
+                        .foregroundStyle(Theme.textInverse)
                 } else {
                     self.buttonStyle(.glass)
                 }
             } else {
                 if prominent {
                     self.buttonStyle(.borderedProminent)
+                        .foregroundStyle(Theme.textInverse)
                 } else {
                     self.buttonStyle(.bordered)
                 }
@@ -86,6 +90,7 @@ extension View {
         #else
             if prominent {
                 self.buttonStyle(.borderedProminent)
+                    .foregroundStyle(Theme.textInverse)
             } else {
                 self.buttonStyle(.bordered)
             }
@@ -93,7 +98,7 @@ extension View {
     }
 
     @ViewBuilder
-    func glassInput(cornerRadius: CGFloat = 14, tint: Color = Theme.glassDimTint) -> some View {
+    func glassInput(cornerRadius: CGFloat = Theme.Radius.input, tint: Color = Theme.glassDimTint) -> some View {
         self.glassCard(cornerRadius: cornerRadius, tint: tint, isInteractive: true)
     }
 
@@ -132,23 +137,10 @@ private struct GlassFallbackSurface<S: Shape>: View {
 
     var body: some View {
         shape
-            .fill(tint)
+            .fill(.ultraThinMaterial)
+            .overlay(shape.fill(tint))
             .overlay(
-                shape.stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .overlay(
-                shape.fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.22),
-                            Color.white.opacity(0.08),
-                            Color.clear
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .blendMode(.screen)
+                shape.stroke(Theme.glassStroke, lineWidth: 1)
             )
     }
 }

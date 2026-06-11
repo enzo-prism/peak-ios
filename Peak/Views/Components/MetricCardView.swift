@@ -14,26 +14,26 @@ struct MetricCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             Text(value)
-                .font(.custom("Avenir Next", size: 20, relativeTo: .title3).weight(.bold))
+                .font(.title3.weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
                 .fixedSize(horizontal: false, vertical: true)
             if let subtitle {
                 Text(subtitle)
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.caption)
                     .foregroundStyle(Theme.textMuted)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
+        .padding(Theme.Spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 }

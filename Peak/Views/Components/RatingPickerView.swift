@@ -23,7 +23,7 @@ struct RatingPickerView: View {
                     rating = 0
                 } label: {
                     Text("Clear")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)

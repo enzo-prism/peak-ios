@@ -19,7 +19,7 @@ struct HistoryView: View {
 
                 if sessions.isEmpty {
                     EmptyStateView(
-                        title: "No sessions yet",
+                        title: "No sessions yet 🌊",
                         message: "Log your first surf and your timeline will show up here.",
                         systemImage: "wave.3.right"
                     )
@@ -56,7 +56,7 @@ struct HistoryView: View {
                                         } label: {
                                             Label("Edit", systemImage: "pencil")
                                         }
-                                        .tint(Color(white: 0.35))
+                                        .tint(Color(uiColor: .systemGray))
                                     }
                                     .contextMenu {
                                         Button {
@@ -73,7 +73,7 @@ struct HistoryView: View {
                                 }
                             } header: {
                                 Text(group.key.monthTitle)
-                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(Theme.textMuted)
                             }
                         }

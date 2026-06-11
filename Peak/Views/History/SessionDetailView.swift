@@ -61,7 +61,7 @@ struct SessionDetailView: View {
                         if !session.notes.isEmpty {
                             detailDisclosureSection("Notes", isExpanded: $showNotesSection) {
                                 Text(session.notes)
-                                    .font(.custom("Avenir Next", size: 15, relativeTo: .body))
+                                    .font(.body)
                                     .foregroundStyle(Theme.textSecondary)
                             }
                         }
@@ -121,22 +121,22 @@ struct SessionDetailView: View {
             .padding(.top, 8)
         } label: {
             Text(title.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
         }
-        .padding(14)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.textMuted)
 
                 Text(session.spot?.name ?? "Unknown spot")
-                    .font(.custom("Avenir Next", size: 28, relativeTo: .largeTitle).weight(.semibold))
+                    .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
             }
 
@@ -149,12 +149,12 @@ struct SessionDetailView: View {
             if !session.notes.isEmpty {
                 Text(session.notes)
                     .lineLimit(2)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     @ViewBuilder
@@ -172,7 +172,7 @@ struct SessionDetailView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.9)
         }
-        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+        .font(.caption)
         .foregroundStyle(Theme.textPrimary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -333,8 +333,8 @@ struct SessionDetailView: View {
                         )
                         .frame(height: 110)
                         .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input, style: .continuous))
+                        .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
                     }
                     .buttonStyle(PressFeedbackButtonStyle())
                     .accessibilityLabel(media.kind == .video ? "Video" : "Photo")
@@ -424,7 +424,7 @@ private struct SessionMediaViewer: View {
             Button("Done") {
                 dismiss()
             }
-            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -441,14 +441,14 @@ private struct SessionMediaViewer: View {
 
         return HStack(spacing: 8) {
             Image(systemName: media.kind == .video ? "video" : "photo")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(typeLabel)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .subheadline).weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                 Text(dateLabel)
-                    .font(.custom("Avenir Next", size: 11, relativeTo: .caption))
+                    .font(.caption)
                     .foregroundStyle(Theme.textMuted)
             }
         }
@@ -487,10 +487,10 @@ private struct SessionMediaViewer: View {
             )
             .frame(width: 180, height: 180)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: false)
+            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
 
             Text(message)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .font(.subheadline)
                 .foregroundStyle(Theme.textMuted)
         }
         .padding()

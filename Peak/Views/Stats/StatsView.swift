@@ -80,7 +80,7 @@ struct StatsView: View {
 
     private var surfDaysSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            MetricCardView(title: "Week Streak", value: "\(yearSummary.currentWeekStreak)", subtitle: "Weeks")
+            MetricCardView(title: "Week Streak", value: streakLabel, subtitle: "Weeks")
 
             UsageChartCard(
                 title: "Monthly surf days",
@@ -88,6 +88,11 @@ struct StatsView: View {
                 valueLabel: "Surf Days"
             )
         }
+    }
+
+    private var streakLabel: String {
+        let streak = yearSummary.currentWeekStreak
+        return streak > 0 ? "\(streak) 🔥" : "0"
     }
 
     private var averageRatingLabel: String {
@@ -110,11 +115,11 @@ private struct StatListSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             if items.isEmpty {
                 Text("Not enough data yet")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
             } else {
                 GlassContainer(spacing: 10) {
@@ -123,21 +128,21 @@ private struct StatListSection: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.name)
-                                        .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline).weight(.semibold))
+                                        .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                     if let detail = item.detail {
                                         Text(detail)
-                                            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                            .font(.caption)
                                             .foregroundStyle(Theme.textMuted)
                                     }
                                 }
                                 Spacer()
                                 Text("\(item.count)")
-                                    .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.bold))
+                                    .font(.headline.weight(.bold))
                                     .foregroundStyle(Theme.textPrimary)
                             }
                             .padding(12)
-                            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                         }
                     }
                 }

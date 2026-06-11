@@ -82,17 +82,17 @@ struct SpotDetailView: View {
     private func headerCard(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(spot.name)
-                .font(.custom("Avenir Next", size: 24, relativeTo: .title2).weight(.semibold))
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(spot.locationName?.trimmedNonEmpty ?? "No location saved")
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("\(metrics.count) session\(metrics.count == 1 ? "" : "s")")
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -100,13 +100,13 @@ struct SpotDetailView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Summary")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             DetailMetricGrid {
@@ -120,16 +120,16 @@ struct SpotDetailView: View {
     private func locationSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Location")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if let location = spot.locationName?.trimmedNonEmpty {
                 Text(location)
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             } else {
                 Text("No location saved yet.")
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
             }
 
@@ -137,11 +137,11 @@ struct SpotDetailView: View {
                 mapPreview(coordinate: coordinate)
             } else {
                 Text("Drop a pin in Edit to save the surf break location.")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.caption)
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
             }
         }
     }
@@ -149,15 +149,15 @@ struct SpotDetailView: View {
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Sessions")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if sessions.isEmpty {
                 Text("No sessions yet.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
             } else {
                 ForEach(sessions) { session in
                     NavigationLink {
@@ -204,7 +204,7 @@ struct SpotDetailView: View {
         .mapStyle(.standard(elevation: .flat, emphasis: .muted))
         .frame(height: 180)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .accessibilityLabel("Map showing \(spot.name)")
     }
 }

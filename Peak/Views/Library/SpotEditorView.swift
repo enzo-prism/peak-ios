@@ -77,21 +77,21 @@ struct SpotEditorView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("PIN LOCATION")
-                                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                                .font(.caption.weight(.semibold))
                                 .foregroundStyle(Theme.textMuted)
 
                             mapPicker
 
                             if selectedCoordinate == nil {
                                 Text("Drop a pin to save this surf break.")
-                                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                    .font(.caption)
                                     .foregroundStyle(Theme.textMuted)
                             }
                         }
 
                         if isLimitReached {
                             Text("You can save up to \(Spot.maxCount) surf breaks.")
-                                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                                .font(.caption)
                                 .foregroundStyle(Theme.textMuted)
                         }
                     }
@@ -202,7 +202,7 @@ struct SpotEditorView: View {
             )
             .overlay(alignment: .topLeading) {
                 Label("Tap to drop a pin", systemImage: "mappin")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 10)
@@ -212,7 +212,7 @@ struct SpotEditorView: View {
             }
             .frame(height: 220)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
             .accessibilityLabel("Surf break map")
             .accessibilityHint("Double tap to drop a pin")
             .accessibilityIdentifier("spot.editor.map")

@@ -13,12 +13,12 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
 
             TabView {
                 LogView()
                     .tabItem {
-                        Label("Log", image: "list-bullet")
+                        Label("Log", systemImage: "square.and.pencil")
                     }
 
                 HistoryView()
@@ -28,25 +28,23 @@ struct ContentView: View {
 
                 StatsView()
                     .tabItem {
-                        Label("Stats", image: "figure-surfing")
+                        Label("Stats", systemImage: "chart.bar.xaxis")
                     }
 
                 NavigationStack {
                     QuiverView()
                 }
                 .tabItem {
-                    Label("Quiver", image: "surfboard")
+                    Label("Quiver", systemImage: "surfboard")
                 }
 
                 MoreView()
                     .tabItem {
-                        Label("More", systemImage: "water.waves")
+                        Label("More", systemImage: "ellipsis.circle")
                     }
             }
-            .tint(Theme.textPrimary)
-            .toolbarColorScheme(.dark, for: .tabBar)
+            .tint(Theme.accent)
             .tabBarMinimizeOnScroll()
-            .font(.custom("Avenir Next", size: 16, relativeTo: .body))
         }
         .sheet(isPresented: $quickLog.showNewSession) {
             SessionEditorView(mode: .new)

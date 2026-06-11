@@ -100,22 +100,22 @@ struct GearDetailView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(gear.name)
-                    .font(.custom("Avenir Next", size: 20, relativeTo: .headline).weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
 
                 Text(gear.kind.label)
-                    .font(.custom("Avenir Next", size: 13, relativeTo: .caption).weight(.semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.textMuted)
 
                 if let summary = gear.profileSummary {
                     Text(summary)
-                        .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                        .font(.caption)
                         .foregroundStyle(Theme.textSecondary)
                 }
 
                 if gear.isArchived {
                     Text("Archived")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -126,7 +126,7 @@ struct GearDetailView: View {
             Spacer()
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: true)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
     }
 
     private var gearImage: some View {
@@ -137,19 +137,19 @@ struct GearDetailView: View {
                     .scaledToFill()
             } else {
                 Image(systemName: gear.kind.systemImage)
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.title.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
             }
         }
         .frame(width: 88, height: 88)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .glassCard(cornerRadius: 18, tint: Theme.glassTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassTint, isInteractive: false)
     }
 
     private func usageSummarySection(summary: GearUsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Usage Summary")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             DetailMetricGrid {
@@ -164,21 +164,21 @@ struct GearDetailView: View {
     private func topSpotsSection(spots: [GearTopSpot]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Top Spots")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if spots.isEmpty {
                 Text("No spot data yet.")
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
             } else {
                 VStack(spacing: 8) {
                     ForEach(spots) { spot in
                         DetailInfoRow(title: spot.name, value: "\(spot.count)")
                         .padding(12)
-                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                     }
                 }
             }
@@ -190,15 +190,15 @@ struct GearDetailView: View {
             if let notes = gear.notes?.trimmedNonEmpty {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Notes")
-                        .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
 
                     Text(notes)
-                        .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                        .font(.subheadline)
                         .foregroundStyle(Theme.textSecondary)
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                 }
             }
         }
@@ -207,15 +207,15 @@ struct GearDetailView: View {
     private func sessionSection(sessions: [SurfSession]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent Sessions")
-                .font(.custom("Avenir Next", size: 18, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             if sessions.isEmpty {
                 Text("No sessions yet.")
-                    .font(.custom("Avenir Next", size: 15, relativeTo: .subheadline))
+                    .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
                     .padding(12)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
             } else {
                 ForEach(sessions) { session in
                     NavigationLink {

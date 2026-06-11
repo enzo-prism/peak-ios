@@ -15,7 +15,7 @@ struct LibraryView: View {
                             Label("Quiver", image: "surfboard")
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
                                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                         .buttonStyle(PressFeedbackButtonStyle())
@@ -26,7 +26,7 @@ struct LibraryView: View {
                             Label("Spots", systemImage: "mappin.and.ellipse")
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
                                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                         .buttonStyle(PressFeedbackButtonStyle())
@@ -37,7 +37,7 @@ struct LibraryView: View {
                             Label("Buddies", systemImage: "person.2")
                                 .padding(12)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                                .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
                                 .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                         .buttonStyle(PressFeedbackButtonStyle())

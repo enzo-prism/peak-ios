@@ -30,11 +30,11 @@ struct SpotLibraryView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(14)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                    .padding(Theme.Spacing.l)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
 
                     Text("\(spots.count) of \(Spot.maxCount) surf breaks saved")
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.caption)
                         .foregroundStyle(Theme.textMuted)
 
                     if spots.isEmpty {
@@ -126,11 +126,11 @@ private struct SpotRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(spot.name)
-                .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             Text(spot.locationName?.trimmedNonEmpty ?? "No location saved")
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .font(.caption)
                 .foregroundStyle(Theme.textMuted)
 
             HStack(spacing: 12) {
@@ -139,12 +139,12 @@ private struct SpotRowView: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.caption)
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("spot.row")
     }

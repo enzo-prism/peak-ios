@@ -36,7 +36,7 @@ struct QuiverView: View {
                     EmptyStateView(
                         title: emptyStateTitle,
                         message: emptyStateMessage,
-                        imageName: "surfboard"
+                        systemImage: "surfboard"
                     )
                     } else {
                         ForEach(GearKind.allCases) { kind in
@@ -85,14 +85,14 @@ struct QuiverView: View {
             Toggle("Show archived", isOn: $showArchived)
                 .toggleStyle(SwitchToggleStyle(tint: Theme.surfGreen))
         }
-        .padding(14)
-        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
     }
 
     private func gearSection(kind: GearKind, items: [Gear]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(kind.pluralLabel.uppercased())
-                .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
 
             ForEach(items) { item in
@@ -147,7 +147,7 @@ struct QuiverView: View {
         if searchText.trimmedNonEmpty != nil {
             return "No matching gear"
         }
-        return "No gear yet"
+        return "No gear yet 🏄"
     }
 
     private var emptyStateMessage: String {
@@ -171,10 +171,10 @@ private struct QuiverGearRow: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(gear.name)
-                        .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(gear.profileSummary ?? gear.kind.label)
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.caption)
                         .foregroundStyle(Theme.textMuted)
                 }
 
@@ -182,7 +182,7 @@ private struct QuiverGearRow: View {
 
                 if gear.isArchived {
                     Text("Archived")
-                        .font(.custom("Avenir Next", size: 11, relativeTo: .caption).weight(.semibold))
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
@@ -195,12 +195,12 @@ private struct QuiverGearRow: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.caption)
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("quiver.row")
     }

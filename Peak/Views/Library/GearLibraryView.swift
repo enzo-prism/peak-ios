@@ -138,8 +138,8 @@ struct GearLibraryView: View {
             }
             .pickerStyle(.menu)
         }
-        .padding(14)
-        .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
     }
 }
 
@@ -152,33 +152,33 @@ private struct GearRowView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(gear.name)
-                        .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                     Text(gear.kind.label)
-                        .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                        .font(.caption)
                         .foregroundStyle(Theme.textMuted)
                 }
                 Spacer()
                 Text("\(snapshot?.count ?? 0)x")
-                    .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.bold))
+                    .font(.headline.weight(.bold))
                     .foregroundStyle(Theme.textPrimary)
             }
 
             HStack(spacing: 12) {
                 Label("Times Used", systemImage: "chart.bar")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.caption)
                 Text("\(snapshot?.count ?? 0)")
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+                    .font(.caption.weight(.semibold))
                 Spacer()
                 Text(lastUsedLabel)
-                    .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                    .font(.caption)
                     .foregroundStyle(Theme.textMuted)
             }
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("gear.row")
     }

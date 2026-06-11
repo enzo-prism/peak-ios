@@ -9,7 +9,7 @@ struct UsageChartCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             Chart(data) { item in
@@ -39,6 +39,6 @@ struct UsageChartCard: View {
             .accessibilityLabel(Text(title))
         }
         .padding(16)
-        .glassCard(cornerRadius: 22, tint: Theme.glassDimTint, isInteractive: false)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 }

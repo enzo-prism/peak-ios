@@ -42,7 +42,7 @@ enum GearKind: String, Codable, CaseIterable, Identifiable {
     nonisolated var systemImage: String {
         switch self {
         case .board:
-            return "rectangle.portrait"
+            return "surfboard"
         case .wetsuit:
             return "tshirt"
         case .fins:

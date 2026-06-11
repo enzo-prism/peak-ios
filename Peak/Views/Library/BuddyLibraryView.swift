@@ -29,8 +29,8 @@ struct BuddyLibraryView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .padding(14)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: true)
+                    .padding(Theme.Spacing.l)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
 
                     if buddies.isEmpty {
                         EmptyStateView(
@@ -108,7 +108,7 @@ private struct BuddyRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(buddy.name)
-                .font(.custom("Avenir Next", size: 16, relativeTo: .headline).weight(.semibold))
+                .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
 
             HStack(spacing: 12) {
@@ -116,12 +116,12 @@ private struct BuddyRowView: View {
                 Spacer()
                 Text(lastUsedLabel)
             }
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+            .font(.caption)
             .foregroundStyle(Theme.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(cornerRadius: 20, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("buddy.row")
     }

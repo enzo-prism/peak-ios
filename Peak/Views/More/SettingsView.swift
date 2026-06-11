@@ -56,14 +56,14 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Version \(appVersion) (\(buildNumber))")
-                            .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline))
+                            .font(.subheadline)
                             .foregroundStyle(Theme.textPrimary)
                         Text("Peak is private by default. Your data stays on your device.")
-                            .font(.custom("Avenir Next", size: 13, relativeTo: .caption))
+                            .font(.caption)
                             .foregroundStyle(Theme.textMuted)
                     }
-                    .padding(14)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .padding(Theme.Spacing.l)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                     .listRowBackground(Color.clear)
 
                     SettingsRow(title: "Email Support", systemImage: "envelope") {
@@ -76,7 +76,7 @@ struct SettingsView: View {
                         Label("Support Guide", systemImage: "questionmark.circle")
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: true)
+                            .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: true)
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(Color.clear)
@@ -87,7 +87,7 @@ struct SettingsView: View {
                         Label("Privacy Policy", systemImage: "hand.raised")
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: true)
+                            .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: true)
                     }
                     .buttonStyle(.plain)
                     .listRowBackground(Color.clear)
@@ -102,11 +102,11 @@ struct SettingsView: View {
                 Color.black.opacity(0.2)
                     .ignoresSafeArea()
                 ProgressView(workingTitle)
-                    .font(.custom("Avenir Next", size: 14, relativeTo: .subheadline).weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
-                    .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
             }
         }
         .navigationTitle("Settings")
@@ -151,7 +151,7 @@ struct SettingsView: View {
     @ViewBuilder
     private func sectionHeader(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(.custom("Avenir Next", size: 12, relativeTo: .caption).weight(.semibold))
+            .font(.caption.weight(.semibold))
             .foregroundStyle(Theme.textMuted)
     }
 
@@ -290,7 +290,7 @@ private struct SettingsRow: View {
                 .foregroundStyle(role == .destructive ? Color.red : Theme.textPrimary)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: true)
+                .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: true)
         }
         .buttonStyle(PressFeedbackButtonStyle())
         .disabled(isDisabled)
