@@ -370,3 +370,70 @@ private extension PeakUISmokeTests {
     }
 
 }
+
+/// Not part of the regression suite: captures App Store marketing screenshots
+/// with seeded data. Run explicitly via
+/// `UI_TEST_TARGET="PeakUITests/MarketingScreenshotCapture" ./scripts/test-ui.sh`.
+final class MarketingScreenshotCapture: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-06-10T12:00:00Z"
+        app.launch()
+    }
+
+    override func tearDown() {
+        app = nil
+        super.tearDown()
+    }
+
+    func testCaptureMarketingScreenshots() {
+        tapTab("Log")
+        capture("01-log")
+
+        tapTab("History")
+        capture("02-history")
+
+        let firstRow = app.buttons.matching(identifier: "history.row").firstMatch
+        if firstRow.waitForExistence(timeout: 3) {
+            firstRow.tap()
+            _ = app.staticTexts.firstMatch.waitForExistence(timeout: 3)
+            sleep(1)
+            capture("03-session-detail")
+        }
+
+        tapTab("Stats")
+        sleep(1)
+        capture("04-stats")
+
+        tapTab("Quiver")
+        sleep(1)
+        capture("05-quiver")
+    }
+
+    private func tapTab(_ name: String) {
+        // iPhone presents a bottom tab bar; iPadOS renders the tab strip at
+        // the top, where tabs may not live inside an XCUI tabBars container.
+        let tab = app.tabBars.buttons[name]
+        if tab.waitForExistence(timeout: 3) {
+            tab.tap()
+        } else {
+            let anyTab = app.buttons[name].firstMatch
+            XCTAssertTrue(anyTab.waitForExistence(timeout: 5), "Tab \(name) not found")
+            anyTab.tap()
+        }
+        sleep(1)
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot(), quality: .original)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
