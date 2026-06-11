@@ -33,6 +33,7 @@ struct GearEditorView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var alertMessage = ""
     @State private var showAlert = false
+    @FocusState private var isNotesFocused: Bool
 
     init(mode: GearEditorMode) {
         self.mode = mode
@@ -67,7 +68,8 @@ struct GearEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                ScrollView {
+                ScrollViewReader { proxy in
+                    ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             editorSection("Basics") {
                                 TextField("Name", text: $name)
@@ -163,11 +165,26 @@ struct GearEditorView: View {
                                     .padding(12)
                                     .glassInput()
                                     .accessibilityIdentifier("gear.editor.notes")
+                                    .focused($isNotesFocused)
+                                    .id("gear.editor.notes")
                             }
                         }
                         .padding()
                     }
                     .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: isNotesFocused) { _, focused in
+                        // Keyboard avoidance does not scroll TextEditors nested
+                        // in a ScrollView; do it once the keyboard settles.
+                        guard focused else { return }
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            guard isNotesFocused else { return }
+                            withAnimation {
+                                proxy.scrollTo("gear.editor.notes", anchor: .bottom)
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle(mode.title)
             .toolbar {

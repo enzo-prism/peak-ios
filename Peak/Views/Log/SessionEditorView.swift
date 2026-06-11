@@ -24,6 +24,12 @@ struct SessionEditorView: View {
 
         var id: String { rawValue }
     }
+    private enum TextInput: Hashable {
+        case spot
+        case gear
+        case buddy
+        case notes
+    }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -58,6 +64,10 @@ struct SessionEditorView: View {
     @State private var gearSnapshots: [String: UsageSnapshot] = [:]
     @State private var buddySnapshots: [String: UsageSnapshot] = [:]
     @State private var conditionsFetchTask: Task<Void, Never>?
+    // Non-nil while any text input is focused. The save bar hides during text
+    // entry so it doesn't stack on the keyboard and block the bottom sections;
+    // the toolbar Save button remains available.
+    @FocusState private var focusedTextInput: TextInput?
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -71,21 +81,30 @@ struct SessionEditorView: View {
 
     var body: some View {
         NavigationStack {
+            // The save bar inset must be applied INSIDE the navigation stack:
+            // applied outside, the scroll view never receives the extra bottom
+            // safe area and the last section can't scroll clear of the bar.
             editorScrollContainer
-        }
-        .navigationTitle(mode.title)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") {
-                    dismiss()
+                .navigationTitle(mode.title)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            saveSession()
+                        }
+                        .disabled(saveValidationMessage != nil)
+                    }
                 }
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") {
-                    saveSession()
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if focusedTextInput == nil {
+                        saveBar
+                    }
                 }
-                .disabled(saveValidationMessage != nil)
-            }
+                .animation(.easeOut(duration: 0.2), value: focusedTextInput)
         }
         .tint(Theme.textPrimary)
         .sheet(isPresented: $showSpotEditor) {
@@ -132,37 +151,39 @@ struct SessionEditorView: View {
         .onChange(of: sessions) { _, _ in
             refreshUsageSnapshots()
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 8) {
-                if let saveMessage = saveValidationMessage {
-                    Text(saveMessage)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                }
-
-                Button("Save Session") {
-                    saveSession()
-                }
-                .glassButtonStyle(prominent: true)
-                .disabled(saveValidationMessage != nil)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)
-            }
-            .padding(.top, 8)
-            .padding(.bottom, 10)
-            .background(
-                Theme.background
-                    .ignoresSafeArea(edges: .bottom)
-            )
-        }
         .onDisappear {
             conditionsFetchTask?.cancel()
             if !didSave {
                 cleanupPendingMedia()
             }
         }
+    }
+
+    private var saveBar: some View {
+        VStack(spacing: 8) {
+            if let saveMessage = saveValidationMessage {
+                Text(saveMessage)
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+            }
+
+            Button("Save Session") {
+                saveSession()
+            }
+            .glassButtonStyle(prominent: true)
+            .disabled(saveValidationMessage != nil)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(
+            Theme.background
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .accessibilityIdentifier("session.editor.saveBar")
     }
 
     private var editorScrollContainer: some View {
@@ -174,35 +195,50 @@ struct SessionEditorView: View {
     }
 
     private var editorScrollContent: some View {
-        ScrollView {
-            GlassContainer(spacing: 16) {
-                VStack(alignment: .leading, spacing: 16) {
-                    if case .new = mode {
-                        quickStartSection
+        ScrollViewReader { proxy in
+            ScrollView {
+                GlassContainer(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if case .new = mode {
+                            quickStartSection
+                        }
+
+                        sessionSection
+
+                        if showOptionalFields {
+                            conditionsSection
+                        }
+
+                        gearSection
+
+                        buddiesSection
+
+                        if showOptionalFields {
+                            ratingSection
+                            mediaSection
+                            notesSection
+                        }
                     }
-
-                    sessionSection
-
-                    if showOptionalFields {
-                        conditionsSection
-                    }
-
-                    gearSection
-
-                    buddiesSection
-
-                    if showOptionalFields {
-                        ratingSection
-                        mediaSection
-                        notesSection
+                    .padding(.horizontal)
+                    .padding(.vertical, Theme.Spacing.m)
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .accessibilityIdentifier("session.editor.scroll")
+            .onChange(of: focusedTextInput) { _, newValue in
+                // Automatic keyboard avoidance handles TextFields but not
+                // TextEditors nested in a ScrollView, so scroll the notes
+                // editor into view once the keyboard has settled.
+                guard newValue == .notes else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    guard focusedTextInput == .notes else { return }
+                    withAnimation {
+                        proxy.scrollTo(TextInput.notes, anchor: .bottom)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.vertical, Theme.Spacing.m)
             }
         }
-        .scrollDismissesKeyboard(.interactively)
-        .accessibilityIdentifier("session.editor.scroll")
     }
 
     private var sessionSection: some View {
@@ -253,6 +289,7 @@ struct SessionEditorView: View {
                 .padding(12)
                 .glassInput()
                 .accessibilityIdentifier("session.editor.spot")
+                .focused($focusedTextInput, equals: .spot)
                 .onChange(of: draft.spotName) { _, newValue in
                     let key = Spot.makeKey(from: newValue)
                     if let exactSpot = spots.first(where: { $0.key == key }) {
@@ -500,6 +537,7 @@ struct SessionEditorView: View {
                         .textFieldStyle(.plain)
                         .foregroundStyle(Theme.textPrimary)
                         .accessibilityIdentifier("session.editor.gear")
+                        .focused($focusedTextInput, equals: .gear)
                     Picker("Type", selection: $newGearKind) {
                         ForEach(GearKind.allCases) { kind in
                             Text(kind.label).tag(kind)
@@ -579,11 +617,13 @@ struct SessionEditorView: View {
                         .textFieldStyle(.plain)
                         .foregroundStyle(Theme.textPrimary)
                         .accessibilityIdentifier("session.editor.buddy")
+                        .focused($focusedTextInput, equals: .buddy)
                     Button("Add") {
                         addBuddy()
                     }
                     .glassButtonStyle(prominent: true)
                     .disabled(newBuddyName.trimmedNonEmpty == nil)
+                    .accessibilityIdentifier("session.editor.buddy.add")
                 }
                 .padding(12)
                 .glassInput()
@@ -673,6 +713,8 @@ struct SessionEditorView: View {
                     .scrollContentBackground(.hidden)
                     .foregroundStyle(Theme.textPrimary)
                     .accessibilityIdentifier("session.editor.notes")
+                    .focused($focusedTextInput, equals: .notes)
+                    .id(TextInput.notes)
                 if draft.notes.isEmpty {
                     Text("Add any conditions, swell, or quick thoughts.")
                         .foregroundStyle(Theme.textMuted)

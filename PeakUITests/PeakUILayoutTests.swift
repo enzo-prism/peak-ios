@@ -424,6 +424,44 @@ final class PeakUILayoutTests: XCTestCase {
         assertNotCoveredByKeyboard(notesField)
     }
 
+    func testNewSessionBuddySectionUsableWhileTyping() {
+        tapTab(named: "Log")
+
+        let newSession = app.buttons["New Session"]
+        assertExists(newSession)
+        newSession.tap()
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        assertExists(scrollView)
+
+        let buddyField = app.textFields["session.editor.buddy"]
+        assertExists(buddyField)
+        scrollToVisible(buddyField, in: scrollView)
+        buddyField.tap()
+        app.typeText("Chris")
+
+        let addButton = app.buttons["session.editor.buddy.add"]
+        assertExists(addButton)
+        XCTAssertTrue(
+            addButton.isHittable,
+            "Buddy add button must be usable while typing"
+        )
+        addButton.tap()
+
+        // The new chip lands in the grid below the field. With the keyboard
+        // still up, the user must be able to scroll the buddies section fully
+        // into view — this is what regressed when the editor's bottom inset
+        // stopped accounting for the keyboard.
+        let chip = app.buttons["Chris"]
+        scrollToVisible(chip, in: scrollView)
+        assertExists(chip)
+        XCTAssertTrue(
+            chip.isHittable,
+            "Buddy chips must be reachable while the keyboard is up"
+        )
+        assertNotCoveredByKeyboard(chip)
+    }
+
     func testGearEditorKeyboardAvoidsFields() {
         tapTab(named: "Quiver")
 
