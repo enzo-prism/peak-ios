@@ -17,7 +17,7 @@ final class QuickLogCoordinator {
     }
 }
 
-nonisolated struct LogSessionIntent: AppIntent {
+struct LogSessionIntent: AppIntent {
     static let title: LocalizedStringResource = "Log Surf Session"
     static let description = IntentDescription(
         "Opens Peak ready to log a new surf session with your quick-start defaults."
@@ -31,7 +31,7 @@ nonisolated struct LogSessionIntent: AppIntent {
     }
 }
 
-nonisolated struct PeakAppShortcuts: AppShortcutsProvider {
+struct PeakAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: LogSessionIntent(),
