@@ -33,14 +33,12 @@ enum GearKindFilter: String, CaseIterable, Identifiable {
 
 struct GearLibraryView: View {
     @Query(sort: \Gear.name) private var gear: [Gear]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.gear]))
+    private var sessions: [SurfSession]
     @State private var sortOption: GearSortOption = .mostUsed
     @State private var filter: GearKindFilter = .all
     @State private var showEditor = false
-
-    private var snapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.gearSnapshots(sessions: sessions)
-    }
+    @State private var snapshots: [String: UsageSnapshot] = [:]
 
     var body: some View {
         ZStack {
@@ -83,6 +81,12 @@ struct GearLibraryView: View {
         }
         .sheet(isPresented: $showEditor) {
             GearEditorView(mode: .new)
+        }
+        .onAppear {
+            snapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
+        }
+        .onChange(of: sessions) { _, _ in
+            snapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
         }
     }
 

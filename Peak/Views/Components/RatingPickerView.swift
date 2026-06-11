@@ -33,6 +33,20 @@ struct RatingPickerView: View {
                 .accessibilityLabel("Clear rating")
             }
         }
+        .sensoryFeedback(.selection, trigger: rating)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rating")
+        .accessibilityValue(rating == 0 ? "Not rated" : "\(rating) out of 5")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                rating = min(5, rating + 1)
+            case .decrement:
+                rating = max(0, rating - 1)
+            @unknown default:
+                break
+            }
+        }
     }
 }
 

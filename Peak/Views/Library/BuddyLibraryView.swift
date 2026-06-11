@@ -11,13 +11,11 @@ enum BuddySortOption: String, CaseIterable, Identifiable {
 
 struct BuddyLibraryView: View {
     @Query(sort: \Buddy.name) private var buddies: [Buddy]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.buddies]))
+    private var sessions: [SurfSession]
     @State private var sortOption: BuddySortOption = .mostSurf
     @State private var showEditor = false
-
-    private var snapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.buddySnapshots(sessions: sessions)
-    }
+    @State private var snapshots: [String: UsageSnapshot] = [:]
 
     var body: some View {
         ZStack {
@@ -68,6 +66,12 @@ struct BuddyLibraryView: View {
         }
         .sheet(isPresented: $showEditor) {
             BuddyEditorView(mode: .new)
+        }
+        .onAppear {
+            snapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
+        }
+        .onChange(of: sessions) { _, _ in
+            snapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
         }
     }
 

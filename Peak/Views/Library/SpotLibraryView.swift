@@ -11,14 +11,12 @@ enum SpotSortOption: String, CaseIterable, Identifiable {
 
 struct SpotLibraryView: View {
     @Query(sort: \Spot.name) private var spots: [Spot]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot]))
+    private var sessions: [SurfSession]
     @State private var sortOption: SpotSortOption = .mostSurf
     @State private var showEditor = false
     @State private var showLimitAlert = false
-
-    private var snapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.spotSnapshots(sessions: sessions)
-    }
+    @State private var snapshots: [String: UsageSnapshot] = [:]
 
     var body: some View {
         ZStack {
@@ -82,6 +80,12 @@ struct SpotLibraryView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("You can save up to \(Spot.maxCount) surf breaks.")
+        }
+        .onAppear {
+            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+        }
+        .onChange(of: sessions) { _, _ in
+            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
         }
     }
 

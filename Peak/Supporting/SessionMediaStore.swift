@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ImageIO
 import UIKit
 
 struct StoredSessionVideo {
@@ -21,30 +22,31 @@ enum SessionMediaStore {
             try FileManager.default.copyItem(at: sourceURL, to: destination)
             try? FileManager.default.removeItem(at: sourceURL)
         }
-        let resolvedThumbnail = thumbnailData ?? videoThumbnailData(from: destination)
-        return StoredSessionVideo(fileName: fileName, thumbnailData: resolvedThumbnail)
+        return StoredSessionVideo(fileName: fileName, thumbnailData: thumbnailData)
     }
 
-    static func compressedPhotoData(from data: Data) -> Data {
-        guard let image = UIImage(data: data) else { return data }
+    /// Re-encodes the picked photo capped at `maxDimension`, using ImageIO
+    /// downsampling so the full-resolution bitmap is never decoded into memory.
+    /// `nonisolated` so callers can run it off the main actor (the project
+    /// builds with MainActor default isolation).
+    nonisolated static func compressedPhotoData(from data: Data, maxDimension: CGFloat = 2048) -> Data {
+        guard let image = downsampledImage(from: data, maxDimension: maxDimension) else { return data }
         return image.jpegData(compressionQuality: 0.85) ?? data
     }
 
-    static func thumbnailData(from imageData: Data, maxDimension: CGFloat = 420) -> Data? {
-        guard let image = UIImage(data: imageData) else { return nil }
-        let scaled = scaledImage(image, maxDimension: maxDimension)
-        return scaled.jpegData(compressionQuality: 0.75)
+    nonisolated static func thumbnailData(from imageData: Data, maxDimension: CGFloat = 420) -> Data? {
+        guard let image = downsampledImage(from: imageData, maxDimension: maxDimension) else { return nil }
+        return image.jpegData(compressionQuality: 0.75)
     }
 
-    static func videoThumbnailData(from url: URL, maxDimension: CGFloat = 420) -> Data? {
-        let asset = AVAsset(url: url)
+    nonisolated static func videoThumbnailData(from url: URL, maxDimension: CGFloat = 420) async -> Data? {
+        let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: maxDimension, height: maxDimension)
         let time = CMTime(seconds: 0, preferredTimescale: 600)
-        guard let cgImage = try? generator.copyCGImage(at: time, actualTime: nil) else { return nil }
-        let image = UIImage(cgImage: cgImage)
-        let scaled = scaledImage(image, maxDimension: maxDimension)
-        return scaled.jpegData(compressionQuality: 0.75)
+        guard let cgImage = try? await generator.image(at: time).image else { return nil }
+        return UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.75)
     }
 
     static func videoURL(for fileName: String) -> URL {
@@ -132,14 +134,16 @@ enum SessionMediaStore {
         return directory
     }
 
-    private static func scaledImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let maxSide = max(image.size.width, image.size.height)
-        guard maxSide > maxDimension else { return image }
-        let scale = maxDimension / maxSide
-        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        return renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: newSize))
-        }
+    nonisolated private static func downsampledImage(from data: Data, maxDimension: CGFloat) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+        let thumbnailOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+        ] as CFDictionary
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 }

@@ -25,6 +25,8 @@ struct SelectableChip: View {
             .contentShape(Capsule())
         }
         .buttonStyle(PressFeedbackButtonStyle())
+        .sensoryFeedback(.selection, trigger: isSelected)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -11,7 +11,8 @@ enum QuiverSortOption: String, CaseIterable, Identifiable {
 
 struct QuiverView: View {
     @Query(sort: \Gear.name) private var gear: [Gear]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.gear]))
+    private var sessions: [SurfSession]
 
     @State private var searchText = ""
     @State private var sortOption: QuiverSortOption = .mostUsed

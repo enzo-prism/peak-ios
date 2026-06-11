@@ -10,6 +10,7 @@ struct SessionDetailView: View {
     let session: SurfSession
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
+    @State private var didDelete = false
     @State private var selectedMedia: SessionMedia?
     @State private var showSurfReportSection = true
     @State private var showGearSection = false
@@ -91,10 +92,12 @@ struct SessionDetailView: View {
             Button("Delete", role: .destructive) {
                 SessionMediaStore.deleteStoredMedia(for: session.media)
                 modelContext.delete(session)
+                didDelete = true
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
         }
+        .sensoryFeedback(.success, trigger: didDelete)
         .sheet(isPresented: $showEdit) {
             SessionEditorView(mode: .edit(session))
         }
@@ -195,6 +198,8 @@ struct SessionDetailView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rated \(rating) out of 5")
     }
 
     private var heroTags: some View {
@@ -362,10 +367,13 @@ private struct SessionMediaViewer: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .onAppear {
-                if photoImage == nil, media.kind == .photo {
-                    photoImage = (media.photoData ?? media.thumbnailData).flatMap(UIImage.init)
-                }
+            .task {
+                guard photoImage == nil, media.kind == .photo else { return }
+                let data = media.photoData ?? media.thumbnailData
+                photoImage = await Task.detached(priority: .userInitiated) {
+                    guard let data, let image = UIImage(data: data) else { return nil }
+                    return image.preparingForDisplay() ?? image
+                }.value
             }
         }
     }

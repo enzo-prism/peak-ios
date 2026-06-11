@@ -18,10 +18,6 @@ enum GearEditorMode {
 }
 
 struct GearEditorView: View {
-    private enum FocusField: Hashable {
-        case notes
-    }
-
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
@@ -37,8 +33,6 @@ struct GearEditorView: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var alertMessage = ""
     @State private var showAlert = false
-    @FocusState private var focusedField: FocusField?
-    @StateObject private var keyboardObserver = KeyboardObserver()
 
     init(mode: GearEditorMode) {
         self.mode = mode
@@ -73,8 +67,7 @@ struct GearEditorView: View {
             ZStack {
                 Theme.background.ignoresSafeArea()
 
-                ScrollViewReader { proxy in
-                    ScrollView {
+                ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             editorSection("Basics") {
                                 TextField("Name", text: $name)
@@ -170,27 +163,11 @@ struct GearEditorView: View {
                                     .padding(12)
                                     .glassInput()
                                     .accessibilityIdentifier("gear.editor.notes")
-                                    .focused($focusedField, equals: .notes)
-                                    .id(FocusField.notes)
                             }
                         }
                         .padding()
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    .keyboardSafeAreaInset()
-                    .onChange(of: focusedField) { _, newValue in
-                        guard newValue == .notes else { return }
-                        DispatchQueue.main.async {
-                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                        }
-                    }
-                    .onChange(of: keyboardObserver.height) { _, height in
-                        guard height > 0, focusedField == .notes else { return }
-                        DispatchQueue.main.async {
-                            proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                        }
-                    }
-                }
             }
             .navigationTitle(mode.title)
             .toolbar {

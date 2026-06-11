@@ -2,10 +2,15 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Environment(\.modelContext) private var modelContext
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies, \.media]))
+    private var sessions: [SurfSession]
     @State private var filters = HistoryFilters()
     @State private var showFilters = false
     @State private var showNewSession = false
+    @State private var editingSession: SurfSession?
+    @State private var sessionPendingDelete: SurfSession?
+    @State private var deletionCount = 0
 
     var body: some View {
         NavigationStack {
@@ -40,6 +45,31 @@ struct HistoryView: View {
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)
                                     .padding(.vertical, 6)
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                        Button(role: .destructive) {
+                                            sessionPendingDelete = session
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                        Button {
+                                            editingSession = session
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        .tint(Color(white: 0.35))
+                                    }
+                                    .contextMenu {
+                                        Button {
+                                            editingSession = session
+                                        } label: {
+                                            Label("Edit Session", systemImage: "pencil")
+                                        }
+                                        Button(role: .destructive) {
+                                            sessionPendingDelete = session
+                                        } label: {
+                                            Label("Delete Session", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             } header: {
                                 Text(group.key.monthTitle)
@@ -78,6 +108,37 @@ struct HistoryView: View {
         .sheet(isPresented: $showNewSession) {
             SessionEditorView(mode: .new)
         }
+        .sheet(item: $editingSession) { session in
+            SessionEditorView(mode: .edit(session))
+        }
+        .confirmationDialog(
+            "Delete this session?",
+            isPresented: Binding(
+                get: { sessionPendingDelete != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        sessionPendingDelete = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                deletePendingSession()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This permanently removes the session and its media.")
+        }
+        .sensoryFeedback(.success, trigger: deletionCount)
+    }
+
+    private func deletePendingSession() {
+        guard let session = sessionPendingDelete else { return }
+        sessionPendingDelete = nil
+        SessionMediaStore.deleteStoredMedia(for: session.media)
+        modelContext.delete(session)
+        deletionCount += 1
     }
 
     private var filteredSessions: [SurfSession] {

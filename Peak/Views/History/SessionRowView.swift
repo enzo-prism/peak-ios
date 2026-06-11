@@ -78,6 +78,8 @@ private struct RatingStarsView: View {
                     .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.4))
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rated \(rating) out of 5")
     }
 }
 

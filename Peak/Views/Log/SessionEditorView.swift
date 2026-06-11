@@ -18,9 +18,6 @@ enum SessionEditorMode {
 }
 
 struct SessionEditorView: View {
-    private enum FocusField: Hashable {
-        case notes
-    }
     private enum SelectionMode: String, CaseIterable, Identifiable {
         case recent = "Recent"
         case all = "A-Z"
@@ -34,7 +31,8 @@ struct SessionEditorView: View {
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
     @Query(sort: \Buddy.name) private var buddies: [Buddy]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
+    private var sessions: [SurfSession]
 
     let mode: SessionEditorMode
     @State private var draft: SessionDraft
@@ -56,8 +54,10 @@ struct SessionEditorView: View {
     @State private var spotSelectionMode: SelectionMode = .recent
     @State private var gearSelectionMode: SelectionMode = .recent
     @State private var showOptionalFields = false
-    @FocusState private var focusedField: FocusField?
-    @StateObject private var keyboardObserver = KeyboardObserver()
+    @State private var spotSnapshots: [String: UsageSnapshot] = [:]
+    @State private var gearSnapshots: [String: UsageSnapshot] = [:]
+    @State private var buddySnapshots: [String: UsageSnapshot] = [:]
+    @State private var conditionsFetchTask: Task<Void, Never>?
 
     init(mode: SessionEditorMode) {
         self.mode = mode
@@ -67,10 +67,6 @@ struct SessionEditorView: View {
         case .edit(let session):
             _draft = State(initialValue: SessionDraft(session: session))
         }
-    }
-
-    private var spotSnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.spotSnapshots(sessions: sessions)
     }
 
     var body: some View {
@@ -129,6 +125,13 @@ struct SessionEditorView: View {
         .onChange(of: selectedMediaItems) { _, newValue in
             handleMediaSelection(newValue)
         }
+        .sensoryFeedback(.success, trigger: didSave)
+        .onAppear {
+            refreshUsageSnapshots()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshUsageSnapshots()
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 8) {
                 if let saveMessage = saveValidationMessage {
@@ -155,6 +158,7 @@ struct SessionEditorView: View {
             )
         }
         .onDisappear {
+            conditionsFetchTask?.cancel()
             if !didSave {
                 cleanupPendingMedia()
             }
@@ -165,14 +169,11 @@ struct SessionEditorView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
-            ScrollViewReader { proxy in
-                editorScrollContent(proxy: proxy)
-            }
+            editorScrollContent
         }
     }
 
-    @ViewBuilder
-    private func editorScrollContent(proxy: ScrollViewProxy) -> some View {
+    private var editorScrollContent: some View {
         ScrollView {
             GlassContainer(spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
@@ -200,21 +201,8 @@ struct SessionEditorView: View {
                     }
                 }
             }
-            .scrollDismissesKeyboard(.interactively)
-            .keyboardSafeAreaInset()
-            .onChange(of: focusedField) { _, newValue in
-                guard newValue == .notes else { return }
-                DispatchQueue.main.async {
-                    proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                }
-            }
-            .onChange(of: keyboardObserver.height) { _, height in
-                guard height > 0, focusedField == .notes else { return }
-                DispatchQueue.main.async {
-                    proxy.scrollTo(FocusField.notes, anchor: .bottom)
-                }
-            }
         }
+        .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier("session.editor.scroll")
     }
 
@@ -686,8 +674,6 @@ struct SessionEditorView: View {
                     .scrollContentBackground(.hidden)
                     .foregroundStyle(Theme.textPrimary)
                     .accessibilityIdentifier("session.editor.notes")
-                    .focused($focusedField, equals: .notes)
-                    .id(FocusField.notes)
                 if draft.notes.isEmpty {
                     Text("Add any conditions, swell, or quick thoughts.")
                         .foregroundStyle(Theme.textMuted)
@@ -794,17 +780,15 @@ struct SessionEditorView: View {
         }
     }
 
-    private var gearSnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.gearSnapshots(sessions: sessions)
-    }
-
     private var availableGear: [Gear] {
         let selectedKeys = Set(draft.selectedGear.map(\.key))
         return gear.filter { !$0.isArchived || selectedKeys.contains($0.key) }
     }
 
-    private var buddySnapshots: [String: UsageSnapshot] {
-        UsageMetricsCalculator.buddySnapshots(sessions: sessions)
+    private func refreshUsageSnapshots() {
+        spotSnapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+        gearSnapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
+        buddySnapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
     }
 
     private func addGear() {
@@ -1119,7 +1103,8 @@ struct SessionEditorView: View {
         let start = draft.date
         let duration = draft.durationMinutes
 
-        Task {
+        conditionsFetchTask?.cancel()
+        conditionsFetchTask = Task {
             do {
                 let snapshot = try await SurfConditionsService.fetch(
                     start: start,
@@ -1127,16 +1112,14 @@ struct SessionEditorView: View {
                     latitude: latitude,
                     longitude: longitude
                 )
-                await MainActor.run {
-                    isFetchingConditions = false
-                    draft.applySurfConditions(snapshot)
-                    surfConditionsNotice = SurfConditionsNotice(style: .success, message: successMessage(for: snapshot))
-                }
+                guard !Task.isCancelled else { return }
+                isFetchingConditions = false
+                draft.applySurfConditions(snapshot)
+                surfConditionsNotice = SurfConditionsNotice(style: .success, message: successMessage(for: snapshot))
             } catch {
-                await MainActor.run {
-                    isFetchingConditions = false
-                    surfConditionsNotice = SurfConditionsNotice(style: .error, message: errorMessage(for: error))
-                }
+                guard !Task.isCancelled else { return }
+                isFetchingConditions = false
+                surfConditionsNotice = SurfConditionsNotice(style: .error, message: errorMessage(for: error))
             }
         }
     }
@@ -1277,34 +1260,32 @@ struct SessionEditorView: View {
                     failures += 1
                 }
             }
-            await MainActor.run {
-                selectedMediaItems = []
-                if failures > 0 {
-                    mediaAlertMessage = failures == 1
-                        ? "One media item could not be added."
-                        : "\(failures) media items could not be added."
-                    showMediaAlert = true
-                    dismissAfterMediaAlert = false
-                }
+            selectedMediaItems = []
+            if failures > 0 {
+                mediaAlertMessage = failures == 1
+                    ? "One media item could not be added."
+                    : "\(failures) media items could not be added."
+                showMediaAlert = true
+                dismissAfterMediaAlert = false
             }
         }
     }
 
     private func addMediaItem(_ item: PhotosPickerItem) async -> Bool {
         if let video = try? await item.loadTransferable(type: SessionVideoTransferable.self) {
-            let thumbnailData = SessionMediaStore.videoThumbnailData(from: video.url)
-            await MainActor.run {
-                draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
-            }
+            let thumbnailData = await SessionMediaStore.videoThumbnailData(from: video.url)
+            draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
             return true
         }
 
         if let data = try? await item.loadTransferable(type: Data.self) {
-            let photoData = SessionMediaStore.compressedPhotoData(from: data)
-            let thumbnailData = SessionMediaStore.thumbnailData(from: photoData)
-            await MainActor.run {
-                draft.mediaItems.append(.newPhoto(photoData: photoData, thumbnailData: thumbnailData))
-            }
+            // Downsample and re-encode off the main actor; large photos would
+            // otherwise freeze the editor while they are processed.
+            let processed = await Task.detached(priority: .userInitiated) { () -> (photo: Data, thumbnail: Data?) in
+                let photoData = SessionMediaStore.compressedPhotoData(from: data)
+                return (photoData, SessionMediaStore.thumbnailData(from: photoData))
+            }.value
+            draft.mediaItems.append(.newPhoto(photoData: processed.photo, thumbnailData: processed.thumbnail))
             return true
         }
 

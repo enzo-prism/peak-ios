@@ -6,11 +6,6 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
-    @Query(sort: \Spot.name) private var spots: [Spot]
-    @Query(sort: \Gear.name) private var gear: [Gear]
-    @Query(sort: \Buddy.name) private var buddies: [Buddy]
-
     @State private var showImporter = false
     @State private var importPayload: PeakExport?
     @State private var showImportOptions = false
@@ -170,12 +165,7 @@ struct SettingsView: View {
 
     private func exportJSON() {
         runWork("Exporting JSON...", errorTitle: "Export Failed") {
-            let export = PeakExportManager.makeExport(
-                sessions: sessions,
-                spots: spots,
-                gear: gear,
-                buddies: buddies
-            )
+            let export = try makeExportPayload()
             let url = try await Task.detached(priority: .userInitiated) {
                 try PeakExportManager.exportJSONFile(from: export)
             }.value
@@ -186,18 +176,26 @@ struct SettingsView: View {
 
     private func exportCSV() {
         runWork("Exporting CSV...", errorTitle: "Export Failed") {
-            let export = PeakExportManager.makeExport(
-                sessions: sessions,
-                spots: spots,
-                gear: gear,
-                buddies: buddies
-            )
+            let export = try makeExportPayload()
             let url = try await Task.detached(priority: .userInitiated) {
                 try PeakExportManager.exportCSVFile(from: export)
             }.value
             shareItems = [url]
             showShareSheet = true
         }
+    }
+
+    /// Fetches the data sets only when an export is requested, instead of
+    /// keeping standing queries alive for the lifetime of the settings screen.
+    private func makeExportPayload() throws -> PeakExport {
+        PeakExportManager.makeExport(
+            sessions: try modelContext.fetch(
+                SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies])
+            ),
+            spots: try modelContext.fetch(FetchDescriptor<Spot>(sortBy: [SortDescriptor(\.name)])),
+            gear: try modelContext.fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)])),
+            buddies: try modelContext.fetch(FetchDescriptor<Buddy>(sortBy: [SortDescriptor(\.name)]))
+        )
     }
 
     private func handleImport(_ result: Result<URL, Error>) {

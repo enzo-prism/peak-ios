@@ -12,6 +12,21 @@ enum SpotLimitError: LocalizedError {
     }
 }
 
+extension SurfSession {
+    /// Shared descriptor for date-descending session queries. Prefetching the
+    /// relationships a view actually reads avoids one SwiftData fault (SQLite
+    /// round trip) per row while scrolling or aggregating.
+    static func sortedByDateDescending(
+        limit: Int? = nil,
+        prefetch: [PartialKeyPath<SurfSession>] = []
+    ) -> FetchDescriptor<SurfSession> {
+        var descriptor = FetchDescriptor<SurfSession>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        descriptor.fetchLimit = limit
+        descriptor.relationshipKeyPathsForPrefetching = prefetch
+        return descriptor
+    }
+}
+
 extension ModelContext {
     func spotCount() throws -> Int {
         let descriptor = FetchDescriptor<Spot>()

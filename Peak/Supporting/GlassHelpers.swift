@@ -109,6 +109,21 @@ extension View {
             self
         #endif
     }
+
+    /// Lets the Liquid Glass tab bar recede while scrolling down on iOS 26;
+    /// no-op on earlier systems.
+    @ViewBuilder
+    func tabBarMinimizeOnScroll() -> some View {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                self.tabBarMinimizeBehavior(.onScrollDown)
+            } else {
+                self
+            }
+        #else
+            self
+        #endif
+    }
 }
 
 private struct GlassFallbackSurface<S: Shape>: View {

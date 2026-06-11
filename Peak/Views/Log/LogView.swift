@@ -2,7 +2,9 @@ import SwiftUI
 import SwiftData
 
 struct LogView: View {
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(SurfSession.sortedByDateDescending(limit: 3, prefetch: [\.spot, \.gear, \.buddies, \.media]))
+    private var sessions: [SurfSession]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showNewSession = false
     @State private var showContent = false
 
@@ -28,7 +30,7 @@ struct LogView: View {
                                         .font(.custom("Avenir Next", size: 17, relativeTo: .headline).weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
                                         .accessibilityIdentifier("log.recent.title")
-                                    ForEach(sessions.prefix(3)) { session in
+                                    ForEach(sessions) { session in
                                         NavigationLink {
                                             SessionDetailView(session: session)
                                         } label: {
@@ -43,9 +45,9 @@ struct LogView: View {
                         }
                     }
                     .padding(.vertical)
-                    .opacity(showContent ? 1 : 0)
-                    .offset(y: showContent ? 0 : 12)
-                    .animation(.easeOut(duration: 0.6), value: showContent)
+                    .opacity(showContent || reduceMotion ? 1 : 0)
+                    .offset(y: showContent || reduceMotion ? 0 : 12)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
                 }
             }
             .navigationTitle("Log")

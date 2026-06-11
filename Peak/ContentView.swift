@@ -9,6 +9,8 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
+    @Bindable private var quickLog = QuickLogCoordinator.shared
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -42,10 +44,12 @@ struct ContentView: View {
                     }
             }
             .tint(Theme.textPrimary)
-            .toolbarBackground(.hidden, for: .tabBar)
-            .toolbarBackground(Color.clear, for: .tabBar)
             .toolbarColorScheme(.dark, for: .tabBar)
+            .tabBarMinimizeOnScroll()
             .font(.custom("Avenir Next", size: 16, relativeTo: .body))
+        }
+        .sheet(isPresented: $quickLog.showNewSession) {
+            SessionEditorView(mode: .new)
         }
     }
 }

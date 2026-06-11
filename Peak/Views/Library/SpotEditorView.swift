@@ -98,7 +98,6 @@ struct SpotEditorView: View {
                     .padding()
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .keyboardSafeAreaInset()
             }
             .navigationTitle(mode.title)
             .toolbar {
