@@ -323,13 +323,14 @@ struct SessionDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(session.media.sorted(by: { $0.createdAt < $1.createdAt }), id: \.persistentModelID) { media in
+                ForEach(session.media.sorted(by: { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }), id: \.persistentModelID) { media in
                     Button {
                         selectedMedia = media
                     } label: {
                         SessionMediaThumbnailView(
                             imageData: media.thumbnailData ?? media.photoData,
-                            isVideo: media.kind == .video
+                            isVideo: media.kind == .video,
+                            crop: media.cropRect
                         )
                         .frame(height: 110)
                         .frame(maxWidth: .infinity)

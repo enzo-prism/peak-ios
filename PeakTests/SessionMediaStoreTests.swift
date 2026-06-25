@@ -1,4 +1,5 @@
 import AVFoundation
+import UIKit
 import XCTest
 
 @testable import Peak
@@ -6,6 +7,35 @@ import XCTest
 final class SessionMediaStoreTests: XCTestCase {
     override func tearDownWithError() throws {
         SessionMediaStore.deleteAllStoredMedia()
+    }
+
+    func testCroppedFullFrameReturnsSameImage() {
+        let image = Self.solidImage(width: 100, height: 60)
+        let result = image.cropped(toNormalized: CGRect(x: 0, y: 0, width: 1, height: 1))
+        XCTAssertEqual(result.cgImage?.width, image.cgImage?.width)
+        XCTAssertEqual(result.cgImage?.height, image.cgImage?.height)
+    }
+
+    func testCroppedHalfRectReturnsHalfPixels() {
+        let image = Self.solidImage(width: 100, height: 80)
+        let result = image.cropped(toNormalized: CGRect(x: 0, y: 0, width: 0.5, height: 0.5))
+        XCTAssertEqual(result.cgImage?.width, 50)
+        XCTAssertEqual(result.cgImage?.height, 40)
+    }
+
+    func testCroppedDegenerateRectReturnsSelf() {
+        let image = Self.solidImage(width: 40, height: 40)
+        let result = image.cropped(toNormalized: CGRect(x: 0, y: 0, width: 0, height: 0))
+        XCTAssertEqual(result.cgImage?.width, image.cgImage?.width)
+    }
+
+    private static func solidImage(width: CGFloat, height: CGFloat) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        }
     }
 
     func testStoreVideoPersistsFileAndThumbnail() throws {

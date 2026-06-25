@@ -70,12 +70,13 @@ final class PeakUISmokeTests: XCTestCase {
 
         selectSpot(key: "trestles", fallbackText: "Trestles")
 
-        let duration = app.sliders["session.editor.duration"]
-        assertExists(duration)
-        duration.adjust(toNormalizedSliderPosition: 0.5)
-
         let scrollView = app.scrollViews["session.editor.scroll"]
         showOptionalFields(in: scrollView)
+
+        let duration = app.sliders["session.editor.duration"]
+        assertExists(duration)
+        scrollToVisible(duration, in: scrollView)
+        duration.adjust(toNormalizedSliderPosition: 0.5)
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
@@ -117,12 +118,13 @@ final class PeakUISmokeTests: XCTestCase {
 
         selectSpot(key: "trestles", fallbackText: "Trestles")
 
-        let duration = app.sliders["session.editor.duration"]
-        assertExists(duration)
-        duration.adjust(toNormalizedSliderPosition: 0.5)
-
         let scrollView = app.scrollViews["session.editor.scroll"]
         showOptionalFields(in: scrollView)
+
+        let duration = app.sliders["session.editor.duration"]
+        assertExists(duration)
+        scrollToVisible(duration, in: scrollView)
+        duration.adjust(toNormalizedSliderPosition: 0.5)
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
@@ -143,12 +145,13 @@ final class PeakUISmokeTests: XCTestCase {
 
         selectSpot(key: "trestles", fallbackText: "Trestles")
 
-        let duration = app.sliders["session.editor.duration"]
-        assertExists(duration)
-        duration.adjust(toNormalizedSliderPosition: 0.5)
-
         let scrollView = app.scrollViews["session.editor.scroll"]
         showOptionalFields(in: scrollView)
+
+        let duration = app.sliders["session.editor.duration"]
+        assertExists(duration)
+        scrollToVisible(duration, in: scrollView)
+        duration.adjust(toNormalizedSliderPosition: 0.5)
 
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
@@ -269,10 +272,13 @@ private extension PeakUISmokeTests {
             return
         }
 
+        // The streamlined editor force-expands optional sections under UI tests, so the toggle may
+        // not exist; only tap it when present (older editor layout).
         let showButton = app.buttons["Show optional fields"]
-        scrollToVisible(showButton, in: scrollView)
-        assertExists(showButton, file: file, line: line)
-        showButton.tap()
+        if showButton.waitForExistence(timeout: 1) {
+            scrollToVisible(showButton, in: scrollView)
+            showButton.tap()
+        }
     }
 
     func saveSession(file: StaticString = #filePath, line: UInt = #line) {

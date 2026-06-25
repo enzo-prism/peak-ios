@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import SwiftData
 
@@ -55,7 +56,9 @@ struct SessionDraft {
         conditionsLatitude = session.conditionsLatitude
         conditionsLongitude = session.conditionsLongitude
         notes = session.notes
-        mediaItems = session.media.sorted { $0.createdAt < $1.createdAt }.map { SessionMediaDraftItem(existing: $0) }
+        mediaItems = session.media
+            .sorted { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }
+            .map { SessionMediaDraftItem(existing: $0) }
     }
 
     var isReadyToSave: Bool {
@@ -85,6 +88,11 @@ struct SessionDraft {
 
     mutating func removeMediaItem(_ item: SessionMediaDraftItem) {
         mediaItems.removeAll { $0.id == item.id }
+    }
+
+    mutating func setCrop(_ rect: CGRect, for id: UUID) {
+        guard let index = mediaItems.firstIndex(where: { $0.id == id }) else { return }
+        mediaItems[index].cropRect = rect
     }
 
     var hasSurfConditions: Bool {
@@ -135,13 +143,16 @@ struct SessionMediaDraftItem: Identifiable {
     let kind: SessionMediaKind
     let createdAt: Date
     let source: Source
+    /// Staged normalized preview crop; committed to SessionMedia on Save.
+    var cropRect: CGRect
 
     init(existing media: SessionMedia) {
         self.init(
             id: UUID(),
             kind: media.kind,
             createdAt: media.createdAt,
-            source: .existing(media)
+            source: .existing(media),
+            cropRect: media.cropRect
         )
     }
 
@@ -150,7 +161,8 @@ struct SessionMediaDraftItem: Identifiable {
             id: UUID(),
             kind: .photo,
             createdAt: Date(),
-            source: .newPhoto(photoData: photoData, thumbnailData: thumbnailData)
+            source: .newPhoto(photoData: photoData, thumbnailData: thumbnailData),
+            cropRect: CGRect(x: 0, y: 0, width: 1, height: 1)
         )
     }
 
@@ -159,15 +171,17 @@ struct SessionMediaDraftItem: Identifiable {
             id: UUID(),
             kind: .video,
             createdAt: Date(),
-            source: .newVideo(temporaryURL: temporaryURL, thumbnailData: thumbnailData)
+            source: .newVideo(temporaryURL: temporaryURL, thumbnailData: thumbnailData),
+            cropRect: CGRect(x: 0, y: 0, width: 1, height: 1)
         )
     }
 
-    private init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source) {
+    private init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source, cropRect: CGRect) {
         self.id = id
         self.kind = kind
         self.createdAt = createdAt
         self.source = source
+        self.cropRect = cropRect
     }
 
     var existingMedia: SessionMedia? {

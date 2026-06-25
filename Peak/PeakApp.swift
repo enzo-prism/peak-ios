@@ -15,7 +15,7 @@ struct PeakApp: App {
 
     init() {
         let isUITest = TestingDefaults.isUITest
-        let schema = Schema(versionedSchema: PeakSchemaV7.self)
+        let schema = Schema(versionedSchema: PeakSchemaV8.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: isUITest)
         do {
             container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])

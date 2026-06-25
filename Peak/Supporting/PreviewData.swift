@@ -93,11 +93,13 @@ enum PreviewData {
         session2.conditionsFetchedAt = baseDate
 
         if let photoMedia = makeSamplePhotoMedia(createdAt: session2.date) {
+            photoMedia.sortIndex = 0
             context.insert(photoMedia)
             session2.media.append(photoMedia)
         }
 
         if let videoMedia = makeSampleVideoMedia(createdAt: session2.date) {
+            videoMedia.sortIndex = 1
             context.insert(videoMedia)
             session2.media.append(videoMedia)
         }

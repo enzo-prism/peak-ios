@@ -1,8 +1,36 @@
+import CoreGraphics
 import XCTest
 
 @testable import Peak
 
 final class SessionDraftTests: XCTestCase {
+    func testNewMediaDraftItemDefaultsToFullFrameCrop() {
+        let item = SessionMediaDraftItem.newPhoto(photoData: Data([0x01]), thumbnailData: nil)
+        XCTAssertEqual(item.cropRect, CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    func testSetCropUpdatesStagedRect() {
+        var draft = SessionDraft()
+        let item = SessionMediaDraftItem.newPhoto(photoData: Data([0x01]), thumbnailData: nil)
+        draft.mediaItems = [item]
+
+        let rect = CGRect(x: 0.1, y: 0.2, width: 0.5, height: 0.5)
+        draft.setCrop(rect, for: item.id)
+
+        XCTAssertEqual(draft.mediaItems.first?.cropRect, rect)
+    }
+
+    func testReorderingMediaItemsPreservesNewOrder() {
+        var draft = SessionDraft()
+        let a = SessionMediaDraftItem.newPhoto(photoData: Data([0x0A]), thumbnailData: nil)
+        let b = SessionMediaDraftItem.newPhoto(photoData: Data([0x0B]), thumbnailData: nil)
+        draft.mediaItems = [a, b]
+
+        draft.mediaItems.move(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+
+        XCTAssertEqual(draft.mediaItems.map(\.id), [b.id, a.id])
+    }
+
     func testSelectSpotUpdatesNameAndSelection() {
         var draft = SessionDraft()
         let spot = TestFixture.spot(name: "Ocean Beach")

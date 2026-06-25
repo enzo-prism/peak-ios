@@ -34,7 +34,7 @@ struct LogView: View {
                                         NavigationLink {
                                             SessionDetailView(session: session)
                                         } label: {
-                                            SessionRowView(session: session)
+                                            SessionRowView(session: session, showsMediaPreviews: true)
                                                 .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                                         }
                                         .buttonStyle(PressFeedbackButtonStyle())

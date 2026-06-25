@@ -798,8 +798,220 @@ enum PeakSchemaV6: VersionedSchema {
     }
 }
 
+// PeakSchemaV7 (1.6.0) is now frozen: it holds inline snapshots of the model shapes exactly as
+// they shipped at 1.6.0, so the V7 -> V8 migration diff is computed against the real old shape.
+// PeakSchemaV8 (the new HEAD) references the live models, which carry the new media fields.
 enum PeakSchemaV7: VersionedSchema {
     static var versionIdentifier: Schema.Version = Schema.Version(1, 6, 0)
+    static var models: [any PersistentModel.Type] {
+        [SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self]
+    }
+
+    @Model
+    final class Spot {
+        @Attribute(.unique) var key: String
+        var name: String
+        var locationName: String?
+        var latitude: Double?
+        var longitude: Double?
+        var createdAt: Date
+
+        init(
+            name: String,
+            locationName: String? = nil,
+            latitude: Double? = nil,
+            longitude: Double? = nil,
+            createdAt: Date = Date()
+        ) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.key = Spot.makeKey(from: cleaned)
+            self.locationName = locationName?.trimmedNonEmpty
+            self.latitude = latitude
+            self.longitude = longitude
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(from name: String) -> String {
+            name.normalizedKey
+        }
+    }
+
+    @Model
+    final class Gear {
+        @Attribute(.unique) var key: String
+        var name: String
+        var kind: GearKind
+        var brand: String?
+        var model: String?
+        var size: String?
+        var volumeLiters: Double?
+        var notes: String?
+        @Attribute(.externalStorage) var photoData: Data?
+        var isArchived: Bool = false
+        var createdAt: Date
+
+        init(
+            name: String,
+            kind: GearKind,
+            brand: String? = nil,
+            model: String? = nil,
+            size: String? = nil,
+            volumeLiters: Double? = nil,
+            notes: String? = nil,
+            photoData: Data? = nil,
+            isArchived: Bool = false,
+            createdAt: Date = Date()
+        ) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.kind = kind
+            self.key = Gear.makeKey(name: cleaned, kind: kind)
+            self.brand = brand?.trimmedNonEmpty
+            self.model = model?.trimmedNonEmpty
+            self.size = size?.trimmedNonEmpty
+            self.volumeLiters = volumeLiters
+            self.notes = notes?.trimmedNonEmpty
+            self.photoData = photoData
+            self.isArchived = isArchived
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(name: String, kind: GearKind) -> String {
+            "\(kind.rawValue)|\(name.normalizedKey)"
+        }
+    }
+
+    @Model
+    final class Buddy {
+        @Attribute(.unique) var key: String
+        var name: String
+        var createdAt: Date
+
+        init(name: String, createdAt: Date = Date()) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.key = Buddy.makeKey(from: cleaned)
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(from name: String) -> String {
+            name.normalizedKey
+        }
+    }
+
+    @Model
+    final class SessionMedia {
+        var kind: SessionMediaKind
+        @Attribute(.externalStorage) var photoData: Data?
+        @Attribute(.externalStorage) var thumbnailData: Data?
+        var videoFileName: String?
+        var createdAt: Date
+
+        init(
+            kind: SessionMediaKind,
+            photoData: Data? = nil,
+            thumbnailData: Data? = nil,
+            videoFileName: String? = nil,
+            createdAt: Date = Date()
+        ) {
+            self.kind = kind
+            self.photoData = photoData
+            self.thumbnailData = thumbnailData
+            self.videoFileName = videoFileName
+            self.createdAt = createdAt
+        }
+    }
+
+    @Model
+    final class SurfSession {
+        var date: Date
+        var spot: Spot?
+        var notes: String
+        var rating: Int
+        var durationMinutes: Int?
+        var windCondition: WindCondition?
+        var waveHeight: WaveHeight?
+        var windSpeedKph: Double?
+        var windDirectionDegrees: Double?
+        var waveHeightMeters: Double?
+        var swellWaveHeightMeters: Double?
+        var swellWavePeriodSeconds: Double?
+        var swellWaveDirectionDegrees: Double?
+        var windWaveHeightMeters: Double?
+        var windWavePeriodSeconds: Double?
+        var windWaveDirectionDegrees: Double?
+        var seaSurfaceTemperatureC: Double?
+        var conditionsSource: String?
+        var conditionsFetchedAt: Date?
+        var conditionsLatitude: Double?
+        var conditionsLongitude: Double?
+        var createdAt: Date
+        var updatedAt: Date
+        @Relationship(deleteRule: .nullify) var gear: [Gear]
+        @Relationship(deleteRule: .nullify) var buddies: [Buddy]
+        @Relationship(deleteRule: .cascade) var media: [SessionMedia]
+
+        init(
+            date: Date,
+            spot: Spot?,
+            gear: [Gear] = [],
+            buddies: [Buddy] = [],
+            media: [SessionMedia] = [],
+            rating: Int = 0,
+            durationMinutes: Int? = nil,
+            windCondition: WindCondition? = nil,
+            waveHeight: WaveHeight? = nil,
+            windSpeedKph: Double? = nil,
+            windDirectionDegrees: Double? = nil,
+            waveHeightMeters: Double? = nil,
+            swellWaveHeightMeters: Double? = nil,
+            swellWavePeriodSeconds: Double? = nil,
+            swellWaveDirectionDegrees: Double? = nil,
+            windWaveHeightMeters: Double? = nil,
+            windWavePeriodSeconds: Double? = nil,
+            windWaveDirectionDegrees: Double? = nil,
+            seaSurfaceTemperatureC: Double? = nil,
+            conditionsSource: String? = nil,
+            conditionsFetchedAt: Date? = nil,
+            conditionsLatitude: Double? = nil,
+            conditionsLongitude: Double? = nil,
+            notes: String = "",
+            createdAt: Date = Date(),
+            updatedAt: Date = Date()
+        ) {
+            self.date = date
+            self.spot = spot
+            self.gear = gear
+            self.buddies = buddies
+            self.media = media
+            self.rating = rating
+            self.durationMinutes = durationMinutes
+            self.windCondition = windCondition
+            self.waveHeight = waveHeight
+            self.windSpeedKph = windSpeedKph
+            self.windDirectionDegrees = windDirectionDegrees
+            self.waveHeightMeters = waveHeightMeters
+            self.swellWaveHeightMeters = swellWaveHeightMeters
+            self.swellWavePeriodSeconds = swellWavePeriodSeconds
+            self.swellWaveDirectionDegrees = swellWaveDirectionDegrees
+            self.windWaveHeightMeters = windWaveHeightMeters
+            self.windWavePeriodSeconds = windWavePeriodSeconds
+            self.windWaveDirectionDegrees = windWaveDirectionDegrees
+            self.seaSurfaceTemperatureC = seaSurfaceTemperatureC
+            self.conditionsSource = conditionsSource
+            self.conditionsFetchedAt = conditionsFetchedAt
+            self.conditionsLatitude = conditionsLatitude
+            self.conditionsLongitude = conditionsLongitude
+            self.notes = notes
+            self.createdAt = createdAt
+            self.updatedAt = updatedAt
+        }
+    }
+}
+
+enum PeakSchemaV8: VersionedSchema {
+    static var versionIdentifier: Schema.Version = Schema.Version(1, 7, 0)
     static var models: [any PersistentModel.Type] {
         [SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self]
     }
@@ -814,7 +1026,8 @@ enum PeakMigrationPlan: SchemaMigrationPlan {
             PeakSchemaV4.self,
             PeakSchemaV5.self,
             PeakSchemaV6.self,
-            PeakSchemaV7.self
+            PeakSchemaV7.self,
+            PeakSchemaV8.self
         ]
     }
 
@@ -825,7 +1038,8 @@ enum PeakMigrationPlan: SchemaMigrationPlan {
             MigrationStage.lightweight(fromVersion: PeakSchemaV3.self, toVersion: PeakSchemaV4.self),
             MigrationStage.lightweight(fromVersion: PeakSchemaV4.self, toVersion: PeakSchemaV5.self),
             MigrationStage.lightweight(fromVersion: PeakSchemaV5.self, toVersion: PeakSchemaV6.self),
-            MigrationStage.lightweight(fromVersion: PeakSchemaV6.self, toVersion: PeakSchemaV7.self)
+            MigrationStage.lightweight(fromVersion: PeakSchemaV6.self, toVersion: PeakSchemaV7.self),
+            MigrationStage.lightweight(fromVersion: PeakSchemaV7.self, toVersion: PeakSchemaV8.self)
         ]
     }
 }

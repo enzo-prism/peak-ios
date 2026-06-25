@@ -898,9 +898,11 @@ private extension PeakUILayoutTests {
             return
         }
 
+        // The streamlined editor force-expands optional sections under UI tests, so the toggle may
+        // not exist; only tap it when present (older editor layout).
         let showButton = app.buttons["Show optional fields"]
+        guard showButton.waitForExistence(timeout: 1) else { return }
         scrollToVisible(showButton, in: scrollView)
-        assertExists(showButton, file: file, line: line)
         tapElement(showButton)
 
         let hideButton = app.buttons["Hide optional fields"]
