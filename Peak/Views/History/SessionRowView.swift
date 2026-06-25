@@ -26,38 +26,18 @@ struct SessionRowView: View {
             }
 
             GlassContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    if !session.gear.isEmpty {
-                        Label("\(session.gear.count)", systemImage: "surfboard")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
-                            .glassUnion(id: "chips", namespace: chipNamespace)
+                // Wrap chips to a second line instead of clipping the trailing edge at large
+                // Dynamic Type or when several chips (incl. wave height) are present.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        sessionChips
                     }
-                    if !session.buddies.isEmpty {
-                        Label("\(session.buddies.count)", systemImage: "person.2")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
-                            .glassUnion(id: "chips", namespace: chipNamespace)
-                    }
-                    if !session.media.isEmpty && !showsMediaPreviews {
-                        Label("\(session.media.count)", systemImage: "photo.on.rectangle")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
-                            .glassUnion(id: "chips", namespace: chipNamespace)
-                    }
-                    if !session.notes.isEmpty {
-                        Label("Notes", systemImage: "note.text")
-                            .font(.caption.weight(.semibold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
-                            .glassUnion(id: "chips", namespace: chipNamespace)
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 88), spacing: 8, alignment: .leading)],
+                        alignment: .leading,
+                        spacing: 8
+                    ) {
+                        sessionChips
                     }
                 }
             }
@@ -72,6 +52,59 @@ struct SessionRowView: View {
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("history.row")
+    }
+
+    /// Short wave-height value for the card chip: prefers the precise measured value, falls back to
+    /// the qualitative category, hidden when neither is set.
+    private var waveHeightChipText: String? {
+        if let meters = session.waveHeightMeters {
+            return SurfConditionsFormatter.meters(meters)
+        }
+        return session.waveHeight?.label
+    }
+
+    @ViewBuilder
+    private var sessionChips: some View {
+        if let wave = waveHeightChipText {
+            HStack(spacing: 4) {
+                Image(systemName: "water.waves")
+                    .foregroundStyle(Theme.surfGreen)
+                Text(wave)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+            .glassUnion(id: "chips", namespace: chipNamespace)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Wave height \(wave)")
+            .accessibilityIdentifier("history.row.waveHeight")
+        }
+        if !session.gear.isEmpty {
+            chip(Label("\(session.gear.count)", systemImage: "surfboard"))
+        }
+        if !session.buddies.isEmpty {
+            chip(Label("\(session.buddies.count)", systemImage: "person.2"))
+        }
+        if !session.media.isEmpty && !showsMediaPreviews {
+            chip(Label("\(session.media.count)", systemImage: "photo.on.rectangle"))
+        }
+        if !session.notes.isEmpty {
+            chip(Label("Notes", systemImage: "note.text"))
+        }
+    }
+
+    private func chip<Content: View>(_ content: Content) -> some View {
+        content
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+            .glassUnion(id: "chips", namespace: chipNamespace)
     }
 
     private var mediaPreviewStrip: some View {
@@ -108,7 +141,7 @@ private struct RatingStarsView: View {
             ForEach(1...5, id: \.self) { value in
                 Image(systemName: value <= rating ? "star.fill" : "star")
                     .font(.caption2)
-                    .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.4))
+                    .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.5))
             }
         }
         .accessibilityElement(children: .ignore)

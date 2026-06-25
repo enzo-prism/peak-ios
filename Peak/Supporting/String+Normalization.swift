@@ -10,4 +10,10 @@ extension String {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
+
+    /// Case- and diacritic-insensitive form for matching user-typed queries against catalog text
+    /// (so "sao", "São" and "SÃO" all match).
+    var searchFolded: String {
+        folding(options: [.diacriticInsensitive, .caseInsensitive, .widthInsensitive], locale: .current)
+    }
 }

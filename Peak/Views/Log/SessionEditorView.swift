@@ -343,6 +343,7 @@ struct SessionEditorView: View {
                                 ) {
                                     draft.selectSpot(spot)
                                 }
+                                .frame(maxWidth: 220, alignment: .leading)
                                 .accessibilityIdentifier("session.editor.spotSuggestion.\(spot.key)")
                             }
                         }
@@ -648,7 +649,7 @@ struct SessionEditorView: View {
                 Button("Add") {
                     addBuddy()
                 }
-                .glassButtonStyle(prominent: true)
+                .glassButtonStyle(prominent: false)
                 .disabled(newBuddyName.trimmedNonEmpty == nil)
                 .accessibilityIdentifier("session.editor.buddy.add")
             }
@@ -691,9 +692,9 @@ struct SessionEditorView: View {
                                 .overlay(alignment: .bottomLeading) {
                                     Image(systemName: "crop")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Theme.textPrimary)
+                                        .foregroundStyle(Theme.foam)
                                         .padding(6)
-                                        .background(Color.black.opacity(0.4), in: Circle())
+                                        .background(Color.black.opacity(0.5), in: Circle())
                                         .padding(6)
                                 }
                             }
@@ -704,9 +705,11 @@ struct SessionEditorView: View {
                             Button {
                                 removeMediaItem(item)
                             } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(Theme.textPrimary)
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(Theme.foam)
+                                    .padding(6)
+                                    .background(Color.black.opacity(0.5), in: Circle())
                                     .padding(6)
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
@@ -1023,11 +1026,8 @@ struct SessionEditorView: View {
     }
 
     private func spotChipLabel(_ spot: Spot) -> String {
+        // Keep it short (name + count); recency is already conveyed by the recents-first sort order.
         let count = spotSnapshots[spot.key]?.count ?? 0
-        let lastUsed = spotSnapshots[spot.key]?.lastUsed
-        if let lastUsed {
-            return "\(spot.name) • \(count)x • \(lastUsed.formatted(.dateTime.month(.abbreviated).day()))"
-        }
         return "\(spot.name) • \(count)x"
     }
 

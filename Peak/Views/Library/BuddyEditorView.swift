@@ -63,6 +63,7 @@ struct BuddyEditorView: View {
                 }
             }
         }
+        .tint(Theme.textPrimary)
         .alert("Cannot Save", isPresented: $showAlert) {
             Button("OK", role: .cancel) {}
         } message: {

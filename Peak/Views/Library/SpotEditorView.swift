@@ -34,6 +34,9 @@ struct SpotEditorView: View {
     @State private var cameraPosition: MapCameraPosition
     @State private var alertMessage = ""
     @State private var showAlert = false
+    @State private var suggestions: [SurfBreak] = []
+    @State private var appliedName: String?
+    @FocusState private var nameFieldFocused: Bool
 
     init(mode: SpotEditorMode, suggestedName: String? = nil, onSave: ((Spot) -> Void)? = nil) {
         self.mode = mode
@@ -63,10 +66,20 @@ struct SpotEditorView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         TextField("Spot name", text: $name)
                             .textFieldStyle(.plain)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
                             .foregroundStyle(Theme.textPrimary)
                             .padding(12)
                             .glassInput()
+                            .focused($nameFieldFocused)
                             .accessibilityIdentifier("spot.editor.name")
+                            .onChange(of: name) { _, newValue in
+                                updateSuggestions(for: newValue)
+                            }
+
+                        if nameFieldFocused && !suggestions.isEmpty {
+                            suggestionList
+                        }
 
                         TextField("Location (city or region)", text: $locationName)
                             .textFieldStyle(.plain)
@@ -110,11 +123,77 @@ struct SpotEditorView: View {
                 }
             }
         }
+        .tint(Theme.textPrimary)
         .alert("Cannot Save", isPresented: $showAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage)
         }
+    }
+
+    private var suggestionList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, item in
+                Button {
+                    apply(item)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "mappin")
+                            .foregroundStyle(Theme.textMuted)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                                .lineLimit(1)
+                            Text(item.locationLabel)
+                                .font(.caption)
+                                .foregroundStyle(Theme.textMuted)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.left")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textMuted)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressFeedbackButtonStyle())
+                .accessibilityIdentifier("spot.editor.suggestion.\(item.id)")
+
+                if index < suggestions.count - 1 {
+                    Divider().overlay(Theme.glassStroke)
+                }
+            }
+        }
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityIdentifier("spot.editor.suggestions")
+    }
+
+    private func updateSuggestions(for query: String) {
+        // The name onChange fires after apply() sets the name; don't re-surface the spot we just
+        // filled (it isn't saved yet, so it wouldn't be excluded by key).
+        if query == appliedName {
+            appliedName = nil
+            suggestions = []
+            return
+        }
+        let existingKeys = Set(spots.map { $0.key })
+        suggestions = SurfBreakCatalog.shared.search(query, excludingKeys: existingKeys)
+    }
+
+    /// Fill the form from a tapped popular break: name + location + pin + recenter the map.
+    private func apply(_ surfBreak: SurfBreak) {
+        appliedName = surfBreak.name
+        name = surfBreak.name
+        locationName = surfBreak.locationLabel
+        let coordinate = surfBreak.coordinate
+        selectedCoordinate = coordinate
+        cameraPosition = Self.cameraPosition(for: coordinate)
+        suggestions = []
+        nameFieldFocused = false
     }
 
     private func save() {

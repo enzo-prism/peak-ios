@@ -70,6 +70,7 @@ struct SessionDetailView: View {
                             showDeleteConfirm = true
                         } label: {
                             Label("Delete Session", systemImage: "trash")
+                                .foregroundStyle(Theme.destructive)
                                 .frame(maxWidth: .infinity)
                         }
                         .glassButtonStyle(prominent: false)
@@ -138,7 +139,12 @@ struct SessionDetailView: View {
                 Text(session.spot?.name ?? "Unknown spot")
                     .font(.largeTitle.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            heroWaveHeightView
 
             heroTags
 
@@ -157,6 +163,52 @@ struct SessionDetailView: View {
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
+    /// Wave height resolved for the glanceable hero block: (primary, optional secondary).
+    /// Category + measured -> "Shoulder high" / "3.9 ft"; category only -> just the label;
+    /// measured only -> the measurement as primary; neither -> nil (block hidden).
+    private var heroWaveHeight: (primary: String, secondary: String?)? {
+        let category = session.waveHeight?.label
+        let precise = session.waveHeightMeters.map { SurfConditionsFormatter.meters($0) }
+        switch (category, precise) {
+        case let (cat?, m?): return (cat, m)
+        case let (cat?, nil): return (cat, nil)
+        case let (nil, m?): return (m, nil)
+        default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private var heroWaveHeightView: some View {
+        if let wave = heroWaveHeight {
+            HStack(spacing: 10) {
+                Image(systemName: "water.waves")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Theme.surfGreen)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(wave.primary)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    if let secondary = wave.secondary {
+                        Text(secondary)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassTint, isInteractive: false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Wave height: \(wave.primary)" + (wave.secondary.map { ", \($0)" } ?? ""))
+            .accessibilityIdentifier("session.detail.heroWaveHeight")
+        }
+    }
+
     @ViewBuilder
     private func heroTag(
         _ text: String,
@@ -170,7 +222,7 @@ struct SessionDetailView: View {
             }
             Text(text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.9)
+                .minimumScaleFactor(0.8)
         }
         .font(.caption)
         .foregroundStyle(Theme.textPrimary)
@@ -217,7 +269,7 @@ struct SessionDetailView: View {
     private var heroTagColumns: [GridItem] {
         [
             GridItem(
-                .adaptive(minimum: 118),
+                .adaptive(minimum: 104),
                 spacing: 10,
                 alignment: .leading
             )

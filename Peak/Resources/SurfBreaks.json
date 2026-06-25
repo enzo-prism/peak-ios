@@ -1,0 +1,1801 @@
+[
+{
+"name": "Aileen's",
+"region": "Cliffs of Moher, County Clare",
+"country": "Ireland",
+"latitude": 52.9716,
+"longitude": -9.428
+},
+{
+"name": "Ala Moana Bowls",
+"region": "Honolulu, Oahu",
+"country": "USA",
+"latitude": 21.2852,
+"longitude": -157.847
+},
+{
+"name": "Anchor Point",
+"region": "Taghazout, Morocco",
+"country": "Morocco",
+"latitude": 30.545,
+"longitude": -9.7258
+},
+{
+"name": "Angourie",
+"region": "Yamba, New South Wales",
+"country": "Australia",
+"latitude": -29.4845,
+"longitude": 153.3635
+},
+{
+"name": "Aoshima Beach",
+"region": "Miyazaki, Kyushu",
+"country": "Japan",
+"latitude": 31.799,
+"longitude": 131.476
+},
+{
+"name": "Arugam Bay",
+"region": "Arugam Bay, Sri Lanka",
+"country": "Sri Lanka",
+"latitude": 6.84,
+"longitude": 81.834
+},
+{
+"name": "Backdoor",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6648,
+"longitude": -158.0525
+},
+{
+"name": "Balangan",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.7919,
+"longitude": 115.1248
+},
+{
+"name": "Balian",
+"region": "West Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.6098,
+"longitude": 115.0048
+},
+{
+"name": "Barra de la Cruz",
+"region": "Oaxaca, Mexico",
+"country": "Mexico",
+"latitude": 15.835,
+"longitude": -95.812
+},
+{
+"name": "Bells Beach",
+"region": "Torquay, Victoria",
+"country": "Australia",
+"latitude": -38.3668,
+"longitude": 144.2842
+},
+{
+"name": "Belmar",
+"region": "Belmar, New Jersey",
+"country": "United States",
+"latitude": 40.179,
+"longitude": -74.008
+},
+{
+"name": "Bingin",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.8061,
+"longitude": 115.1086
+},
+{
+"name": "Blacks Beach",
+"region": "La Jolla, California",
+"country": "USA",
+"latitude": 32.8889,
+"longitude": -117.253
+},
+{
+"name": "Bondi Beach",
+"region": "Sydney, New South Wales",
+"country": "Australia",
+"latitude": -33.8908,
+"longitude": 151.2743
+},
+{
+"name": "Bundoran (The Peak)",
+"region": "Bundoran, Donegal",
+"country": "Ireland",
+"latitude": 54.4799,
+"longitude": -8.2855
+},
+{
+"name": "Burleigh Heads",
+"region": "Gold Coast, Queensland",
+"country": "Australia",
+"latitude": -28.0925,
+"longitude": 153.4555
+},
+{
+"name": "Cabo Blanco",
+"region": "Cabo Blanco, Peru",
+"country": "Peru",
+"latitude": -4.2506,
+"longitude": -81.2333
+},
+{
+"name": "Cacimba do Padre",
+"region": "Fernando de Noronha, Brazil",
+"country": "Brazil",
+"latitude": -3.855,
+"longitude": -32.447
+},
+{
+"name": "Cactus Beach",
+"region": "Ceduna, South Australia",
+"country": "Australia",
+"latitude": -32.0886,
+"longitude": 132.9833
+},
+{
+"name": "Cannon Beach (Yakutat)",
+"region": "Yakutat, Alaska",
+"country": "United States",
+"latitude": 59.497,
+"longitude": -139.742
+},
+{
+"name": "Cape Hatteras",
+"region": "Outer Banks, North Carolina",
+"country": "United States",
+"latitude": 35.224,
+"longitude": -75.53
+},
+{
+"name": "Cape Hatteras Lighthouse",
+"region": "Buxton, North Carolina",
+"country": "United States",
+"latitude": 35.2503,
+"longitude": -75.5288
+},
+{
+"name": "Cape St Francis",
+"region": "Cape St Francis, Eastern Cape",
+"country": "South Africa",
+"latitude": -34.2105,
+"longitude": 24.8385
+},
+{
+"name": "Carcavelos",
+"region": "Lisbon, Portugal",
+"country": "Portugal",
+"latitude": 38.6805,
+"longitude": -9.337
+},
+{
+"name": "Chicama",
+"region": "Puerto Malabrigo, Peru",
+"country": "Peru",
+"latitude": -7.6965,
+"longitude": -79.448
+},
+{
+"name": "Chigasaki (Southern Beach)",
+"region": "Chigasaki, Kanagawa",
+"country": "Japan",
+"latitude": 35.317,
+"longitude": 139.406
+},
+{
+"name": "Chun's Reef",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6262,
+"longitude": -158.0958
+},
+{
+"name": "Cijin Beach",
+"region": "Kaohsiung, Taiwan",
+"country": "Taiwan",
+"latitude": 22.613,
+"longitude": 120.267
+},
+{
+"name": "Clifton Beach",
+"region": "Hobart, Tasmania",
+"country": "Australia",
+"latitude": -42.991,
+"longitude": 147.52
+},
+{
+"name": "Cloud 9",
+"region": "Siargao, Philippines",
+"country": "Philippines",
+"latitude": 9.8127,
+"longitude": 126.1665
+},
+{
+"name": "Cloudbreak",
+"region": "Tavarua, Fiji",
+"country": "Fiji",
+"latitude": -17.87,
+"longitude": 177.19
+},
+{
+"name": "Cocoa Beach",
+"region": "Cocoa Beach, Florida",
+"country": "United States",
+"latitude": 28.366,
+"longitude": -80.602
+},
+{
+"name": "Cocoa Beach Pier",
+"region": "Cocoa Beach, Florida",
+"country": "United States",
+"latitude": 28.3664,
+"longitude": -80.6034
+},
+{
+"name": "Cokes",
+"region": "Thulusdhoo, Maldives",
+"country": "Maldives",
+"latitude": 4.376,
+"longitude": 73.655
+},
+{
+"name": "Covelong Point",
+"region": "Kovalam, Tamil Nadu",
+"country": "India",
+"latitude": 12.7926,
+"longitude": 80.2515
+},
+{
+"name": "Cowell's",
+"region": "Santa Cruz, California",
+"country": "USA",
+"latitude": 36.9627,
+"longitude": -122.0228
+},
+{
+"name": "Coxos",
+"region": "Ericeira, Portugal",
+"country": "Portugal",
+"latitude": 39.0006,
+"longitude": -9.4269
+},
+{
+"name": "Crescent Head",
+"region": "Crescent Head, New South Wales",
+"country": "Australia",
+"latitude": -31.1905,
+"longitude": 152.9785
+},
+{
+"name": "Cronulla",
+"region": "Sydney, New South Wales",
+"country": "Australia",
+"latitude": -34.0575,
+"longitude": 151.1555
+},
+{
+"name": "Croyde",
+"region": "Croyde, Devon",
+"country": "United Kingdom",
+"latitude": 51.1303,
+"longitude": -4.243
+},
+{
+"name": "Currumbin Alley",
+"region": "Gold Coast, Queensland",
+"country": "Australia",
+"latitude": -28.1345,
+"longitude": 153.4875
+},
+{
+"name": "Desert Point",
+"region": "Lombok, Indonesia",
+"country": "Indonesia",
+"latitude": -8.7509,
+"longitude": 115.8227
+},
+{
+"name": "Diamond Head",
+"region": "Honolulu, Oahu",
+"country": "USA",
+"latitude": 21.2558,
+"longitude": -157.806
+},
+{
+"name": "Ditch Plains",
+"region": "Montauk, New York",
+"country": "United States",
+"latitude": 41.038,
+"longitude": -71.928
+},
+{
+"name": "Doheny",
+"region": "Dana Point, California",
+"country": "USA",
+"latitude": 33.4614,
+"longitude": -117.687
+},
+{
+"name": "Domes (Rincon)",
+"region": "Rincon, Puerto Rico",
+"country": "United States",
+"latitude": 18.362,
+"longitude": -67.27
+},
+{
+"name": "Dominical",
+"region": "Puntarenas, Costa Rica",
+"country": "Costa Rica",
+"latitude": 9.253,
+"longitude": -83.857
+},
+{
+"name": "Dreamland",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.7967,
+"longitude": 115.1145
+},
+{
+"name": "Dungeons",
+"region": "Hout Bay, Cape Town",
+"country": "South Africa",
+"latitude": -34.0755,
+"longitude": 18.3335
+},
+{
+"name": "Duranbah (D-Bah)",
+"region": "Tweed Heads, New South Wales",
+"country": "Australia",
+"latitude": -28.1665,
+"longitude": 153.552
+},
+{
+"name": "Eaglehawk Neck",
+"region": "Tasman Peninsula, Tasmania",
+"country": "Australia",
+"latitude": -43.018,
+"longitude": 147.922
+},
+{
+"name": "Easkey",
+"region": "Easkey, County Sligo",
+"country": "Ireland",
+"latitude": 54.289,
+"longitude": -8.964
+},
+{
+"name": "Echo Beach (Canggu)",
+"region": "Canggu, Bali",
+"country": "Indonesia",
+"latitude": -8.6516,
+"longitude": 115.1283
+},
+{
+"name": "El Confital",
+"region": "Las Palmas, Gran Canaria",
+"country": "Spain",
+"latitude": 28.164,
+"longitude": -15.4365
+},
+{
+"name": "El Cotillo",
+"region": "El Cotillo, Fuerteventura",
+"country": "Spain",
+"latitude": 28.681,
+"longitude": -14.014
+},
+{
+"name": "El Gringo",
+"region": "Arica, Chile",
+"country": "Chile",
+"latitude": -18.478,
+"longitude": -70.327
+},
+{
+"name": "El Quemao",
+"region": "La Santa, Lanzarote",
+"country": "Spain",
+"latitude": 29.1099,
+"longitude": -13.6666
+},
+{
+"name": "El Sunzal",
+"region": "La Libertad, El Salvador",
+"country": "El Salvador",
+"latitude": 13.494,
+"longitude": -89.381
+},
+{
+"name": "Elands Bay",
+"region": "Elands Bay, Western Cape",
+"country": "South Africa",
+"latitude": -32.3124,
+"longitude": 18.3331
+},
+{
+"name": "Enoshima",
+"region": "Enoshima, Kanagawa",
+"country": "Japan",
+"latitude": 35.305,
+"longitude": 139.483
+},
+{
+"name": "First Street Jetty",
+"region": "Virginia Beach, Virginia",
+"country": "United States",
+"latitude": 36.83,
+"longitude": -75.968
+},
+{
+"name": "Fistral Beach",
+"region": "Newquay, Cornwall",
+"country": "United Kingdom",
+"latitude": 50.4163,
+"longitude": -5.1016
+},
+{
+"name": "Frigates Passage",
+"region": "Beqa Lagoon, Fiji",
+"country": "Fiji",
+"latitude": -18.3,
+"longitude": 178.015
+},
+{
+"name": "G-Land (Plengkung)",
+"region": "East Java, Indonesia",
+"country": "Indonesia",
+"latitude": -8.73,
+"longitude": 114.352
+},
+{
+"name": "Galveston",
+"region": "Galveston, Texas",
+"country": "United States",
+"latitude": 29.285,
+"longitude": -94.795
+},
+{
+"name": "Grande Plage",
+"region": "Biarritz, France",
+"country": "France",
+"latitude": 43.4845,
+"longitude": -1.5585
+},
+{
+"name": "Guincho",
+"region": "Cascais, Portugal",
+"country": "Portugal",
+"latitude": 38.732,
+"longitude": -9.473
+},
+{
+"name": "Haleiwa",
+"region": "Haleiwa, Oahu",
+"country": "USA",
+"latitude": 21.5938,
+"longitude": -158.1078
+},
+{
+"name": "Hanalei Bay",
+"region": "Kauai, Hawaii",
+"country": "USA",
+"latitude": 22.2055,
+"longitude": -159.503
+},
+{
+"name": "Hikkaduwa",
+"region": "Hikkaduwa, Sri Lanka",
+"country": "Sri Lanka",
+"latitude": 6.1395,
+"longitude": 80.0998
+},
+{
+"name": "Hobuck Beach",
+"region": "Neah Bay, Washington",
+"country": "United States",
+"latitude": 48.355,
+"longitude": -124.685
+},
+{
+"name": "Honeymoon Bay (Daxi)",
+"region": "Yilan, Taiwan",
+"country": "Taiwan",
+"latitude": 24.933,
+"longitude": 121.886
+},
+{
+"name": "Honolua Bay",
+"region": "Maui, Hawaii",
+"country": "USA",
+"latitude": 21.0131,
+"longitude": -156.6383
+},
+{
+"name": "Hookipa",
+"region": "Paia, Maui",
+"country": "USA",
+"latitude": 20.934,
+"longitude": -156.3577
+},
+{
+"name": "HTs / Lance's Right",
+"region": "Mentawai, Indonesia",
+"country": "Indonesia",
+"latitude": -2.3756,
+"longitude": 99.8595
+},
+{
+"name": "Huanchaco",
+"region": "Huanchaco, Peru",
+"country": "Peru",
+"latitude": -8.078,
+"longitude": -79.118
+},
+{
+"name": "Huntington Beach Pier",
+"region": "Huntington Beach, California",
+"country": "USA",
+"latitude": 33.6536,
+"longitude": -118.0048
+},
+{
+"name": "Iho Tewoo Beach",
+"region": "Jeju, South Korea",
+"country": "South Korea",
+"latitude": 33.504,
+"longitude": 126.452
+},
+{
+"name": "Impossibles",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.8085,
+"longitude": 115.105
+},
+{
+"name": "Imsouane",
+"region": "Imsouane, Morocco",
+"country": "Morocco",
+"latitude": 30.8419,
+"longitude": -9.8205
+},
+{
+"name": "Indian Beach",
+"region": "Cannon Beach, Oregon",
+"country": "United States",
+"latitude": 45.9283,
+"longitude": -123.974
+},
+{
+"name": "Indicators",
+"region": "Raglan, Waikato",
+"country": "New Zealand",
+"latitude": -37.821,
+"longitude": 174.8033
+},
+{
+"name": "Itacare (Tiririca)",
+"region": "Itacare, Bahia, Brazil",
+"country": "Brazil",
+"latitude": -14.2867,
+"longitude": -38.9985
+},
+{
+"name": "Jacksonville Beach",
+"region": "Jacksonville Beach, Florida",
+"country": "United States",
+"latitude": 30.288,
+"longitude": -81.389
+},
+{
+"name": "Jardim do Mar",
+"region": "Jardim do Mar, Madeira",
+"country": "Portugal",
+"latitude": 32.7376,
+"longitude": -17.2111
+},
+{
+"name": "Jaws (Peahi)",
+"region": "Peahi, Maui",
+"country": "USA",
+"latitude": 20.943,
+"longitude": -156.302
+},
+{
+"name": "Jeffreys Bay",
+"region": "Jeffreys Bay, Eastern Cape",
+"country": "South Africa",
+"latitude": -34.0317,
+"longitude": 24.9316
+},
+{
+"name": "Jialeshui",
+"region": "Kenting, Taiwan",
+"country": "Taiwan",
+"latitude": 21.994,
+"longitude": 120.863
+},
+{
+"name": "Jinzun",
+"region": "Taitung, Taiwan",
+"country": "Taiwan",
+"latitude": 22.956,
+"longitude": 121.293
+},
+{
+"name": "Joaquina",
+"region": "Florianopolis, Brazil",
+"country": "Brazil",
+"latitude": -27.6296,
+"longitude": -48.4488
+},
+{
+"name": "Jukdo Beach",
+"region": "Yangyang, South Korea",
+"country": "South Korea",
+"latitude": 37.975,
+"longitude": 128.76
+},
+{
+"name": "Jungmun Saekdal Beach",
+"region": "Jeju, South Korea",
+"country": "South Korea",
+"latitude": 33.244,
+"longitude": 126.412
+},
+{
+"name": "Kamogawa (Maebara)",
+"region": "Kamogawa, Chiba",
+"country": "Japan",
+"latitude": 35.108,
+"longitude": 140.103
+},
+{
+"name": "Keramas",
+"region": "Gianyar, Bali",
+"country": "Indonesia",
+"latitude": -8.5965,
+"longitude": 115.3315
+},
+{
+"name": "Kirra",
+"region": "Gold Coast, Queensland",
+"country": "Australia",
+"latitude": -28.1665,
+"longitude": 153.5245
+},
+{
+"name": "Kisakihama",
+"region": "Miyazaki, Kyushu",
+"country": "Japan",
+"latitude": 31.834,
+"longitude": 131.457
+},
+{
+"name": "Kovalam",
+"region": "Kovalam, Kerala",
+"country": "India",
+"latitude": 8.3988,
+"longitude": 76.9783
+},
+{
+"name": "Kugenuma Beach",
+"region": "Shonan, Kanagawa",
+"country": "Japan",
+"latitude": 35.313,
+"longitude": 139.472
+},
+{
+"name": "La Côte des Basques",
+"region": "Biarritz, France",
+"country": "France",
+"latitude": 43.4775,
+"longitude": -1.5645
+},
+{
+"name": "La Gravière",
+"region": "Hossegor, France",
+"country": "France",
+"latitude": 43.6685,
+"longitude": -1.4435
+},
+{
+"name": "La Izquierda",
+"region": "Playa de las Américas, Tenerife",
+"country": "Spain",
+"latitude": 28.0556,
+"longitude": -16.73
+},
+{
+"name": "La Lancha",
+"region": "Punta de Mita, Nayarit",
+"country": "Mexico",
+"latitude": 20.762,
+"longitude": -105.494
+},
+{
+"name": "La Piste",
+"region": "Capbreton, France",
+"country": "France",
+"latitude": 43.652,
+"longitude": -1.448
+},
+{
+"name": "La Puntilla",
+"region": "Pichilemu, Chile",
+"country": "Chile",
+"latitude": -34.388,
+"longitude": -72.008
+},
+{
+"name": "La Push (First Beach)",
+"region": "La Push, Washington",
+"country": "United States",
+"latitude": 47.908,
+"longitude": -124.637
+},
+{
+"name": "La Saladita",
+"region": "Guerrero, Mexico",
+"country": "Mexico",
+"latitude": 17.842,
+"longitude": -101.768
+},
+{
+"name": "La Santa (The Right)",
+"region": "La Santa, Lanzarote",
+"country": "Spain",
+"latitude": 29.1185,
+"longitude": -13.6597
+},
+{
+"name": "Lacanau Océan",
+"region": "Lacanau, France",
+"country": "France",
+"latitude": 45.001,
+"longitude": -1.1975
+},
+{
+"name": "Lagundri Bay (The Point)",
+"region": "Nias, Indonesia",
+"country": "Indonesia",
+"latitude": 0.5783,
+"longitude": 97.746
+},
+{
+"name": "Lahinch",
+"region": "Lahinch, County Clare",
+"country": "Ireland",
+"latitude": 52.9337,
+"longitude": -9.349
+},
+{
+"name": "Lakey Peak",
+"region": "Hu'u, Sumbawa",
+"country": "Indonesia",
+"latitude": -8.8265,
+"longitude": 118.3805
+},
+{
+"name": "Laniakea",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6178,
+"longitude": -158.1008
+},
+{
+"name": "Las Flores",
+"region": "El Cuco, El Salvador",
+"country": "El Salvador",
+"latitude": 13.164,
+"longitude": -88.096
+},
+{
+"name": "Lennox Head",
+"region": "Lennox Head, New South Wales",
+"country": "Australia",
+"latitude": -28.7845,
+"longitude": 153.5965
+},
+{
+"name": "Les Bourdaines",
+"region": "Seignosse, France",
+"country": "France",
+"latitude": 43.703,
+"longitude": -1.428
+},
+{
+"name": "Les Cavaliers",
+"region": "Anglet, France",
+"country": "France",
+"latitude": 43.531,
+"longitude": -1.5285
+},
+{
+"name": "Llandudno",
+"region": "Llandudno, Cape Town",
+"country": "South Africa",
+"latitude": -34.0072,
+"longitude": 18.3414
+},
+{
+"name": "Llangennith",
+"region": "Gower, Wales",
+"country": "United Kingdom",
+"latitude": 51.5945,
+"longitude": -4.2925
+},
+{
+"name": "Lobitos",
+"region": "Lobitos, Peru",
+"country": "Peru",
+"latitude": -4.453,
+"longitude": -81.279
+},
+{
+"name": "Lobos",
+"region": "Isla de Lobos, Fuerteventura",
+"country": "Spain",
+"latitude": 28.744,
+"longitude": -13.8205
+},
+{
+"name": "Long Beach",
+"region": "Long Beach, New York",
+"country": "United States",
+"latitude": 40.583,
+"longitude": -73.658
+},
+{
+"name": "Lower Trestles",
+"region": "San Clemente, California",
+"country": "USA",
+"latitude": 33.385,
+"longitude": -117.591
+},
+{
+"name": "Lyall Bay",
+"region": "Wellington, New Zealand",
+"country": "New Zealand",
+"latitude": -41.329,
+"longitude": 174.7975
+},
+{
+"name": "Macaronis",
+"region": "Mentawai, Indonesia",
+"country": "Indonesia",
+"latitude": -2.7787,
+"longitude": 99.984
+},
+{
+"name": "Makaha",
+"region": "Waianae, Oahu",
+"country": "USA",
+"latitude": 21.4762,
+"longitude": -158.2205
+},
+{
+"name": "Malibu (Surfrider)",
+"region": "Malibu, California",
+"country": "USA",
+"latitude": 34.0367,
+"longitude": -118.6779
+},
+{
+"name": "Manasquan Inlet",
+"region": "Manasquan, New Jersey",
+"country": "United States",
+"latitude": 40.103,
+"longitude": -74.033
+},
+{
+"name": "Mancora",
+"region": "Mancora, Peru",
+"country": "Peru",
+"latitude": -4.1037,
+"longitude": -81.047
+},
+{
+"name": "Manly Beach",
+"region": "Sydney, New South Wales",
+"country": "Australia",
+"latitude": -33.7965,
+"longitude": 151.288
+},
+{
+"name": "Manu Bay",
+"region": "Raglan, Waikato",
+"country": "New Zealand",
+"latitude": -37.8253,
+"longitude": 174.8083
+},
+{
+"name": "Mar del Plata",
+"region": "Mar del Plata, Argentina",
+"country": "Argentina",
+"latitude": -38.027,
+"longitude": -57.529
+},
+{
+"name": "Maresias",
+"region": "Sao Sebastiao, Brazil",
+"country": "Brazil",
+"latitude": -23.79,
+"longitude": -45.57
+},
+{
+"name": "Margaret River (Surfers Point)",
+"region": "Margaret River, Western Australia",
+"country": "Australia",
+"latitude": -33.9745,
+"longitude": 114.992
+},
+{
+"name": "Maroubra",
+"region": "Sydney, New South Wales",
+"country": "Australia",
+"latitude": -33.95,
+"longitude": 151.2575
+},
+{
+"name": "Mavericks",
+"region": "Half Moon Bay, California",
+"country": "USA",
+"latitude": 37.4945,
+"longitude": -122.4998
+},
+{
+"name": "Medewi",
+"region": "West Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.4197,
+"longitude": 114.7997
+},
+{
+"name": "Mirissa",
+"region": "Mirissa, Sri Lanka",
+"country": "Sri Lanka",
+"latitude": 5.9477,
+"longitude": 80.4587
+},
+{
+"name": "Mompiche",
+"region": "Esmeraldas, Ecuador",
+"country": "Ecuador",
+"latitude": 0.5,
+"longitude": -80.0167
+},
+{
+"name": "Montanita",
+"region": "Santa Elena, Ecuador",
+"country": "Ecuador",
+"latitude": -1.8267,
+"longitude": -80.7517
+},
+{
+"name": "Mount Maunganui",
+"region": "Tauranga, Bay of Plenty",
+"country": "New Zealand",
+"latitude": -37.635,
+"longitude": 176.185
+},
+{
+"name": "Muizenberg",
+"region": "Muizenberg, Cape Town",
+"country": "South Africa",
+"latitude": -34.1083,
+"longitude": 18.4698
+},
+{
+"name": "Mullaghmore Head",
+"region": "Mullaghmore, Sligo",
+"country": "Ireland",
+"latitude": 54.4763,
+"longitude": -8.4575
+},
+{
+"name": "Mundaka",
+"region": "Basque Country, Spain",
+"country": "Spain",
+"latitude": 43.4095,
+"longitude": -2.6995
+},
+{
+"name": "Namotu Lefts",
+"region": "Namotu, Fiji",
+"country": "Fiji",
+"latitude": -17.833,
+"longitude": 177.181
+},
+{
+"name": "Nazaré (Praia do Norte)",
+"region": "Nazaré, Portugal",
+"country": "Portugal",
+"latitude": 39.6043,
+"longitude": -9.0857
+},
+{
+"name": "Nelscott Reef",
+"region": "Lincoln City, Oregon",
+"country": "United States",
+"latitude": 44.9499,
+"longitude": -124.028
+},
+{
+"name": "New Smyrna Beach",
+"region": "New Smyrna Beach, Florida",
+"country": "United States",
+"latitude": 29.064,
+"longitude": -80.911
+},
+{
+"name": "New Smyrna Beach (Ponce Inlet)",
+"region": "New Smyrna Beach, Florida",
+"country": "United States",
+"latitude": 29.0642,
+"longitude": -80.9185
+},
+{
+"name": "Noosa (First Point)",
+"region": "Noosa, Queensland",
+"country": "Australia",
+"latitude": -26.3885,
+"longitude": 153.0945
+},
+{
+"name": "North Narrabeen",
+"region": "Sydney, New South Wales",
+"country": "Australia",
+"latitude": -33.708,
+"longitude": 151.3045
+},
+{
+"name": "Nusa Dua",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.8005,
+"longitude": 115.236
+},
+{
+"name": "Ocean Beach SF",
+"region": "San Francisco, California",
+"country": "USA",
+"latitude": 37.7594,
+"longitude": -122.5107
+},
+{
+"name": "Ocean City Inlet",
+"region": "Ocean City, Maryland",
+"country": "United States",
+"latitude": 38.327,
+"longitude": -75.08
+},
+{
+"name": "Off the Wall",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6638,
+"longitude": -158.0556
+},
+{
+"name": "Okuragahama",
+"region": "Hyuga, Miyazaki",
+"country": "Japan",
+"latitude": 32.435,
+"longitude": 131.643
+},
+{
+"name": "Ollie's Point (Potrero Grande)",
+"region": "Guanacaste, Costa Rica",
+"country": "Costa Rica",
+"latitude": 10.852,
+"longitude": -85.745
+},
+{
+"name": "Onjuku Beach",
+"region": "Onjuku, Chiba",
+"country": "Japan",
+"latitude": 35.183,
+"longitude": 140.35
+},
+{
+"name": "Otter Rock",
+"region": "Otter Rock, Oregon",
+"country": "United States",
+"latitude": 44.7492,
+"longitude": -124.0668
+},
+{
+"name": "Pacasmayo",
+"region": "Pacasmayo, Peru",
+"country": "Peru",
+"latitude": -7.4135,
+"longitude": -79.5897
+},
+{
+"name": "Pacific City (Cape Kiwanda)",
+"region": "Pacific City, Oregon",
+"country": "United States",
+"latitude": 45.2213,
+"longitude": -123.9723
+},
+{
+"name": "Pacifica (Linda Mar)",
+"region": "Pacifica, California",
+"country": "USA",
+"latitude": 37.5936,
+"longitude": -122.505
+},
+{
+"name": "Padang Padang",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.8108,
+"longitude": 115.1025
+},
+{
+"name": "Papara",
+"region": "Tahiti, French Polynesia",
+"country": "French Polynesia",
+"latitude": -17.7497,
+"longitude": -149.5497
+},
+{
+"name": "Parlementia",
+"region": "Guéthary, France",
+"country": "France",
+"latitude": 43.4225,
+"longitude": -1.6105
+},
+{
+"name": "Pascuales",
+"region": "Colima, Mexico",
+"country": "Mexico",
+"latitude": 18.783,
+"longitude": -103.781
+},
+{
+"name": "Pasta Point",
+"region": "North Male Atoll, Maldives",
+"country": "Maldives",
+"latitude": 4.3183,
+"longitude": 73.5917
+},
+{
+"name": "Paul do Mar",
+"region": "Paúl do Mar, Madeira",
+"country": "Portugal",
+"latitude": 32.7556,
+"longitude": -17.2237
+},
+{
+"name": "Pavones",
+"region": "Golfo Dulce, Costa Rica",
+"country": "Costa Rica",
+"latitude": 8.398,
+"longitude": -83.131
+},
+{
+"name": "Pensacola Beach",
+"region": "Pensacola Beach, Florida",
+"country": "United States",
+"latitude": 30.327,
+"longitude": -87.138
+},
+{
+"name": "Pico Alto",
+"region": "Punta Hermosa, Peru",
+"country": "Peru",
+"latitude": -12.342,
+"longitude": -76.834
+},
+{
+"name": "Piha",
+"region": "Auckland, New Zealand",
+"country": "New Zealand",
+"latitude": -36.9565,
+"longitude": 174.4676
+},
+{
+"name": "Pipeline",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6644,
+"longitude": -158.0531
+},
+{
+"name": "Pismo Beach",
+"region": "Pismo Beach, California",
+"country": "USA",
+"latitude": 35.1404,
+"longitude": -120.6464
+},
+{
+"name": "Playa Guiones (Nosara)",
+"region": "Nosara, Costa Rica",
+"country": "Costa Rica",
+"latitude": 9.945,
+"longitude": -85.69
+},
+{
+"name": "Playa Hermosa",
+"region": "Jacó, Costa Rica",
+"country": "Costa Rica",
+"latitude": 9.575,
+"longitude": -84.616
+},
+{
+"name": "Playa Maderas",
+"region": "San Juan del Sur, Nicaragua",
+"country": "Nicaragua",
+"latitude": 11.288,
+"longitude": -85.91
+},
+{
+"name": "Pleasure Point",
+"region": "Santa Cruz, California",
+"country": "USA",
+"latitude": 36.9572,
+"longitude": -121.9694
+},
+{
+"name": "Popoyo",
+"region": "Tola, Nicaragua",
+"country": "Nicaragua",
+"latitude": 11.451,
+"longitude": -86.106
+},
+{
+"name": "Porthleven",
+"region": "Porthleven, Cornwall",
+"country": "United Kingdom",
+"latitude": 50.081,
+"longitude": -5.316
+},
+{
+"name": "Praia do Rosa",
+"region": "Imbituba, Santa Catarina, Brazil",
+"country": "Brazil",
+"latitude": -28.128,
+"longitude": -48.639
+},
+{
+"name": "Puerto Escondido (Zicatela)",
+"region": "Oaxaca, Mexico",
+"country": "Mexico",
+"latitude": 15.853,
+"longitude": -97.058
+},
+{
+"name": "Punta de Lobos",
+"region": "Pichilemu, Chile",
+"country": "Chile",
+"latitude": -34.4147,
+"longitude": -72.0497
+},
+{
+"name": "Punta Hermosa",
+"region": "Punta Hermosa, Peru",
+"country": "Peru",
+"latitude": -12.3328,
+"longitude": -76.8253
+},
+{
+"name": "Punta Roca",
+"region": "La Libertad, El Salvador",
+"country": "El Salvador",
+"latitude": 13.484,
+"longitude": -89.316
+},
+{
+"name": "Punta Rocas",
+"region": "Punta Negra, Peru",
+"country": "Peru",
+"latitude": -12.369,
+"longitude": -76.796
+},
+{
+"name": "Reef Road",
+"region": "Palm Beach, Florida",
+"country": "United States",
+"latitude": 26.789,
+"longitude": -80.034
+},
+{
+"name": "Restaurants",
+"region": "Tavarua, Fiji",
+"country": "Fiji",
+"latitude": -17.8525,
+"longitude": 177.1985
+},
+{
+"name": "Ribeira d'Ilhas",
+"region": "Ericeira, Portugal",
+"country": "Portugal",
+"latitude": 38.9918,
+"longitude": -9.4188
+},
+{
+"name": "Rincon",
+"region": "Carpinteria, California",
+"country": "USA",
+"latitude": 34.3716,
+"longitude": -119.4757
+},
+{
+"name": "Rockaway Beach",
+"region": "Queens, New York",
+"country": "United States",
+"latitude": 40.583,
+"longitude": -73.815
+},
+{
+"name": "Rocky Point",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.6694,
+"longitude": -158.0486
+},
+{
+"name": "Rodiles",
+"region": "Asturias, Spain",
+"country": "Spain",
+"latitude": 43.5265,
+"longitude": -5.3855
+},
+{
+"name": "Salt Creek",
+"region": "Dana Point, California",
+"country": "USA",
+"latitude": 33.4842,
+"longitude": -117.7236
+},
+{
+"name": "San Onofre",
+"region": "San Clemente, California",
+"country": "USA",
+"latitude": 33.3805,
+"longitude": -117.5672
+},
+{
+"name": "Sandy Beach",
+"region": "East Oahu",
+"country": "USA",
+"latitude": 21.2855,
+"longitude": -157.672
+},
+{
+"name": "Santa Bárbara",
+"region": "Ribeira Grande, Azores",
+"country": "Portugal",
+"latitude": 37.8185,
+"longitude": -25.5424
+},
+{
+"name": "Santa Catalina",
+"region": "Veraguas, Panama",
+"country": "Panama",
+"latitude": 7.625,
+"longitude": -81.272
+},
+{
+"name": "Santa Teresa",
+"region": "Nicoya Peninsula, Costa Rica",
+"country": "Costa Rica",
+"latitude": 9.643,
+"longitude": -85.168
+},
+{
+"name": "Saquarema",
+"region": "Saquarema, Brazil",
+"country": "Brazil",
+"latitude": -22.9324,
+"longitude": -42.4867
+},
+{
+"name": "Sayulita",
+"region": "Nayarit, Mexico",
+"country": "Mexico",
+"latitude": 20.871,
+"longitude": -105.442
+},
+{
+"name": "Scorpion Bay (San Juanico)",
+"region": "Baja California Sur, Mexico",
+"country": "Mexico",
+"latitude": 26.256,
+"longitude": -112.483
+},
+{
+"name": "Seaside Cove",
+"region": "Seaside, Oregon",
+"country": "United States",
+"latitude": 45.9742,
+"longitude": -123.9333
+},
+{
+"name": "Sebastian Inlet",
+"region": "Sebastian Inlet, Florida",
+"country": "United States",
+"latitude": 27.861,
+"longitude": -80.446
+},
+{
+"name": "Sendai Shinko",
+"region": "Sendai, Miyagi",
+"country": "Japan",
+"latitude": 38.256,
+"longitude": 141.01
+},
+{
+"name": "Sheboygan",
+"region": "Sheboygan, Wisconsin",
+"country": "United States",
+"latitude": 43.753,
+"longitude": -87.694
+},
+{
+"name": "Shipsterns Bluff",
+"region": "Tasman Peninsula, Tasmania",
+"country": "Australia",
+"latitude": -43.2092,
+"longitude": 147.7519
+},
+{
+"name": "Shipwreck Bay",
+"region": "Ahipara, Northland",
+"country": "New Zealand",
+"latitude": -35.163,
+"longitude": 173.129
+},
+{
+"name": "Short Sands",
+"region": "Oswald West, Oregon",
+"country": "United States",
+"latitude": 45.7627,
+"longitude": -123.9626
+},
+{
+"name": "Skeleton Bay",
+"region": "Walvis Bay, Namibia",
+"country": "Namibia",
+"latitude": -22.9376,
+"longitude": 14.4175
+},
+{
+"name": "Snapper Rocks",
+"region": "Gold Coast, Queensland",
+"country": "Australia",
+"latitude": -28.1622,
+"longitude": 153.55
+},
+{
+"name": "Somo",
+"region": "Cantabria, Spain",
+"country": "Spain",
+"latitude": 43.464,
+"longitude": -3.764
+},
+{
+"name": "Songjeong Beach",
+"region": "Busan, South Korea",
+"country": "South Korea",
+"latitude": 35.178,
+"longitude": 129.201
+},
+{
+"name": "Sopela (Sopelana)",
+"region": "Biscay, Spain",
+"country": "Spain",
+"latitude": 43.388,
+"longitude": -2.997
+},
+{
+"name": "South Padre Island",
+"region": "South Padre Island, Texas",
+"country": "United States",
+"latitude": 26.108,
+"longitude": -97.168
+},
+{
+"name": "St Clair Beach",
+"region": "Dunedin, Otago",
+"country": "New Zealand",
+"latitude": -45.9105,
+"longitude": 170.4876
+},
+{
+"name": "St. Augustine Pier",
+"region": "St. Augustine, Florida",
+"country": "United States",
+"latitude": 29.852,
+"longitude": -81.263
+},
+{
+"name": "Steamer Lane",
+"region": "Santa Cruz, California",
+"country": "USA",
+"latitude": 36.9514,
+"longitude": -122.0265
+},
+{
+"name": "Stoney Point",
+"region": "Duluth, Minnesota",
+"country": "United States",
+"latitude": 46.943,
+"longitude": -91.847
+},
+{
+"name": "Sultans",
+"region": "North Male Atoll, Maldives",
+"country": "Maldives",
+"latitude": 4.325,
+"longitude": 73.585
+},
+{
+"name": "Sunset Beach",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.679,
+"longitude": -158.041
+},
+{
+"name": "Sunset Cliffs",
+"region": "San Diego, California",
+"country": "USA",
+"latitude": 32.7203,
+"longitude": -117.2554
+},
+{
+"name": "Supertubos",
+"region": "Peniche, Portugal",
+"country": "Portugal",
+"latitude": 39.3425,
+"longitude": -9.3585
+},
+{
+"name": "Swami's",
+"region": "Encinitas, California",
+"country": "USA",
+"latitude": 33.0349,
+"longitude": -117.2925
+},
+{
+"name": "T-Land (Nemberala)",
+"region": "Rote, Indonesia",
+"country": "Indonesia",
+"latitude": -10.8935,
+"longitude": 122.8118
+},
+{
+"name": "Tamarindo",
+"region": "Guanacaste, Costa Rica",
+"country": "Costa Rica",
+"latitude": 10.296,
+"longitude": -85.843
+},
+{
+"name": "Teahupoo",
+"region": "Tahiti, French Polynesia",
+"country": "French Polynesia",
+"latitude": -17.848,
+"longitude": -149.267
+},
+{
+"name": "The Hook",
+"region": "Santa Cruz, California",
+"country": "USA",
+"latitude": 36.955,
+"longitude": -121.966
+},
+{
+"name": "The Pass",
+"region": "Byron Bay, New South Wales",
+"country": "Australia",
+"latitude": -28.6375,
+"longitude": 153.63
+},
+{
+"name": "The Washout",
+"region": "Folly Beach, South Carolina",
+"country": "United States",
+"latitude": 32.674,
+"longitude": -79.9
+},
+{
+"name": "The Wedge",
+"region": "Newport Beach, California",
+"country": "USA",
+"latitude": 33.5928,
+"longitude": -117.8822
+},
+{
+"name": "Thurso East",
+"region": "Thurso, Scotland",
+"country": "United Kingdom",
+"latitude": 58.5928,
+"longitude": -3.5062
+},
+{
+"name": "Todos Santos (Killers)",
+"region": "Isla Todos Santos, Ensenada, Baja California",
+"country": "Mexico",
+"latitude": 31.81,
+"longitude": -116.793
+},
+{
+"name": "Tofinho",
+"region": "Tofo, Mozambique",
+"country": "Mozambique",
+"latitude": -23.857,
+"longitude": 35.548
+},
+{
+"name": "Tsurigasaki (Shidashita)",
+"region": "Ichinomiya, Chiba",
+"country": "Japan",
+"latitude": 35.378,
+"longitude": 140.402
+},
+{
+"name": "Uluwatu",
+"region": "Bali, Indonesia",
+"country": "Indonesia",
+"latitude": -8.8146,
+"longitude": 115.0884
+},
+{
+"name": "Upper Trestles",
+"region": "San Clemente, California",
+"country": "USA",
+"latitude": 33.3884,
+"longitude": -117.5938
+},
+{
+"name": "Velzyland",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.681,
+"longitude": -158.0293
+},
+{
+"name": "Ventura (C Street)",
+"region": "Ventura, California",
+"country": "USA",
+"latitude": 34.273,
+"longitude": -119.3041
+},
+{
+"name": "Wai'ao Beach",
+"region": "Yilan, Taiwan",
+"country": "Taiwan",
+"latitude": 24.872,
+"longitude": 121.841
+},
+{
+"name": "Waikiki",
+"region": "Waikiki, Oahu",
+"country": "USA",
+"latitude": 21.2745,
+"longitude": -157.827
+},
+{
+"name": "Waimea Bay",
+"region": "North Shore, Oahu",
+"country": "USA",
+"latitude": 21.642,
+"longitude": -158.0658
+},
+{
+"name": "Wainui Beach",
+"region": "Gisborne, New Zealand",
+"country": "New Zealand",
+"latitude": -38.69,
+"longitude": 178.09
+},
+{
+"name": "Watergate Bay",
+"region": "Newquay, Cornwall",
+"country": "United Kingdom",
+"latitude": 50.443,
+"longitude": -5.042
+},
+{
+"name": "Watukarung",
+"region": "Pacitan, Java",
+"country": "Indonesia",
+"latitude": -8.2256,
+"longitude": 110.9985
+},
+{
+"name": "Weligama",
+"region": "Weligama, Sri Lanka",
+"country": "Sri Lanka",
+"latitude": 5.9744,
+"longitude": 80.4316
+},
+{
+"name": "Westport (The Jetty)",
+"region": "Westport, Washington",
+"country": "United States",
+"latitude": 46.9041,
+"longitude": -124.117
+},
+{
+"name": "Whale Bay",
+"region": "Raglan, Waikato",
+"country": "New Zealand",
+"latitude": -37.8175,
+"longitude": 174.7989
+},
+{
+"name": "Whangamata Bar",
+"region": "Whangamata, Coromandel",
+"country": "New Zealand",
+"latitude": -37.213,
+"longitude": 175.877
+},
+{
+"name": "Wilkes Passage",
+"region": "Mamanuca Islands, Fiji",
+"country": "Fiji",
+"latitude": -17.84,
+"longitude": 177.175
+},
+{
+"name": "Windansea",
+"region": "La Jolla, California",
+"country": "USA",
+"latitude": 32.8331,
+"longitude": -117.2792
+},
+{
+"name": "Winkipop",
+"region": "Torquay, Victoria",
+"country": "Australia",
+"latitude": -38.3655,
+"longitude": 144.287
+},
+{
+"name": "Witch's Rock (Roca Bruja)",
+"region": "Playa Naranjo, Guanacaste, Costa Rica",
+"country": "Costa Rica",
+"latitude": 10.804,
+"longitude": -85.71
+},
+{
+"name": "Wrightsville Beach",
+"region": "Wrightsville Beach, North Carolina",
+"country": "United States",
+"latitude": 34.208,
+"longitude": -77.796
+},
+{
+"name": "Yallingup",
+"region": "Yallingup, Western Australia",
+"country": "Australia",
+"latitude": -33.642,
+"longitude": 115.0195
+},
+{
+"name": "Yuigahama",
+"region": "Kamakura, Kanagawa",
+"country": "Japan",
+"latitude": 35.308,
+"longitude": 139.547
+},
+{
+"name": "Zarautz",
+"region": "Basque Country, Spain",
+"country": "Spain",
+"latitude": 43.285,
+"longitude": -2.173
+}
+]

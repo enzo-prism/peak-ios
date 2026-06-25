@@ -10,7 +10,7 @@ struct RatingPickerView: View {
                     rating = value
                 } label: {
                     Image(systemName: value <= rating ? "star.fill" : "star")
-                        .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.4))
+                        .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.5))
                         .font(.title3)
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())

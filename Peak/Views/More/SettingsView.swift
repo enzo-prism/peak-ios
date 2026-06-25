@@ -287,7 +287,7 @@ private struct SettingsRow: View {
     var body: some View {
         Button(role: role, action: action) {
             Label(title, systemImage: systemImage)
-                .foregroundStyle(role == .destructive ? Color.red : Theme.textPrimary)
+                .foregroundStyle(role == .destructive ? Theme.destructive : Theme.textPrimary)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: true)

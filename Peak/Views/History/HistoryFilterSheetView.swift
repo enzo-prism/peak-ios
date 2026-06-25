@@ -72,6 +72,7 @@ struct HistoryFilterSheetView: View {
                 }
             }
         }
+        .tint(Theme.textPrimary)
     }
 
     @ViewBuilder

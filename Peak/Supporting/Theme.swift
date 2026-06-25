@@ -28,6 +28,13 @@ enum Theme {
     /// Text placed on `glassStrongTint` (selected chips).
     static let textInverse = dynamic(light: UIColor(white: 0.98, alpha: 1), dark: UIColor(white: 0.06, alpha: 1))
 
+    /// Destructive action text (delete / reset). Tuned to clear the app's 7:1 key-text bar on the
+    /// glassDimTint surfaces it renders on, in both light and dark, while reading clearly as "danger".
+    static let destructive = dynamic(
+        light: UIColor(red: 0.56, green: 0.0, blue: 0.10, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.52, blue: 0.50, alpha: 1)
+    )
+
     /// Monochrome accent used for tint: ink in light, foam in dark.
     static let accent = textPrimary
 
