@@ -82,7 +82,7 @@ struct SessionEditorView: View {
         // Under UI tests every section is force-expanded so the test identifiers stay scroll-reachable
         // without tapping disclosure headers. When editing, only the sections that already have data
         // open, so nothing the user previously entered is hidden behind a collapsed header.
-        let forceOpen = TestingDefaults.isUITest
+        let forceOpen = TestingDefaults.isUITest && !TestingDefaults.isAdCapture
         _showDetails = State(initialValue: forceOpen || initialDraft.hasSurfConditions || initialDraft.durationMinutes > 0)
         _showGear = State(initialValue: forceOpen || !initialDraft.selectedGear.isEmpty)
         _showBuddies = State(initialValue: forceOpen || !initialDraft.selectedBuddies.isEmpty)
@@ -96,7 +96,7 @@ struct SessionEditorView: View {
     }
 
     private var sheetDetents: Set<PresentationDetent> {
-        TestingDefaults.isUITest ? [.large] : [.medium, .large]
+        TestingDefaults.isUITest && !TestingDefaults.isAdCapture ? [.large] : [.medium, .large]
     }
 
     /// Usage aggregations are O(sessions × relationships); compute them once when the editor

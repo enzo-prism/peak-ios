@@ -5,6 +5,10 @@ enum TestingDefaults {
         ProcessInfo.processInfo.environment["UITESTS"] == "1"
     }
 
+    static var isAdCapture: Bool {
+        ProcessInfo.processInfo.environment["PEAK_AD_CAPTURE"] == "1"
+    }
+
     static var surfConditionsScenario: String? {
         guard let value = ProcessInfo.processInfo.environment["UITESTS_SURF_CONDITIONS_SCENARIO"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
