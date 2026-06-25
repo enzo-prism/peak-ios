@@ -22,15 +22,10 @@ struct SessionEditorView: View {
         case spot
         case notes
     }
-    private enum SelectionMode: String, CaseIterable, Identifiable {
-        case recent = "Recent"
-        case all = "A-Z"
-
-        var id: String { rawValue }
-    }
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
@@ -54,9 +49,17 @@ struct SessionEditorView: View {
     @State private var conditionsSourceDetails: SurfConditionsSourceDetails?
     @State private var didSave = false
     @State private var dismissAfterMediaAlert = false
-    @State private var spotSelectionMode: SelectionMode = .recent
-    @State private var gearSelectionMode: SelectionMode = .recent
-    @State private var showOptionalFields = TestingDefaults.isUITest
+    // Progressive disclosure: each optional section is collapsed for a focused first paint and
+    // revealed on demand. See init for how the initial state is seeded.
+    @State private var showDetails: Bool
+    @State private var showGear: Bool
+    @State private var showBuddies: Bool
+    @State private var showRating: Bool
+    @State private var showMedia: Bool
+    @State private var showNotes: Bool
+    // The new-session sheet opens at a focused medium height and grows to large the moment the
+    // user starts entering text, so the keyboard never crowds the spot field and its chips.
+    @State private var sheetDetent: PresentationDetent
     @State private var spotSnapshots: [String: UsageSnapshot] = [:]
     @State private var gearSnapshots: [String: UsageSnapshot] = [:]
     @State private var buddySnapshots: [String: UsageSnapshot] = [:]
@@ -65,12 +68,35 @@ struct SessionEditorView: View {
 
     init(mode: SessionEditorMode) {
         self.mode = mode
+
+        let initialDraft: SessionDraft
         switch mode {
         case .new:
-            _draft = State(initialValue: SessionDraft())
+            initialDraft = SessionDraft()
         case .edit(let session):
-            _draft = State(initialValue: SessionDraft(session: session))
+            initialDraft = SessionDraft(session: session)
         }
+        _draft = State(initialValue: initialDraft)
+
+        // Optional sections start collapsed so a new session asks for essentially one thing (a spot).
+        // Under UI tests every section is force-expanded so the test identifiers stay scroll-reachable
+        // without tapping disclosure headers. When editing, only the sections that already have data
+        // open, so nothing the user previously entered is hidden behind a collapsed header.
+        let forceOpen = TestingDefaults.isUITest
+        _showDetails = State(initialValue: forceOpen || initialDraft.hasSurfConditions || initialDraft.durationMinutes > 0)
+        _showGear = State(initialValue: forceOpen || !initialDraft.selectedGear.isEmpty)
+        _showBuddies = State(initialValue: forceOpen || !initialDraft.selectedBuddies.isEmpty)
+        _showRating = State(initialValue: forceOpen || initialDraft.rating > 0)
+        _showMedia = State(initialValue: forceOpen || !initialDraft.mediaItems.isEmpty)
+        _showNotes = State(initialValue: forceOpen || initialDraft.notes.trimmedNonEmpty != nil)
+
+        // UI tests need the full-height sheet so every identifier is scroll-reachable; real users
+        // get the lighter medium first paint that grows on focus.
+        _sheetDetent = State(initialValue: forceOpen ? .large : .medium)
+    }
+
+    private var sheetDetents: Set<PresentationDetent> {
+        TestingDefaults.isUITest ? [.large] : [.medium, .large]
     }
 
     /// Usage aggregations are O(sessions × relationships); compute them once when the editor
@@ -97,10 +123,14 @@ struct SessionEditorView: View {
                             saveSession()
                         }
                         .disabled(!draft.isReadyToSave)
+                        .accessibilityHint(draft.isReadyToSave ? "" : "Pick a spot to enable saving")
                     }
                 }
         }
         .tint(Theme.textPrimary)
+        .presentationDetents(sheetDetents, selection: $sheetDetent)
+        .presentationDragIndicator(.visible)
+        .presentationContentInteraction(.scrolls)
         .sheet(isPresented: $showSpotEditor) {
             SpotEditorView(
                 mode: .new,
@@ -167,33 +197,43 @@ struct SessionEditorView: View {
         ScrollView {
             GlassContainer(spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
-                    if case .new = mode {
-                        quickStartSection
+                    primarySpotCard
+
+                    optionalDivider
+
+                    editorDisclosureSection("Details", isExpanded: $showDetails) {
+                        detailsBody
                     }
 
-                    sessionSection
-
-                    if showOptionalFields {
-                        conditionsSection
+                    editorDisclosureSection("Gear", isExpanded: $showGear) {
+                        gearBody
                     }
 
-                    gearSection
+                    editorDisclosureSection("Buddies", isExpanded: $showBuddies) {
+                        buddiesBody
+                    }
 
-                    buddiesSection
+                    editorDisclosureSection("Rating", isExpanded: $showRating) {
+                        ratingBody
+                    }
 
-                    if showOptionalFields {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ratingSection
-                            mediaSection
-                            notesSection
-                        }
-                        .padding()
+                    editorDisclosureSection("Media", isExpanded: $showMedia) {
+                        mediaBody
+                    }
+
+                    editorDisclosureSection("Notes", isExpanded: $showNotes) {
+                        notesBody
                     }
                 }
             }
             .scrollDismissesKeyboard(.interactively)
             .keyboardSafeAreaInset()
             .onChange(of: focusedField) { _, newValue in
+                // Grow the sheet to full height as soon as the user starts entering text so the
+                // keyboard never covers the field being edited or the spot chips above it.
+                if newValue != nil, sheetDetent != .large {
+                    sheetDetent = .large
+                }
                 guard newValue == .notes else { return }
                 DispatchQueue.main.async {
                     proxy.scrollTo(FocusField.notes, anchor: .bottom)
@@ -208,68 +248,63 @@ struct SessionEditorView: View {
         }
     }
 
-    private var sessionSection: some View {
+    // MARK: - Primary (always-visible) essentials
+
+    /// The only always-expanded card. It asks for the single thing required to save — a spot —
+    /// with the date prefilled to now. Everything else lives below in collapsed disclosures.
+    private var primarySpotCard: some View {
         EditorSection("Session") {
-            DatePicker("Date", selection: $draft.date, displayedComponents: [.date])
+            VStack(alignment: .leading, spacing: 8) {
+                Text("WHEN")
+                    .font(.peak(12, relativeTo: .caption).weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+                DatePicker(
+                    "When",
+                    selection: $draft.date,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .labelsHidden()
                 .datePickerStyle(.compact)
                 .tint(Theme.textPrimary)
                 .foregroundStyle(Theme.textPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(12)
                 .glassInput()
                 .accessibilityIdentifier("session.editor.date")
-
-            DatePicker("Start time", selection: $draft.date, displayedComponents: [.hourAndMinute])
-                .datePickerStyle(.compact)
-                .tint(Theme.textPrimary)
-                .foregroundStyle(Theme.textPrimary)
-                .padding(12)
-                .glassInput()
-                .accessibilityIdentifier("session.editor.startTime")
+            }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Duration")
-                        .font(.peak(14, relativeTo: .subheadline))
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Text(durationLabel)
-                        .font(.peak(13, relativeTo: .caption))
-                        .foregroundStyle(Theme.textMuted)
-                }
-                Slider(value: durationBinding, in: 0...180, step: 15)
-                    .tint(Theme.textPrimary)
-                    .accessibilityIdentifier("session.editor.duration")
-                    .accessibilityValue(durationLabel)
+                Text("SPOT")
+                    .font(.peak(12, relativeTo: .caption).weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+                TextField(
+                    "Spot",
+                    text: $draft.spotName,
+                    prompt: Text("Search or add a break").foregroundStyle(Theme.textMuted)
+                )
+                    .textFieldStyle(.plain)
+                    .textInputAutocapitalization(.words)
+                    .foregroundStyle(Theme.textPrimary)
+                    .padding(12)
+                    .glassInput()
+                    .accessibilityIdentifier("session.editor.spot")
+                    .focused($focusedField, equals: .spot)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        focusedField = nil
+                    }
+                    .onChange(of: draft.spotName) { _, newValue in
+                        let exactKey = newValue.trimmedNonEmpty.map(Spot.makeKey(from:))
+                        if let selected = draft.selectedSpot, selected.key != exactKey {
+                            draft.selectedSpot = nil
+                        }
+                        if draft.selectedSpot == nil,
+                           let exactKey,
+                           let exactSpot = spots.first(where: { $0.key == exactKey }) {
+                            draft.selectedSpot = exactSpot
+                        }
+                    }
             }
-            .padding(12)
-            .glassInput()
-
-            TextField(
-                "Spot",
-                text: $draft.spotName,
-                prompt: Text("Spot").foregroundStyle(Theme.textMuted)
-            )
-                .textFieldStyle(.plain)
-                .foregroundStyle(Theme.textPrimary)
-                .padding(12)
-                .glassInput()
-                .accessibilityIdentifier("session.editor.spot")
-                .focused($focusedField, equals: .spot)
-                .submitLabel(.done)
-                .onSubmit {
-                    focusedField = nil
-                }
-                .onChange(of: draft.spotName) { _, newValue in
-                    let exactKey = newValue.trimmedNonEmpty.map(Spot.makeKey(from:))
-                    if let selected = draft.selectedSpot, selected.key != exactKey {
-                        draft.selectedSpot = nil
-                    }
-                    if draft.selectedSpot == nil,
-                       let exactKey,
-                       let exactSpot = spots.first(where: { $0.key == exactKey }) {
-                        draft.selectedSpot = exactSpot
-                    }
-                }
 
             if !filteredSpots.isEmpty {
                 GlassContainer(spacing: 10) {
@@ -305,6 +340,14 @@ struct SessionEditorView: View {
                     .glassCard(cornerRadius: 18, tint: Theme.glassDimTint, isInteractive: false)
             }
 
+            if draft.selectedSpot == nil {
+                Text("Pick a spot to save this session.")
+                    .font(.peak(12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("session.editor.readinessHint")
+            }
+
             Button {
                 addSpotTapped()
             } label: {
@@ -320,106 +363,83 @@ struct SessionEditorView: View {
                     .foregroundStyle(Theme.textMuted)
             }
 
-            Picker("Spot list", selection: $spotSelectionMode) {
-                ForEach(SelectionMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+            if case .new = mode, sessions.first != nil {
+                Button {
+                    if let lastSession = sessions.first {
+                        applyTemplateFromLastSession(lastSession)
+                    }
+                } label: {
+                    Label("Use last session", systemImage: "clock.arrow.circlepath")
+                        .frame(maxWidth: .infinity)
                 }
+                .glassButtonStyle(prominent: false)
+                .accessibilityIdentifier("session.editor.useLastSession")
             }
-            .pickerStyle(.segmented)
-
-            Button {
-                withAnimation {
-                    showOptionalFields.toggle()
-                }
-            } label: {
-                Label(
-                    showOptionalFields ? "Hide optional fields" : "Show optional fields",
-                    systemImage: showOptionalFields ? "chevron.up.circle.fill" : "slider.horizontal.3"
-                )
-                .frame(maxWidth: .infinity)
-            }
-            .glassButtonStyle(prominent: false)
-            .accessibilityIdentifier("session.editor.toggleOptionalFields")
         }
     }
 
-    private var quickStartSection: some View {
-        EditorSection("Quick Start") {
-            if let lastSession = sessions.first {
-                VStack(alignment: .leading, spacing: 10) {
-                    Button {
-                        applyTemplateFromLastSession(lastSession)
-                    } label: {
-                        Label(
-                            "Use last session setup",
-                            systemImage: "clock.arrow.circlepath"
-                        )
-                        .frame(maxWidth: .infinity)
-                    }
-                    .glassButtonStyle(prominent: false)
+    private var optionalDivider: some View {
+        HStack(spacing: 12) {
+            Text("OPTIONAL — ADD DETAILS")
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
+                .foregroundStyle(Theme.textMuted)
+            Rectangle()
+                .fill(Theme.textMuted.opacity(0.25))
+                .frame(height: 1)
+        }
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Optional details")
+    }
 
-                    Text("Fastest way to log: preload what you usually use, then tweak anything quick.")
-                        .font(.peak(12, relativeTo: .caption))
+    /// Collapsible section mirroring `SessionDetailView.detailDisclosureSection` so the editor and
+    /// the detail view share one disclosure look. The binding animates unless Reduce Motion is on.
+    @ViewBuilder
+    private func editorDisclosureSection<Content: View>(
+        _ title: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder _ content: @escaping () -> Content
+    ) -> some View {
+        DisclosureGroup(isExpanded: isExpanded.animation(reduceMotion ? nil : .easeInOut(duration: 0.25))) {
+            VStack(alignment: .leading, spacing: 12) {
+                content()
+            }
+            .padding(.top, 8)
+        } label: {
+            Text(title.uppercased())
+                .font(.peak(12, relativeTo: .caption).weight(.semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .tint(Theme.textPrimary)
+        .padding(16)
+        .glassCard(cornerRadius: 24, tint: Theme.glassDimTint, isInteractive: true)
+    }
+
+    // MARK: - Disclosure section bodies
+
+    /// Duration + surf conditions. Duration lives here (not in the primary card) because its only
+    /// consumer is the auto-fill precondition; it is placed first so it stays scroll-reachable.
+    private var detailsBody: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Duration")
+                        .font(.peak(14, relativeTo: .subheadline))
+                        .foregroundStyle(Theme.textPrimary)
+                    Spacer()
+                    Text(durationLabel)
+                        .font(.peak(13, relativeTo: .caption))
                         .foregroundStyle(Theme.textMuted)
                 }
-
-                if !quickStartSpotSuggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Recent spots")
-                            .font(.peak(12, relativeTo: .caption).weight(.semibold))
-                            .foregroundStyle(Theme.textMuted)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(quickStartSpotSuggestions) { spot in
-                                    SelectableChip(
-                                        label: spot.name,
-                                        systemImage: "mappin",
-                                        isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
-                                    ) {
-                                        draft.selectSpot(spot)
-                                    }
-                                    .accessibilityIdentifier("session.editor.quickStartSpot.\(spot.key)")
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-
-                if !quickStartGearSuggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("From last session")
-                            .font(.peak(12, relativeTo: .caption).weight(.semibold))
-                            .foregroundStyle(Theme.textMuted)
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(quickStartGearSuggestions) { item in
-                                    SelectableChip(
-                                        label: quickStartGearChipLabel(item),
-                                        systemImage: item.kind.systemImage,
-                                        isSelected: draft.selectedGear.contains { $0.persistentModelID == item.persistentModelID }
-                                    ) {
-                                        draft.toggleGear(item)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-
-            } else {
-                Text("Start your first session: pick a surf break and add a few essentials.")
-                    .font(.peak(12, relativeTo: .caption))
-                    .foregroundStyle(Theme.textMuted)
+                Slider(value: durationBinding, in: 0...180, step: 15)
+                    .tint(Theme.textPrimary)
+                    .accessibilityIdentifier("session.editor.duration")
+                    .accessibilityValue(durationLabel)
             }
-        }
-    }
+            .padding(12)
+            .glassInput()
 
-    private var conditionsSection: some View {
-        EditorSection("Conditions") {
             VStack(alignment: .leading, spacing: 8) {
                 if let notice = surfConditionsNotice {
                     surfConditionsNoticeView(notice)
@@ -493,53 +513,10 @@ struct SessionEditorView: View {
         }
     }
 
-    private var gearSection: some View {
-        EditorSection("Gear") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    TextField(
-                        "Add gear",
-                        text: $newGearName,
-                        prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
-                    )
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(Theme.textPrimary)
-                        .accessibilityIdentifier("session.editor.gear")
-                    Picker("Type", selection: $newGearKind) {
-                        ForEach(GearKind.allCases) { kind in
-                            Text(kind.label).tag(kind)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .tint(Theme.textPrimary)
-                    .foregroundStyle(Theme.textPrimary)
-                }
-                .padding(12)
-                .glassInput()
-
-                Button("Add Gear") {
-                    addGear()
-                }
-                .frame(maxWidth: .infinity)
-                .glassButtonStyle(prominent: false)
-                .disabled(newGearName.trimmedNonEmpty == nil)
-
-                if let lastSession = sessions.first, !lastSession.gear.isEmpty {
-                    Button("Use last gear setup") {
-                        draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .glassButtonStyle(prominent: false)
-                }
-
-                Picker("Gear list", selection: $gearSelectionMode) {
-                    ForEach(SelectionMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
+    /// Gear: the chip grid leads (tap to select what you already own); creating new gear is demoted
+    /// below it so the common case (reusing gear) is the prominent one.
+    private var gearBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if !availableGear.isEmpty {
                 GlassContainer(spacing: 12) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -568,32 +545,54 @@ struct SessionEditorView: View {
                     }
                     .padding(.vertical, 4)
                 }
+            } else {
+                Text("Tap a board, wetsuit, or fin you used. Add new gear below.")
+                    .font(.peak(12, relativeTo: .caption))
+                    .foregroundStyle(Theme.textMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: 12) {
+                TextField(
+                    "Add gear",
+                    text: $newGearName,
+                    prompt: Text("Add gear").foregroundStyle(Theme.textMuted)
+                )
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(Theme.textPrimary)
+                    .accessibilityIdentifier("session.editor.gear")
+                Picker("Type", selection: $newGearKind) {
+                    ForEach(GearKind.allCases) { kind in
+                        Text(kind.label).tag(kind)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(Theme.textPrimary)
+                .foregroundStyle(Theme.textPrimary)
+            }
+            .padding(12)
+            .glassInput()
+
+            Button("Add Gear") {
+                addGear()
+            }
+            .frame(maxWidth: .infinity)
+            .glassButtonStyle(prominent: false)
+            .disabled(newGearName.trimmedNonEmpty == nil)
+
+            if let lastSession = sessions.first, !lastSession.gear.isEmpty {
+                Button("Use last gear setup") {
+                    draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
+                }
+                .frame(maxWidth: .infinity)
+                .glassButtonStyle(prominent: false)
             }
         }
     }
 
-    private var buddiesSection: some View {
-        EditorSection("Buddies") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    TextField(
-                        "Add buddy",
-                        text: $newBuddyName,
-                        prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
-                    )
-                        .textFieldStyle(.plain)
-                        .foregroundStyle(Theme.textPrimary)
-                        .accessibilityIdentifier("session.editor.buddy")
-                    Button("Add") {
-                        addBuddy()
-                    }
-                    .glassButtonStyle(prominent: true)
-                    .disabled(newBuddyName.trimmedNonEmpty == nil)
-                }
-                .padding(12)
-                .glassInput()
-            }
-
+    /// Buddies: existing buddies lead; adding a new one is demoted below the grid.
+    private var buddiesBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if !buddies.isEmpty {
                 GlassContainer(spacing: 10) {
                     let columns = [GridItem(.adaptive(minimum: 120), spacing: 8)]
@@ -611,18 +610,34 @@ struct SessionEditorView: View {
                     .padding(.vertical, 4)
                 }
             }
+
+            HStack(spacing: 12) {
+                TextField(
+                    "Add buddy",
+                    text: $newBuddyName,
+                    prompt: Text("Add buddy").foregroundStyle(Theme.textMuted)
+                )
+                    .textFieldStyle(.plain)
+                    .foregroundStyle(Theme.textPrimary)
+                    .accessibilityIdentifier("session.editor.buddy")
+                Button("Add") {
+                    addBuddy()
+                }
+                .glassButtonStyle(prominent: true)
+                .disabled(newBuddyName.trimmedNonEmpty == nil)
+            }
+            .padding(12)
+            .glassInput()
         }
     }
 
-    private var ratingSection: some View {
-        EditorSection("Rating") {
-            RatingPickerView(rating: $draft.rating)
-                .accessibilityIdentifier("session.editor.rating")
-        }
+    private var ratingBody: some View {
+        RatingPickerView(rating: $draft.rating)
+            .accessibilityIdentifier("session.editor.rating")
     }
 
-    private var mediaSection: some View {
-        EditorSection("Media") {
+    private var mediaBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
             if draft.mediaItems.isEmpty {
                 Text("Add photos or videos from your library.")
                     .font(.peak(12, relativeTo: .caption))
@@ -670,26 +685,24 @@ struct SessionEditorView: View {
         }
     }
 
-    private var notesSection: some View {
-        EditorSection("Notes") {
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $draft.notes)
-                    .frame(minHeight: 120)
-                    .scrollContentBackground(.hidden)
-                    .foregroundStyle(Theme.textPrimary)
-                    .accessibilityIdentifier("session.editor.notes")
-                    .focused($focusedField, equals: .notes)
-                    .id(FocusField.notes)
-                if draft.notes.isEmpty {
-                    Text("Add any conditions, swell, or quick thoughts.")
-                        .foregroundStyle(Theme.textMuted)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
-                }
+    private var notesBody: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $draft.notes)
+                .frame(minHeight: 120)
+                .scrollContentBackground(.hidden)
+                .foregroundStyle(Theme.textPrimary)
+                .accessibilityIdentifier("session.editor.notes")
+                .focused($focusedField, equals: .notes)
+                .id(FocusField.notes)
+            if draft.notes.isEmpty {
+                Text("Add any conditions, swell, or quick thoughts.")
+                    .foregroundStyle(Theme.textMuted)
+                    .padding(.top, 8)
+                    .padding(.leading, 5)
             }
-            .padding(12)
-            .glassInput()
         }
+        .padding(12)
+        .glassInput()
     }
 
     private var sortedBuddies: [Buddy] {
@@ -761,10 +774,10 @@ struct SessionEditorView: View {
     }
 
     private func sortedGear(for kind: GearKind) -> [Gear] {
-        let items = availableGear.filter { $0.kind == kind }
-        switch gearSelectionMode {
-        case .recent:
-            return items.sorted { lhs, rhs in
+        // Recents-first within each gear kind.
+        availableGear
+            .filter { $0.kind == kind }
+            .sorted { lhs, rhs in
                 let lhsDate = gearSnapshots[lhs.key]?.lastUsed ?? .distantPast
                 let rhsDate = gearSnapshots[rhs.key]?.lastUsed ?? .distantPast
                 if lhsDate == rhsDate {
@@ -772,11 +785,6 @@ struct SessionEditorView: View {
                 }
                 return lhsDate > rhsDate
             }
-        case .all:
-            return items.sorted { lhs, rhs in
-                lhs.name < rhs.name
-            }
-        }
     }
 
     private var availableGear: [Gear] {
@@ -829,7 +837,14 @@ struct SessionEditorView: View {
         draft.notes = session.notes
         draft.mediaItems = []
         surfConditionsNotice = nil
-        showOptionalFields = true
+        // Reveal the sections we just pre-filled so the loaded setup is visible, not hidden.
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+            showDetails = true
+            showGear = true
+            showBuddies = true
+            showRating = true
+            showNotes = true
+        }
     }
 
     private func saveSession() {
@@ -923,28 +938,22 @@ struct SessionEditorView: View {
     }
 
     private func sortedSpots(_ spots: [Spot]) -> [Spot] {
-        switch spotSelectionMode {
-        case .recent:
-            return spots.sorted { lhs, rhs in
-                let lhsCount = spotSnapshots[lhs.key]?.count ?? 0
-                let rhsCount = spotSnapshots[rhs.key]?.count ?? 0
+        // Recents-first: most-logged, then most-recent, then alphabetical.
+        spots.sorted { lhs, rhs in
+            let lhsCount = spotSnapshots[lhs.key]?.count ?? 0
+            let rhsCount = spotSnapshots[rhs.key]?.count ?? 0
 
-                if lhsCount == rhsCount {
-                    let lhsDate = spotSnapshots[lhs.key]?.lastUsed ?? .distantPast
-                    let rhsDate = spotSnapshots[rhs.key]?.lastUsed ?? .distantPast
+            if lhsCount == rhsCount {
+                let lhsDate = spotSnapshots[lhs.key]?.lastUsed ?? .distantPast
+                let rhsDate = spotSnapshots[rhs.key]?.lastUsed ?? .distantPast
 
-                    if lhsDate == rhsDate {
-                        return lhs.name < rhs.name
-                    }
-                    return lhsDate > rhsDate
+                if lhsDate == rhsDate {
+                    return lhs.name < rhs.name
                 }
+                return lhsDate > rhsDate
+            }
 
-                return lhsCount > rhsCount
-            }
-        case .all:
-            return spots.sorted { lhs, rhs in
-                lhs.name < rhs.name
-            }
+            return lhsCount > rhsCount
         }
     }
 
@@ -968,44 +977,6 @@ struct SessionEditorView: View {
 
     private var isSpotLimitReached: Bool {
         spots.count >= Spot.maxCount
-    }
-
-    private var quickStartSpotSuggestions: [Spot] {
-        let usedSpots = spots.filter { spot in
-            (spotSnapshots[spot.key]?.count ?? 0) > 0
-        }
-        let ordered = (usedSpots.isEmpty ? spots : usedSpots).sorted { lhs, rhs in
-            let lhsDate = spotSnapshots[lhs.key]?.lastUsed ?? .distantPast
-            let rhsDate = spotSnapshots[rhs.key]?.lastUsed ?? .distantPast
-            if lhsDate == rhsDate {
-                return lhs.name < rhs.name
-            }
-            return lhsDate > rhsDate
-        }
-        return Array(ordered.prefix(5))
-    }
-
-    private var quickStartGearSuggestions: [Gear] {
-        guard let lastSession = sessions.first else { return [] }
-        var unique: [Gear] = []
-        var seen: Set<String> = []
-
-        for item in lastSession.gear where !item.isArchived {
-            let key = item.key
-            guard !seen.contains(key) else { continue }
-            seen.insert(key)
-            unique.append(item)
-        }
-
-        return Array(unique.prefix(6))
-    }
-
-    private func quickStartGearChipLabel(_ gear: Gear) -> String {
-        let lastUsed = gearSnapshots[gear.key]?.lastUsed
-        if let lastUsed {
-            return "\(gear.name) • \(lastUsed.formatted(.dateTime.month(.abbreviated).day()))"
-        }
-        return gear.name
     }
 
     private var conditionsHintText: String {

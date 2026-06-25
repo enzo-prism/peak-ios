@@ -253,22 +253,15 @@ private extension PeakUISmokeTests {
             }
         }
 
-        let quickStartSpot = app.buttons["session.editor.quickStartSpot.\(key)"]
-        if quickStartSpot.waitForExistence(timeout: 1) {
-            scrollToHittable(quickStartSpot, maxSwipes: 4)
-            if quickStartSpot.isHittable {
-                quickStartSpot.tap()
-                return
-            }
-        }
-
         tapRow(label: fallbackLabel, file: file, line: line)
     }
 
     func setEditorDuration(position: CGFloat = 0.5, file: StaticString = #filePath, line: UInt = #line) {
         let duration = app.sliders["session.editor.duration"]
         assertExists(duration, file: file, line: line)
-        scrollToHittable(duration, maxSwipes: 2)
+        // Duration now lives in the collapsible DETAILS section below the primary spot card, so it
+        // can sit a little further down; the loop stops as soon as the slider is hittable.
+        scrollToHittable(duration, maxSwipes: 5)
         duration.adjust(toNormalizedSliderPosition: position)
     }
 
