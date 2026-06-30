@@ -132,9 +132,19 @@ struct SessionDetailView: View {
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textMuted)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(session.date.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Spacer(minLength: 8)
+
+                    if session.rating > 0 {
+                        heroRatingStars(session.rating)
+                    }
+                }
 
                 Text(session.spot?.name ?? "Unknown spot")
                     .font(.largeTitle.weight(.semibold))
@@ -142,6 +152,10 @@ struct SessionDetailView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !session.media.isEmpty {
+                heroMediaStrip
             }
 
             heroWaveHeightView
@@ -239,19 +253,47 @@ struct SessionDetailView: View {
         }
     }
 
-    private func heroRatingTag(_ rating: Int) -> some View {
-        HStack(spacing: 2) {
+    private func heroRatingStars(_ rating: Int) -> some View {
+        HStack(spacing: 3) {
             ForEach(1...5, id: \.self) { value in
                 Image(systemName: value <= rating ? "star.fill" : "star")
-                    .font(.caption2)
-                    .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted)
+                    .font(.caption)
+                    .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.55))
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
+        .fixedSize()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Rated \(rating) out of 5")
+    }
+
+    /// Media front-and-center in the header: a horizontally scrolling strip of large, tappable
+    /// thumbnails. Reuses `SessionMediaThumbnailView` (off-main-thread decode + crop) so it matches
+    /// the body grid styling, and opens the full-screen viewer on tap. Distinct accessibility
+    /// identifiers keep it separate from the collapsible body grid below.
+    private var heroMediaStrip: some View {
+        let ordered = session.media.sorted { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(ordered, id: \.persistentModelID) { media in
+                    Button {
+                        selectedMedia = media
+                    } label: {
+                        SessionMediaThumbnailView(
+                            imageData: media.thumbnailData ?? media.photoData,
+                            isVideo: media.kind == .video,
+                            crop: media.cropRect
+                        )
+                        .frame(width: 140, height: 104)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input, style: .continuous))
+                        .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
+                    }
+                    .buttonStyle(PressFeedbackButtonStyle())
+                    .accessibilityLabel(media.kind == .video ? "Video" : "Photo")
+                    .accessibilityIdentifier(media.kind == .video ? "session.detail.heroMedia.video" : "session.detail.heroMedia.photo")
+                }
+            }
+            .padding(.vertical, 1)
+        }
     }
 
     private var heroTags: some View {
@@ -295,18 +337,12 @@ struct SessionDetailView: View {
                 accessibilityIdentifier: "session.detail.heroTag.gear"
             )
         }
-        if session.rating > 0 {
-            heroRatingTag(session.rating)
-        }
         if !session.buddies.isEmpty {
             heroTag(
                 "\(session.buddies.count) buddy\(session.buddies.count == 1 ? "" : "s")",
                 icon: "person.2.fill",
                 accessibilityIdentifier: "session.detail.heroTag.buddy"
             )
-        }
-        if !session.media.isEmpty {
-            heroTag("\(session.media.count) media", icon: "photo.on.rectangle")
         }
     }
 
