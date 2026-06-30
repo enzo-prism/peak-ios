@@ -15,4 +15,4 @@ If you choose to contact support, you may share information in your message (suc
 ## Changes
 If this policy changes, we will update this file and the in-app documentation.
 
-Last updated: 2026-02-03
+Last updated: 2026-06-29
