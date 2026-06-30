@@ -154,7 +154,9 @@ enum PreviewData {
     }
 
     private static func makeSamplePhotoData() -> Data? {
-        if TestingDefaults.isUITest {
+        // UI tests use the cheap blank fallback for speed/determinism, except during
+        // marketing screenshot capture, where we want real sample imagery on screen.
+        if TestingDefaults.isUITest && !TestingDefaults.isScreenshotCapture {
             return fallbackPhotoData
         }
         let size = CGSize(width: 1200, height: 900)

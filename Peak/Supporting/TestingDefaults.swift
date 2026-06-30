@@ -9,6 +9,13 @@ enum TestingDefaults {
         ProcessInfo.processInfo.environment["PEAK_AD_CAPTURE"] == "1"
     }
 
+    /// Marketing screenshot capture. When set, the seed renders real sample
+    /// imagery (instead of the cheap blank fallback) so media-rich screens look
+    /// good in App Store screenshots.
+    static var isScreenshotCapture: Bool {
+        ProcessInfo.processInfo.environment["PEAK_SCREENSHOTS"] == "1"
+    }
+
     static var surfConditionsScenario: String? {
         guard let value = ProcessInfo.processInfo.environment["UITESTS_SURF_CONDITIONS_SCENARIO"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
