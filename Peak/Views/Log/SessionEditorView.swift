@@ -332,24 +332,27 @@ struct SessionEditorView: View {
             }
 
             if !filteredSpots.isEmpty {
-                GlassContainer(spacing: 10) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(filteredSpots) { spot in
-                                SelectableChip(
-                                    label: spotChipLabel(spot),
-                                    systemImage: "mappin",
-                                    isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
-                                ) {
-                                    draft.selectSpot(spot)
-                                }
-                                .frame(maxWidth: 220, alignment: .leading)
-                                .accessibilityIdentifier("session.editor.spotSuggestion.\(spot.key)")
+                // Plain horizontal scroll of glass chips. A GlassEffectContainer here defeated the
+                // ScrollView's clipping, letting the chips' glass spill past the card to the screen
+                // edge; the chips already carry their own `glassCapsule`, so no container is needed.
+                // `.clipped()` guarantees the row never escapes the section card's content bounds.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(filteredSpots) { spot in
+                            SelectableChip(
+                                label: spotChipLabel(spot),
+                                systemImage: "mappin",
+                                isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
+                            ) {
+                                draft.selectSpot(spot)
                             }
+                            .frame(maxWidth: 220, alignment: .leading)
+                            .accessibilityIdentifier("session.editor.spotSuggestion.\(spot.key)")
                         }
-                        .padding(.vertical, 4)
                     }
+                    .padding(.vertical, 4)
                 }
+                .clipped()
             } else if !spots.isEmpty {
                 Text("No matching spots. Add a surf break.")
                     .font(.caption)
