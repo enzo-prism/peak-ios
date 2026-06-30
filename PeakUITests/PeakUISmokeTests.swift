@@ -390,6 +390,7 @@ final class MarketingScreenshotCapture: XCTestCase {
         app.launchEnvironment["UITESTS"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-06-10T12:00:00Z"
+        app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
         app.launch()
     }
 
