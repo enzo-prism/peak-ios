@@ -18,6 +18,19 @@ This document keeps the repository’s external tooling setup aligned for fast i
   - `./scripts/asc-sync.sh status`
   - `./scripts/asc-sync.sh snapshot`
 
+## ASC Release Workflow (end-to-end)
+
+Cut a TestFlight build entirely through the asc CLI; artifacts land in `.asc/artifacts/`.
+
+1. **Next build number:** `asc builds next-build-number --app 6757644027 --version <V> --platform IOS`, then `asc xcode version edit --version <V> --build-number <N>` (updates `CURRENT_PROJECT_VERSION`; edit `MARKETING_VERSION` in both build configs of `project.pbxproj` if it changes).
+2. **Archive (Release):** `asc xcode archive --project Peak.xcodeproj --scheme Peak --configuration Release --archive-path .asc/artifacts/Peak-<V>-<N>.xcarchive --overwrite`
+3. **Export to IPA:** `asc xcode export --archive-path … --export-options .asc/artifacts/ExportOptions-2.4-3.plist --ipa-path .asc/artifacts/Peak-<V>-<N>.ipa`
+4. **Upload:** `asc builds upload --app 6757644027 --ipa .asc/artifacts/Peak-<V>-<N>.ipa`
+5. **Wait for `VALID`:** poll `asc builds list --app 6757644027 --limit 3` (or `./scripts/asc-sync.sh latest-build`).
+6. **Declare export compliance (REQUIRED):** `asc builds update --app 6757644027 --latest --uses-non-exempt-encryption=false` → flips the build to `IN_BETA_TESTING` for internal Test Group A. Peak only uses standard HTTPS, so encryption is exempt.
+
+See `RELEASE_PLAYBOOK.md` for current version/build status, the branch-strategy warning, and the App Store submission steps.
+
 ## Xcode MCP / Xcode-driven automation
 
 - MCP config is versioned at `.xcodebuildmcp/config.yaml`.
