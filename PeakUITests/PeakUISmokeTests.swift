@@ -405,9 +405,16 @@ final class MarketingScreenshotCapture: XCTestCase {
         tapTab("History")
         capture("02-history")
 
-        let firstRow = app.buttons.matching(identifier: "history.row").firstMatch
-        if firstRow.waitForExistence(timeout: 3) {
-            firstRow.tap()
+        // Open the media-rich session (the seeded "Trestles" session carries a photo
+        // and a video) so the session-detail shot showcases the media-forward hero
+        // strip. Fall back to the first row if the labeled row can't be found.
+        let historyRows = app.buttons.matching(identifier: "history.row")
+        let mediaRow = historyRows
+            .containing(NSPredicate(format: "label CONTAINS[c] %@", "Trestles"))
+            .firstMatch
+        let sessionRow = mediaRow.waitForExistence(timeout: 3) ? mediaRow : historyRows.firstMatch
+        if sessionRow.waitForExistence(timeout: 3) {
+            sessionRow.tap()
             _ = app.staticTexts.firstMatch.waitForExistence(timeout: 3)
             sleep(1)
             capture("03-session-detail")
