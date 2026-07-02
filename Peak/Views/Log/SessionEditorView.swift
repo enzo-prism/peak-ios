@@ -38,7 +38,12 @@ struct SessionEditorView: View {
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
     @Query(sort: \Buddy.name) private var buddies: [Buddy]
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    // Unbounded on purpose: refreshUsageSnapshots() aggregates usage across ALL
+    // sessions, so a fetch limit would skew the recents-first ordering. Prefetching
+    // the relationships the aggregation walks avoids one SwiftData fault (SQLite
+    // round trip) per relationship per row while the sheet is presenting.
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
+    private var sessions: [SurfSession]
 
     let mode: SessionEditorMode
     @State private var draft: SessionDraft
@@ -347,6 +352,9 @@ struct SessionEditorView: View {
                                 draft.selectSpot(spot)
                             }
                             .frame(maxWidth: 220, alignment: .leading)
+                            // VoiceOver reads the visual "Trestles • 12x" as
+                            // "Trestles bullet twelve x"; give it real words.
+                            .accessibilityLabel(spotChipAccessibilityLabel(spot))
                             .accessibilityIdentifier("session.editor.spotSuggestion.\(spot.key)")
                         }
                     }
@@ -461,7 +469,15 @@ struct SessionEditorView: View {
                         .font(.caption)
                         .foregroundStyle(Theme.textMuted)
                 }
-                Slider(value: durationBinding, in: 0...180, step: 15)
+                // Range/step come from the model so the control and
+                // SurfSession.normalizedDuration can never disagree. It stays a
+                // Slider (UI tests address it via app.sliders) and the label
+                // above always shows the exact snapped value.
+                Slider(
+                    value: durationBinding,
+                    in: 0...Double(SurfSession.maxDurationMinutes),
+                    step: Double(SurfSession.durationStepMinutes)
+                )
                     .tint(Theme.textPrimary)
                     .accessibilityIdentifier("session.editor.duration")
                     .accessibilityValue(durationLabel)
@@ -566,6 +582,8 @@ struct SessionEditorView: View {
                                             ) {
                                                 draft.toggleGear(item)
                                             }
+                                            // Spell out the "• 12x • Jun 5" shorthand for VoiceOver.
+                                            .accessibilityLabel(gearChipAccessibilityLabel(item))
                                         }
                                     }
                                 }
@@ -1043,6 +1061,38 @@ struct SessionEditorView: View {
         return "\(gear.name) • \(count)x"
     }
 
+    // MARK: Chip accessibility labels
+    // The visual chip labels use "•" and "12x" shorthand, which VoiceOver reads
+    // literally ("bullet", "twelve x"). These spell the same facts out in words.
+
+    private func spotChipAccessibilityLabel(_ spot: Spot) -> String {
+        usageAccessibilityLabel(name: spot.name, count: spotSnapshots[spot.key]?.count ?? 0)
+    }
+
+    private func gearChipAccessibilityLabel(_ gear: Gear) -> String {
+        usageAccessibilityLabel(
+            name: gear.name,
+            count: gearSnapshots[gear.key]?.count ?? 0,
+            lastUsed: gearSnapshots[gear.key]?.lastUsed
+        )
+    }
+
+    private func usageAccessibilityLabel(name: String, count: Int, lastUsed: Date? = nil) -> String {
+        var parts = [name]
+        switch count {
+        case ..<1:
+            parts.append("not used yet")
+        case 1:
+            parts.append("used once")
+        default:
+            parts.append("used \(count) times")
+        }
+        if let lastUsed {
+            parts.append("last used \(lastUsed.formatted(.dateTime.month(.wide).day()))")
+        }
+        return parts.joined(separator: ", ")
+    }
+
     private var isSpotLimitReached: Bool {
         spots.count >= Spot.maxCount
     }
@@ -1281,21 +1331,20 @@ struct SessionEditorView: View {
         }
     }
 
+    /// This method is MainActor-isolated (project default isolation), so the draft
+    /// mutations below always land on the main actor; the heavy media work happens
+    /// inside the awaited `@concurrent` SessionMediaStore calls, off-main. Callers
+    /// await items one at a time, which preserves the picker's selection order.
     private func addMediaItem(_ item: PhotosPickerItem) async -> Bool {
         if let video = try? await item.loadTransferable(type: SessionVideoTransferable.self) {
             let thumbnailData = await SessionMediaStore.videoThumbnailData(from: video.url)
-            await MainActor.run {
-                draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
-            }
+            draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
             return true
         }
 
         if let data = try? await item.loadTransferable(type: Data.self) {
-            let photoData = SessionMediaStore.compressedPhotoData(from: data)
-            let thumbnailData = SessionMediaStore.thumbnailData(from: photoData)
-            await MainActor.run {
-                draft.mediaItems.append(.newPhoto(photoData: photoData, thumbnailData: thumbnailData))
-            }
+            let processed = await SessionMediaStore.processedPhoto(from: data)
+            draft.mediaItems.append(.newPhoto(photoData: processed.photoData, thumbnailData: processed.thumbnailData))
             return true
         }
 

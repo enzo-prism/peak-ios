@@ -4,6 +4,11 @@ import XCTest
 @testable import Peak
 
 final class SpotLimitTests: XCTestCase {
+    func testSpotLimitAllowsTravelingSurfers() {
+        // Raised from 10, which real users hit after a couple of surf trips.
+        XCTAssertEqual(Spot.maxCount, 200)
+    }
+
     func testSpotLimitBlocksNewSpots() throws {
         let container = try makeContainer()
         let context = ModelContext(container)

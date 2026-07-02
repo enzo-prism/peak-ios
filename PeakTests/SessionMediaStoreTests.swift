@@ -38,6 +38,37 @@ final class SessionMediaStoreTests: XCTestCase {
         }
     }
 
+    /// `processedPhoto(from:)` is the off-main (`@concurrent`) pipeline the session
+    /// editor uses for picked photos: one call yields the capped full-size JPEG plus
+    /// its grid thumbnail, matching the older sync compress-then-thumbnail pair.
+    func testProcessedPhotoCompressesAndGeneratesThumbnail() async throws {
+        let image = Self.solidImage(width: 3000, height: 2000)
+        let sourceData = try XCTUnwrap(image.jpegData(compressionQuality: 1))
+
+        let processed = await SessionMediaStore.processedPhoto(from: sourceData)
+
+        let photo = try XCTUnwrap(UIImage(data: processed.photoData))
+        let photoMaxDimension = max(photo.size.width * photo.scale, photo.size.height * photo.scale)
+        XCTAssertLessThanOrEqual(photoMaxDimension, 2048)
+
+        let thumbnailData = try XCTUnwrap(processed.thumbnailData)
+        let thumbnail = try XCTUnwrap(UIImage(data: thumbnailData))
+        let thumbnailMaxDimension = max(thumbnail.size.width * thumbnail.scale, thumbnail.size.height * thumbnail.scale)
+        XCTAssertLessThanOrEqual(thumbnailMaxDimension, 420)
+
+        // Matches what the sync single-purpose helpers would have produced.
+        XCTAssertEqual(processed.photoData, SessionMediaStore.compressedPhotoData(from: sourceData))
+    }
+
+    func testProcessedPhotoPassesThroughUndecodableData() async {
+        let junk = Data([0xDE, 0xAD, 0xBE, 0xEF])
+
+        let processed = await SessionMediaStore.processedPhoto(from: junk)
+
+        XCTAssertEqual(processed.photoData, junk)
+        XCTAssertNil(processed.thumbnailData)
+    }
+
     func testStoreVideoPersistsFileAndThumbnail() throws {
         let sourceURL = try makeTestVideoURL()
         defer {

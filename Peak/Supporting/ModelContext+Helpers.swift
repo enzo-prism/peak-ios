@@ -28,9 +28,13 @@ extension SurfSession {
 }
 
 extension ModelContext {
+    /// Counts in SQLite via `fetchCount` instead of materializing every Spot
+    /// just to read `.count`. (`deleteAll` below intentionally keeps its
+    /// fetch-then-delete shape: batch `delete(model:)` skips in-memory model
+    /// invalidation and delete-rule processing, which `resetAllData` and the
+    /// in-memory test containers rely on, and it is not a hot path.)
     func spotCount() throws -> Int {
-        let descriptor = FetchDescriptor<Spot>()
-        return try fetch(descriptor).count
+        try fetchCount(FetchDescriptor<Spot>())
     }
 
     func createSpot(

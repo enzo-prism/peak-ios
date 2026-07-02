@@ -187,7 +187,10 @@ private extension SurfConditionsService {
         let windDirectionDegrees: Double?
     }
 
-    static func fetchMarineConditions(
+    /// `@concurrent` so the network round trip, JSON decode, and hourly-series
+    /// parsing all happen off the main actor; only the Sendable result hops back.
+    @concurrent
+    nonisolated static func fetchMarineConditions(
         start: Date,
         end: Date,
         latitude: Double,
@@ -230,7 +233,9 @@ private extension SurfConditionsService {
         )
     }
 
-    static func fetchWindConditions(
+    /// See `fetchMarineConditions` — runs off-main end to end.
+    @concurrent
+    nonisolated static func fetchWindConditions(
         start: Date,
         end: Date,
         latitude: Double,
@@ -257,7 +262,9 @@ private extension SurfConditionsService {
         )
     }
 
-    static func makeMarineURL(
+    // The helpers below are pure functions over Sendable values; `nonisolated`
+    // lets the `@concurrent` fetch path above call them without hopping to main.
+    nonisolated static func makeMarineURL(
         start: Date,
         end: Date,
         latitude: Double,
@@ -300,7 +307,7 @@ private extension SurfConditionsService {
         return url
     }
 
-    static func makeWindURL(
+    nonisolated static func makeWindURL(
         start: Date,
         end: Date,
         latitude: Double,
@@ -331,7 +338,8 @@ private extension SurfConditionsService {
         return url
     }
 
-    static func fetchJSON<T: Decodable>(url: URL, session: URLSession) async throws -> T {
+    @concurrent
+    nonisolated static func fetchJSON<T: Decodable & Sendable>(url: URL, session: URLSession) async throws -> T {
         let (data, response) = try await session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
@@ -350,7 +358,7 @@ private extension SurfConditionsService {
         }
     }
 
-    static func pastFutureQueryItems(
+    nonisolated static func pastFutureQueryItems(
         start: Date,
         end: Date,
         maxPastDays: Int,
@@ -376,11 +384,11 @@ private extension SurfConditionsService {
         return items
     }
 
-    static func parseTimes(_ values: [String]) -> [Date] {
+    nonisolated static func parseTimes(_ values: [String]) -> [Date] {
         values.compactMap { parseTime($0) }
     }
 
-    static func parseTime(_ value: String) -> Date? {
+    nonisolated static func parseTime(_ value: String) -> Date? {
         if let date = iso8601Formatter.date(from: value) {
             return date
         }
@@ -395,7 +403,7 @@ private extension SurfConditionsService {
         return nil
     }
 
-    static func indices(in times: [Date], start: Date, end: Date) -> [Int] {
+    nonisolated static func indices(in times: [Date], start: Date, end: Date) -> [Int] {
         let indices = times.enumerated().compactMap { index, time in
             time >= start && time <= end ? index : nil
         }
@@ -408,7 +416,7 @@ private extension SurfConditionsService {
         return []
     }
 
-    static func nearestIndex(for date: Date, in times: [Date]) -> Int? {
+    nonisolated static func nearestIndex(for date: Date, in times: [Date]) -> Int? {
         guard !times.isEmpty else { return nil }
         var bestIndex = 0
         var bestInterval = abs(times[0].timeIntervalSince(date))
@@ -422,7 +430,7 @@ private extension SurfConditionsService {
         return bestIndex
     }
 
-    static func values(at indices: [Int], in values: [Double?]?) -> [Double?] {
+    nonisolated static func values(at indices: [Int], in values: [Double?]?) -> [Double?] {
         guard let values else { return [] }
         return indices.compactMap { index in
             guard values.indices.contains(index) else { return nil }
@@ -430,7 +438,7 @@ private extension SurfConditionsService {
         }
     }
 
-    static func average(values: [Double?]) -> Double? {
+    nonisolated static func average(values: [Double?]) -> Double? {
         let filtered = values.compactMap { $0 }
         guard !filtered.isEmpty else { return nil }
         let total = filtered.reduce(0, +)
@@ -449,12 +457,12 @@ private extension SurfConditionsService {
         }
     }
 
-    static func floorToHour(_ date: Date) -> Date {
+    nonisolated static func floorToHour(_ date: Date) -> Date {
         let components = utcCalendar.dateComponents([.year, .month, .day, .hour], from: date)
         return utcCalendar.date(from: components) ?? date
     }
 
-    static func ceilToHour(_ date: Date) -> Date {
+    nonisolated static func ceilToHour(_ date: Date) -> Date {
         let floored = floorToHour(date)
         if floored == date {
             return date
@@ -462,21 +470,30 @@ private extension SurfConditionsService {
         return utcCalendar.date(byAdding: .hour, value: 1, to: floored) ?? date
     }
 
-    static var utcCalendar: Calendar {
+    /// Stored constants: these were computed `static var`s, so every access
+    /// re-allocated a Calendar/DateFormatter — hundreds of times per auto-fill
+    /// (once per hourly time string, per format). `Calendar` is Sendable, so a
+    /// `nonisolated` constant is fine as-is.
+    nonisolated static let utcCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         return calendar
-    }
+    }()
 
-    static var hourFormatter: DateFormatter {
+    /// `nonisolated(unsafe)`: DateFormatter/ISO8601DateFormatter are documented
+    /// thread-safe for formatting/parsing, and these are fully configured before
+    /// first use and never mutated afterward, so sharing them across the
+    /// `@concurrent` fetch/parse path is safe despite not being Sendable.
+    nonisolated(unsafe) static let hourFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
         return formatter
-    }
+    }()
 
-    static var timeParsers: [DateFormatter] {
+    // See `hourFormatter` for why `nonisolated(unsafe)` is safe here.
+    nonisolated(unsafe) static let timeParsers: [DateFormatter] = {
         let formats = [
             "yyyy-MM-dd'T'HH:mm",
             "yyyy-MM-dd'T'HH:mm:ss",
@@ -492,21 +509,23 @@ private extension SurfConditionsService {
             formatter.dateFormat = format
             return formatter
         }
-    }
+    }()
 
-    static var iso8601Formatter: ISO8601DateFormatter {
+    // See `hourFormatter` for why `nonisolated(unsafe)` is safe here.
+    nonisolated(unsafe) static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
-    }
+    }()
 
-    static var iso8601FractionalFormatter: ISO8601DateFormatter {
+    // See `hourFormatter` for why `nonisolated(unsafe)` is safe here.
+    nonisolated(unsafe) static let iso8601FractionalFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }
+    }()
 
-    static func decodeRemoteError(from data: Data) -> String? {
+    nonisolated static func decodeRemoteError(from data: Data) -> String? {
         guard let response = try? JSONDecoder().decode(OpenMeteoErrorResponse.self, from: data) else {
             return nil
         }
@@ -605,12 +624,12 @@ enum SurfConditionsError: LocalizedError {
     }
 }
 
-private struct OpenMeteoMarineResponse: Decodable {
+private struct OpenMeteoMarineResponse: Decodable, Sendable {
     let latitude: Double?
     let longitude: Double?
     let hourly: Hourly
 
-    struct Hourly: Decodable {
+    struct Hourly: Decodable, Sendable {
         let time: [String]
         let wave_height: [Double?]?
         let swell_wave_height: [Double?]?
@@ -623,17 +642,17 @@ private struct OpenMeteoMarineResponse: Decodable {
     }
 }
 
-private struct OpenMeteoWeatherResponse: Decodable {
+private struct OpenMeteoWeatherResponse: Decodable, Sendable {
     let hourly: Hourly
 
-    struct Hourly: Decodable {
+    struct Hourly: Decodable, Sendable {
         let time: [String]
         let wind_speed_10m: [Double?]?
         let wind_direction_10m: [Double?]?
     }
 }
 
-private struct OpenMeteoErrorResponse: Decodable {
+private struct OpenMeteoErrorResponse: Decodable, Sendable {
     let error: Bool?
     let reason: String?
 }

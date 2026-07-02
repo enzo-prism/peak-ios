@@ -86,12 +86,18 @@ final class SurfSession {
         self.updatedAt = updatedAt
     }
 
+    /// Duration bounds shared by `normalizedDuration` and the editor's control.
+    /// 8 hours covers marathon/multi-peak days; 5-minute steps keep short
+    /// sessions honest without demanding to-the-minute precision.
+    static let maxDurationMinutes = 480
+    static let durationStepMinutes = 5
+
     static func normalizedDuration(_ minutes: Int?) -> Int? {
         guard let minutes, minutes > 0 else { return nil }
-        let clamped = min(minutes, 180)
-        let step = 15
+        let clamped = min(minutes, maxDurationMinutes)
+        let step = durationStepMinutes
         let snapped = Int((Double(clamped) / Double(step)).rounded()) * step
-        return max(step, min(snapped, 180))
+        return max(step, min(snapped, maxDurationMinutes))
     }
 
     var hasSurfConditions: Bool {

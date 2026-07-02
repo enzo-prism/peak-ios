@@ -8,6 +8,13 @@ struct StoredSessionVideo {
     let thumbnailData: Data?
 }
 
+/// Result of compressing a picked photo and generating its grid thumbnail.
+/// Produced off the main actor by `SessionMediaStore.processedPhoto(from:)`.
+struct ProcessedSessionPhoto: Sendable {
+    let photoData: Data
+    let thumbnailData: Data?
+}
+
 enum SessionMediaStore {
     private static let mediaFolderName = "SessionMedia"
 
@@ -39,6 +46,27 @@ enum SessionMediaStore {
         return image.jpegData(compressionQuality: 0.75)
     }
 
+    /// Compresses a picked photo and generates its thumbnail **off the main actor**.
+    ///
+    /// `@concurrent` is required to actually leave the caller's executor: this
+    /// target builds with Approachable Concurrency (NonisolatedNonsendingByDefault),
+    /// so a plain `nonisolated async` function would keep running on the MainActor
+    /// caller and freeze the editor during multi-photo picks (~100-400ms each).
+    @concurrent
+    nonisolated static func processedPhoto(
+        from data: Data,
+        maxDimension: CGFloat = 2048,
+        thumbnailMaxDimension: CGFloat = 420
+    ) async -> ProcessedSessionPhoto {
+        let photoData = compressedPhotoData(from: data, maxDimension: maxDimension)
+        let thumbnail = thumbnailData(from: photoData, maxDimension: thumbnailMaxDimension)
+        return ProcessedSessionPhoto(photoData: photoData, thumbnailData: thumbnail)
+    }
+
+    /// `@concurrent` so poster-frame decode + JPEG encode stay off the caller's
+    /// actor (see `processedPhoto(from:)` — nonisolated async alone is not enough
+    /// under NonisolatedNonsendingByDefault).
+    @concurrent
     nonisolated static func videoThumbnailData(from url: URL, maxDimension: CGFloat = 420) async -> Data? {
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)

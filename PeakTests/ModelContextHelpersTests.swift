@@ -27,6 +27,18 @@ final class ModelContextHelpersTests: XCTestCase {
         XCTAssertFalse(updated.isArchived)
     }
 
+    func testSpotCountMatchesInsertedSpots() throws {
+        let container = try TestModelContainer.make()
+        let context = ModelContext(container)
+
+        XCTAssertEqual(try context.spotCount(), 0)
+
+        context.insert(Spot(name: "Trestles"))
+        context.insert(Spot(name: "Ocean Beach"))
+
+        XCTAssertEqual(try context.spotCount(), 2)
+    }
+
     func testResetAllDataClearsEntities() throws {
         let container = try TestModelContainer.make()
         let context = ModelContext(container)

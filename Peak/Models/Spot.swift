@@ -30,5 +30,8 @@ final class Spot {
         name.normalizedKey
     }
 
-    static let maxCount = 10
+    /// Soft cap on saved surf breaks. Raised from 10 (which blocked traveling
+    /// surfers) to a generous ceiling that still guards against runaway data.
+    /// All user-facing copy interpolates this value, so it stays in sync.
+    static let maxCount = 200
 }
