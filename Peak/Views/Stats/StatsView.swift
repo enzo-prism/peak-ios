@@ -4,6 +4,9 @@ import SwiftData
 struct StatsView: View {
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
+    @Query(sort: \Spot.name) private var spots: [Spot]
+    @Query(sort: \Gear.name) private var gear: [Gear]
+    @Query(sort: \Buddy.name) private var buddies: [Buddy]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showContent = false
     @State private var cachedSummary = StatsSummary(
@@ -20,6 +23,17 @@ struct StatsView: View {
         monthlyCounts: [],
         currentWeekStreak: 0
     )
+    @State private var cachedTimeSummary = SurfTimeSummary(
+        totalMinutes: 0,
+        averageMinutes: nil,
+        sessionsWithDuration: 0
+    )
+    @State private var cachedLongestStreak = 0
+    @State private var cachedHeatmap: [SessionHeatmapCell] = []
+    @State private var cachedSpotMix: [CountedItem] = []
+    @State private var cachedWaveSamples: [WaveRatingSample] = []
+    @State private var cachedConditions: ConditionsInsight?
+    @State private var cachedMonthlySurfDays: [MonthlyCount] = []
 
     var body: some View {
         NavigationStack {
@@ -35,12 +49,50 @@ struct StatsView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            surfDaysSection
-                            summaryCards
+                            StatsMetricsRow(
+                                yearSummary: yearSummary,
+                                timeSummary: cachedTimeSummary,
+                                longestStreak: cachedLongestStreak
+                            )
 
-                            StatListSection(title: "Top spots", items: summary.topSpots)
-                            StatListSection(title: "Most-used gear", items: summary.topGear)
-                            StatListSection(title: "Surf buddies", items: summary.topBuddies)
+                            if !cachedHeatmap.isEmpty {
+                                ConsistencyHeatmapCard(cells: cachedHeatmap)
+                            }
+
+                            if !cachedMonthlySurfDays.isEmpty {
+                                MonthlyBarsCard(data: cachedMonthlySurfDays)
+                            }
+
+                            if !cachedSpotMix.isEmpty {
+                                SpotMixDonutCard(spots: cachedSpotMix)
+                            }
+
+                            ConditionsInsightsCard(
+                                samples: cachedWaveSamples,
+                                insight: cachedConditions
+                            )
+
+                            StatListSection(
+                                title: "Top spots",
+                                idPrefix: "spot",
+                                items: summary.topSpots
+                            ) { item in
+                                spotsByKey[item.key].map { SpotDetailView(spot: $0) }
+                            }
+                            StatListSection(
+                                title: "Most-used gear",
+                                idPrefix: "gear",
+                                items: summary.topGear
+                            ) { item in
+                                gearByKey[item.key].map { GearDetailView(gear: $0) }
+                            }
+                            StatListSection(
+                                title: "Surf buddies",
+                                idPrefix: "buddy",
+                                items: summary.topBuddies
+                            ) { item in
+                                buddiesByKey[item.key].map { BuddyDetailView(buddy: $0) }
+                            }
                         }
                         .padding()
                         .opacity(showContent || reduceMotion ? 1 : 0)
@@ -70,48 +122,36 @@ struct StatsView: View {
         cachedYearSummary
     }
 
-    private var summaryCards: some View {
-        GlassContainer(spacing: 12) {
-            HStack(spacing: 12) {
-                StatCardView(title: "Sessions", value: "\(summary.totalSessions)", subtitle: "All time")
-                StatCardView(title: "Avg rating", value: averageRatingLabel, subtitle: "Rated sessions")
-            }
-        }
+    private var spotsByKey: [String: Spot] {
+        Dictionary(spots.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    private var surfDaysSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            MetricCardView(title: "Week Streak", value: streakLabel, subtitle: "Weeks")
-
-            UsageChartCard(
-                title: "Monthly surf days",
-                data: yearSummary.monthlyCounts,
-                valueLabel: "Surf Days"
-            )
-        }
+    private var gearByKey: [String: Gear] {
+        Dictionary(gear.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    private var streakLabel: String {
-        let streak = yearSummary.currentWeekStreak
-        return streak > 0 ? "\(streak) 🔥" : "0"
-    }
-
-    private var averageRatingLabel: String {
-        if summary.averageRating == 0 {
-            return "-"
-        }
-        return String(format: "%.1f", summary.averageRating)
+    private var buddiesByKey: [String: Buddy] {
+        Dictionary(buddies.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func refreshSummaries() {
         cachedSummary = StatsCalculator.summarize(sessions: sessions)
         cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
+        cachedTimeSummary = StatsCalculator.timeInWater(sessions: sessions)
+        cachedLongestStreak = StatsCalculator.longestWeekStreak(sessions: sessions)
+        cachedHeatmap = StatsCalculator.sessionHeatmap(sessions: sessions)
+        cachedSpotMix = StatsCalculator.spotMix(sessions: sessions)
+        cachedWaveSamples = StatsCalculator.waveHeightRatingSamples(sessions: sessions)
+        cachedConditions = StatsCalculator.bestConditions(sessions: sessions)
+        cachedMonthlySurfDays = StatsCalculator.monthlySurfDays(sessions: sessions)
     }
 }
 
-private struct StatListSection: View {
+private struct StatListSection<Destination: View>: View {
     let title: String
+    let idPrefix: String
     let items: [CountedItem]
+    let destination: (CountedItem) -> Destination?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -126,28 +166,67 @@ private struct StatListSection: View {
                 GlassContainer(spacing: 10) {
                     VStack(spacing: 8) {
                         ForEach(items) { item in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Theme.textPrimary)
-                                    if let detail = item.detail {
-                                        Text(detail)
-                                            .font(.caption)
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
+                            if let destination = destination(item) {
+                                NavigationLink {
+                                    destination
+                                } label: {
+                                    row(for: item, isLink: true)
                                 }
-                                Spacer()
-                                Text("\(item.count)")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(Theme.textPrimary)
+                                .buttonStyle(.plain)
+                            } else {
+                                row(for: item, isLink: false)
                             }
-                            .padding(12)
-                            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                         }
                     }
                 }
             }
+        }
+    }
+
+    private func row(for item: CountedItem, isLink: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                if let detail = item.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Spacer()
+            Text("\(item.count)")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Theme.textPrimary)
+            if isLink {
+                Image(systemName: "chevron.forward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(12)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("stats.row.\(idPrefix).\(item.key)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(item.name))
+        .accessibilityValue(Text("\(item.count) session\(item.count == 1 ? "" : "s")"))
+        .modifier(OpensDetailsHint(isLink: isLink))
+    }
+}
+
+/// Adds an "Opens details" VoiceOver hint only when the row actually links out,
+/// so plain (unresolved) rows stay quiet.
+private struct OpensDetailsHint: ViewModifier {
+    let isLink: Bool
+
+    func body(content: Content) -> some View {
+        if isLink {
+            content.accessibilityHint(Text("Opens details"))
+        } else {
+            content
         }
     }
 }
