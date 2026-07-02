@@ -16,25 +16,25 @@ struct HistoryFilterSheetView: View {
 
                 List {
                     Section {
-                        FilterRow(title: "All spots", isSelected: filters.spot == nil) {
-                            filters.spot = nil
+                        FilterRow(title: "All spots", isSelected: filters.spots.isEmpty) {
+                            filters.spots.removeAll()
                         }
                         ForEach(spots) { spot in
-                            FilterRow(title: spot.name, isSelected: filters.spot?.persistentModelID == spot.persistentModelID) {
-                                filters.spot = spot
+                            FilterRow(title: spot.name, isSelected: filters.spots.contains(spot)) {
+                                filters.toggleSpot(spot)
                             }
                         }
                     } header: {
-                        headerLabel("Spot")
+                        headerLabel("Spots")
                     }
 
                     Section {
-                        FilterRow(title: "All gear", isSelected: filters.gear == nil) {
-                            filters.gear = nil
+                        FilterRow(title: "All gear", isSelected: filters.gear.isEmpty) {
+                            filters.gear.removeAll()
                         }
                         ForEach(gear) { item in
-                            FilterRow(title: "\(item.name) (\(item.kind.label))", isSelected: filters.gear?.persistentModelID == item.persistentModelID) {
-                                filters.gear = item
+                            FilterRow(title: "\(item.name) (\(item.kind.label))", isSelected: filters.gear.contains(item)) {
+                                filters.toggleGear(item)
                             }
                         }
                     } header: {
@@ -42,16 +42,32 @@ struct HistoryFilterSheetView: View {
                     }
 
                     Section {
-                        FilterRow(title: "Everyone", isSelected: filters.buddy == nil) {
-                            filters.buddy = nil
+                        FilterRow(title: "Everyone", isSelected: filters.buddies.isEmpty) {
+                            filters.buddies.removeAll()
                         }
                         ForEach(buddies) { buddy in
-                            FilterRow(title: buddy.name, isSelected: filters.buddy?.persistentModelID == buddy.persistentModelID) {
-                                filters.buddy = buddy
+                            FilterRow(title: buddy.name, isSelected: filters.buddies.contains(buddy)) {
+                                filters.toggleBuddy(buddy)
                             }
                         }
                     } header: {
                         headerLabel("Buddies")
+                    }
+
+                    Section {
+                        minimumRatingRow
+                    } header: {
+                        headerLabel("Minimum rating")
+                    }
+
+                    Section {
+                        ForEach(HistoryFilters.DateRange.allCases) { range in
+                            FilterRow(title: range.label, isSelected: filters.dateRange == range) {
+                                filters.dateRange = range
+                            }
+                        }
+                    } header: {
+                        headerLabel("Date range")
                     }
                 }
                 .listStyle(.plain)
@@ -69,10 +85,25 @@ struct HistoryFilterSheetView: View {
                         filters.clear()
                     }
                     .disabled(!filters.isActive)
+                    .accessibilityIdentifier("history.filters.clear")
                 }
             }
         }
         .tint(Theme.textPrimary)
+    }
+
+    private var minimumRatingRow: some View {
+        HStack {
+            RatingPickerView(rating: $filters.minimumRating)
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .accessibilityElement(children: .contain)
+        .accessibilityHint("Shows sessions rated at least this many stars.")
+        .accessibilityIdentifier("history.filters.minimumRating")
     }
 
     @ViewBuilder
@@ -107,5 +138,6 @@ private struct FilterRow: View {
         .buttonStyle(PressFeedbackButtonStyle())
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
