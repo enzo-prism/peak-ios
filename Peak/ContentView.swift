@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @Bindable private var quickLog = QuickLogCoordinator.shared
+    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
 
     var body: some View {
         ZStack {
@@ -48,6 +49,17 @@ struct ContentView: View {
         }
         .sheet(isPresented: $quickLog.showNewSession) {
             SessionEditorView(mode: .new)
+        }
+        .task {
+            WidgetSnapshotWriter.update(from: sessions)
+        }
+        .onChange(of: sessions) { _, newValue in
+            WidgetSnapshotWriter.update(from: newValue)
+        }
+        .onOpenURL { url in
+            if url.host == "new-session" || url.path == "/new-session" {
+                quickLog.requestNewSession()
+            }
         }
     }
 }
