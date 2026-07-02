@@ -108,13 +108,18 @@ final class PeakUILayoutTests: XCTestCase {
     func testStatsLayoutFits() {
         tapTab(named: "Stats")
 
-        let sessionsCard = app.staticTexts["SESSIONS"]
-        assertExists(sessionsCard)
-        assertFits(sessionsCard)
+        // The Stats 2.0 metric tiles are merged accessibility elements (their
+        // inner text is ignored), so match by label prefix rather than the card
+        // caption text.
+        let surfDaysCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Surf days'")).firstMatch
+        assertExists(surfDaysCard)
+        assertFits(surfDaysCard)
 
-        let avgCard = app.staticTexts["AVG RATING"]
-        assertExists(avgCard)
-        assertFits(avgCard)
+        let thisYearCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH 'Sessions in'")).firstMatch
+        assertExists(thisYearCard)
+        assertFits(thisYearCard)
 
         attachScreenshot(name: "Stats")
     }
@@ -355,7 +360,14 @@ final class PeakUILayoutTests: XCTestCase {
         tapTab(named: "More")
         tapElement(named: "Settings")
 
+        // Reset now sits below the Full Backup + Apple Health sections; swipe it
+        // into the realized hierarchy before asserting.
         let resetButton = app.buttons["Reset All Data"]
+        var scrollAttempts = 0
+        while !resetButton.exists && scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
         assertExists(resetButton)
         scrollToVisible(resetButton, in: scrollContainer())
         resetButton.tap()
