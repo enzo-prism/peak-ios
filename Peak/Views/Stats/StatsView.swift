@@ -60,6 +60,10 @@ struct StatsView: View {
                                 MonthlyBarsCard(data: cachedMonthlySurfDays)
                             }
 
+                            if !cachedSpotMix.isEmpty {
+                                SpotMixDonutCard(spots: cachedSpotMix)
+                            }
+
                             StatListSection(title: "Top spots", items: summary.topSpots)
                             StatListSection(title: "Most-used gear", items: summary.topGear)
                             StatListSection(title: "Surf buddies", items: summary.topBuddies)
