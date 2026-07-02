@@ -216,6 +216,172 @@ final class ExportImportTests: XCTestCase {
         XCTAssertTrue(sessions.first?.gear.isEmpty ?? false)
     }
 
+    // MARK: - Full-data backup (.peakbackup)
+
+    func testBackupFileRoundTripPreservesSessionsAndMedia() async throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 3, day: 3, hour: 7)
+
+        let sourceContainer = try makeContainer()
+        let sourceContext = ModelContext(sourceContainer)
+
+        let spot = Spot(name: "Uluwatu", createdAt: createdAt)
+        let photoBytes = Data([0x10, 0x20, 0x30, 0x40, 0x50])
+        let thumbBytes = Data([0xAA, 0xBB])
+
+        // Fake video binary on disk (the test media dir under the temp folder).
+        let videoFileName = "backup-test-\(UUID().uuidString).mov"
+        let videoBytes = Data((0..<64).map { UInt8($0 & 0xFF) })
+        let videoURL = SessionMediaStore.videoURL(for: videoFileName)
+        try videoBytes.write(to: videoURL, options: [.atomic])
+        defer { try? FileManager.default.removeItem(at: videoURL) }
+
+        let photoMedia = SessionMedia(
+            kind: .photo,
+            photoData: photoBytes,
+            thumbnailData: thumbBytes,
+            sortIndex: 0,
+            cropOriginX: 0.1,
+            cropOriginY: 0.2,
+            cropWidth: 0.7,
+            cropHeight: 0.6,
+            createdAt: createdAt
+        )
+        let videoMedia = SessionMedia(
+            kind: .video,
+            videoFileName: videoFileName,
+            sortIndex: 1,
+            createdAt: createdAt
+        )
+        let session = SurfSession(
+            date: createdAt,
+            spot: spot,
+            media: [photoMedia, videoMedia],
+            rating: 4,
+            notes: "Backup me",
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        sourceContext.insert(spot)
+        sourceContext.insert(session)
+
+        let backupURL = try await BackupManager.makeBackupFile(
+            sessions: [session],
+            spots: [spot],
+            gear: [],
+            buddies: [],
+            now: createdAt
+        )
+        defer { try? FileManager.default.removeItem(at: backupURL) }
+        XCTAssertEqual(backupURL.pathExtension, BackupManager.fileExtension)
+
+        // Restore into a FRESH container.
+        let targetContainer = try makeContainer()
+        let targetContext = ModelContext(targetContainer)
+        try await BackupManager.restore(from: backupURL, mode: .merge, context: targetContext)
+
+        let restoredSessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(restoredSessions.count, 1)
+        let restored = try XCTUnwrap(restoredSessions.first)
+        XCTAssertEqual(restored.spot?.name, "Uluwatu")
+        XCTAssertEqual(restored.rating, 4)
+        XCTAssertEqual(restored.media.count, 2)
+
+        let restoredPhoto = try XCTUnwrap(restored.media.first { $0.kind == .photo })
+        XCTAssertEqual(restoredPhoto.photoData, photoBytes)
+        XCTAssertEqual(restoredPhoto.thumbnailData, thumbBytes)
+        XCTAssertEqual(restoredPhoto.sortIndex, 0)
+        XCTAssertEqual(restoredPhoto.cropOriginX, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(restoredPhoto.cropOriginY, 0.2, accuracy: 0.0001)
+        XCTAssertEqual(restoredPhoto.cropWidth, 0.7, accuracy: 0.0001)
+        XCTAssertEqual(restoredPhoto.cropHeight, 0.6, accuracy: 0.0001)
+
+        let restoredVideo = try XCTUnwrap(restored.media.first { $0.kind == .video })
+        XCTAssertEqual(restoredVideo.sortIndex, 1)
+        let restoredVideoFileName = try XCTUnwrap(restoredVideo.videoFileName)
+        let restoredVideoData = try Data(contentsOf: SessionMediaStore.videoURL(for: restoredVideoFileName))
+        XCTAssertEqual(restoredVideoData, videoBytes)
+    }
+
+    func testBackupFileEncodeDecodeRoundTrip() throws {
+        let createdString = ExportDateFormatter.string(from: TestCalendar.makeDate(year: 2026, month: 4, day: 1))
+        let export = PeakExport(
+            schemaVersion: PeakExportManager.schemaVersion,
+            exportedAt: createdString,
+            sessions: [],
+            spots: [],
+            gear: [],
+            buddies: []
+        )
+        let entry = SessionMediaBackupEntry(
+            id: "entry-1",
+            sessionId: createdString,
+            kind: "photo",
+            sortIndex: 2,
+            cropOriginX: 0.1,
+            cropOriginY: 0.2,
+            cropWidth: 0.3,
+            cropHeight: 0.4,
+            createdAt: createdString,
+            photoBase64: Data([0x01, 0x02]).base64EncodedString(),
+            thumbnailBase64: nil,
+            videoBase64: nil
+        )
+        let manifest = PeakBackupManifest(
+            backupVersion: BackupManager.backupVersion,
+            exportedAt: createdString,
+            media: [entry]
+        )
+        let file = PeakBackupFile(export: export, manifest: manifest)
+
+        let data = try BackupManager.encodeBackupFile(file)
+        let decoded = try BackupManager.decodeBackupFile(data)
+
+        XCTAssertEqual(decoded.manifest.backupVersion, "1")
+        XCTAssertEqual(decoded.export.schemaVersion, PeakExportManager.schemaVersion)
+        XCTAssertEqual(decoded.manifest.media.count, 1)
+        let decodedEntry = try XCTUnwrap(decoded.manifest.media.first)
+        XCTAssertEqual(decodedEntry.sessionId, createdString)
+        XCTAssertEqual(decodedEntry.kind, "photo")
+        XCTAssertEqual(decodedEntry.sortIndex, 2)
+        XCTAssertEqual(decodedEntry.cropWidth, 0.3, accuracy: 0.0001)
+        XCTAssertEqual(decodedEntry.photoBase64, Data([0x01, 0x02]).base64EncodedString())
+        XCTAssertNil(decodedEntry.thumbnailBase64)
+        XCTAssertNil(decodedEntry.videoBase64)
+    }
+
+    // MARK: - Crash-proof store recovery
+
+    func testRelocateStoreFilesMovesCorruptStoreFiles() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("PeakStoreFixture-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        // Fabricate a "corrupt" store: main file + sidecars + external-storage support dir.
+        let storeName = "default.store"
+        try Data("corrupt".utf8).write(to: root.appendingPathComponent(storeName))
+        try Data("wal".utf8).write(to: root.appendingPathComponent("\(storeName)-wal"))
+        try Data("shm".utf8).write(to: root.appendingPathComponent("\(storeName)-shm"))
+        let supportDir = root.appendingPathComponent(".default_SUPPORT", isDirectory: true)
+        try fm.createDirectory(at: supportDir, withIntermediateDirectories: true)
+        try Data("blob".utf8).write(to: supportDir.appendingPathComponent("blob.bin"))
+
+        let now = TestCalendar.makeDate(year: 2026, month: 5, day: 5, hour: 12)
+        let archiveDir = try PeakDataStore.relocateStoreFiles(in: root, storeName: storeName, now: now)
+
+        // Originals moved out of the live directory.
+        XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent(storeName).path))
+        XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent("\(storeName)-wal").path))
+        XCTAssertFalse(fm.fileExists(atPath: root.appendingPathComponent("\(storeName)-shm").path))
+        XCTAssertFalse(fm.fileExists(atPath: supportDir.path))
+
+        // Preserved inside the timestamped archive folder.
+        XCTAssertTrue(archiveDir.lastPathComponent.hasPrefix("Archived Store"))
+        XCTAssertTrue(fm.fileExists(atPath: archiveDir.appendingPathComponent(storeName).path))
+        XCTAssertTrue(fm.fileExists(atPath: archiveDir.appendingPathComponent("\(storeName)-wal").path))
+        XCTAssertTrue(fm.fileExists(atPath: archiveDir.appendingPathComponent(".default_SUPPORT/blob.bin").path))
+    }
+
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
