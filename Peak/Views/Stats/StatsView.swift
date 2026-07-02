@@ -4,6 +4,9 @@ import SwiftData
 struct StatsView: View {
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
+    @Query(sort: \Spot.name) private var spots: [Spot]
+    @Query(sort: \Gear.name) private var gear: [Gear]
+    @Query(sort: \Buddy.name) private var buddies: [Buddy]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showContent = false
     @State private var cachedSummary = StatsSummary(
@@ -69,9 +72,27 @@ struct StatsView: View {
                                 insight: cachedConditions
                             )
 
-                            StatListSection(title: "Top spots", items: summary.topSpots)
-                            StatListSection(title: "Most-used gear", items: summary.topGear)
-                            StatListSection(title: "Surf buddies", items: summary.topBuddies)
+                            StatListSection(
+                                title: "Top spots",
+                                idPrefix: "spot",
+                                items: summary.topSpots
+                            ) { item in
+                                spotsByKey[item.key].map { SpotDetailView(spot: $0) }
+                            }
+                            StatListSection(
+                                title: "Most-used gear",
+                                idPrefix: "gear",
+                                items: summary.topGear
+                            ) { item in
+                                gearByKey[item.key].map { GearDetailView(gear: $0) }
+                            }
+                            StatListSection(
+                                title: "Surf buddies",
+                                idPrefix: "buddy",
+                                items: summary.topBuddies
+                            ) { item in
+                                buddiesByKey[item.key].map { BuddyDetailView(buddy: $0) }
+                            }
                         }
                         .padding()
                         .opacity(showContent || reduceMotion ? 1 : 0)
@@ -101,6 +122,18 @@ struct StatsView: View {
         cachedYearSummary
     }
 
+    private var spotsByKey: [String: Spot] {
+        Dictionary(spots.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private var gearByKey: [String: Gear] {
+        Dictionary(gear.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    private var buddiesByKey: [String: Buddy] {
+        Dictionary(buddies.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
     private func refreshSummaries() {
         cachedSummary = StatsCalculator.summarize(sessions: sessions)
         cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
@@ -114,9 +147,11 @@ struct StatsView: View {
     }
 }
 
-private struct StatListSection: View {
+private struct StatListSection<Destination: View>: View {
     let title: String
+    let idPrefix: String
     let items: [CountedItem]
+    let destination: (CountedItem) -> Destination?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -131,29 +166,54 @@ private struct StatListSection: View {
                 GlassContainer(spacing: 10) {
                     VStack(spacing: 8) {
                         ForEach(items) { item in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Theme.textPrimary)
-                                    if let detail = item.detail {
-                                        Text(detail)
-                                            .font(.caption)
-                                            .foregroundStyle(Theme.textMuted)
-                                    }
+                            if let destination = destination(item) {
+                                NavigationLink {
+                                    destination
+                                } label: {
+                                    row(for: item, isLink: true)
                                 }
-                                Spacer()
-                                Text("\(item.count)")
-                                    .font(.headline.weight(.bold))
-                                    .foregroundStyle(Theme.textPrimary)
+                                .buttonStyle(.plain)
+                            } else {
+                                row(for: item, isLink: false)
                             }
-                            .padding(12)
-                            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
                         }
                     }
                 }
             }
         }
+    }
+
+    private func row(for item: CountedItem, isLink: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                if let detail = item.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                }
+            }
+            Spacer()
+            Text("\(item.count)")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Theme.textPrimary)
+            if isLink {
+                Image(systemName: "chevron.forward")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(12)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("stats.row.\(idPrefix).\(item.key)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(item.name))
+        .accessibilityValue(Text("\(item.count) session\(item.count == 1 ? "" : "s")"))
+        .accessibilityHint(isLink ? Text("Opens details") : Text(""))
     }
 }
 
