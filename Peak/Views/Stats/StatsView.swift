@@ -56,7 +56,9 @@ struct StatsView: View {
                                 ConsistencyHeatmapCard(cells: cachedHeatmap)
                             }
 
-                            monthlyChartSection
+                            if !cachedMonthlySurfDays.isEmpty {
+                                MonthlyBarsCard(data: cachedMonthlySurfDays)
+                            }
 
                             StatListSection(title: "Top spots", items: summary.topSpots)
                             StatListSection(title: "Most-used gear", items: summary.topGear)
@@ -88,14 +90,6 @@ struct StatsView: View {
 
     private var yearSummary: SurfYearSummary {
         cachedYearSummary
-    }
-
-    private var monthlyChartSection: some View {
-        UsageChartCard(
-            title: "Monthly surf days",
-            data: yearSummary.monthlyCounts,
-            valueLabel: "Surf Days"
-        )
     }
 
     private func refreshSummaries() {
