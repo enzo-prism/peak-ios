@@ -8,7 +8,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Status at a glance:
 
 - **App Store (live):** `2.0`
-- **TestFlight (beta):** `2.4` — builds 4 and 5, `IN_BETA_TESTING` (internal Test Group A)
+- **TestFlight (beta):** `2.5` — build 1, uploaded 2026-07-02 (this is the large feature release below); `2.4` builds 4–5 previously in beta
+
+## [2.5] — 2026-07-02 — TestFlight (build 1, beta)
+
+The largest Peak release to date: a Stats overhaul, full media-inclusive backups,
+Apple Health integration, History search, a spots map, and a broad performance pass.
+
+### Added
+
+- **Stats 2.0.** The Stats tab now surfaces data it already collected but never
+  showed: total time in water, average session length, surf days this year, and
+  current **and** longest week streaks; a GitHub-style consistency heatmap; a
+  horizontally-scrollable monthly-sessions chart with tap-to-inspect; a spot-mix
+  donut; and conditions insights (wave-height-vs-rating scatter + a "your best
+  sessions" summary). Top spots / gear / buddies rows are now tappable into their
+  detail screens. (`Peak/Views/Stats/**`, `StatsCalculator.swift`)
+- **Apple Health integration (iPhone-only, opt-in).** Logged sessions save to
+  Health as `surfingSports` workouts; Apple Watch surf workouts you record
+  surface heart rate and active calories on the session detail; an "Import from
+  Health" screen offers to log unlogged Watch surfs. Settings → Apple Health.
+  (`HealthKitService.swift`, `HealthImportView.swift`)
+- **Full Backup (includes photos & videos).** A new `.peakbackup` archive backs
+  up everything — sessions, spots, gear, buddies, **and all media** — and restores
+  with a merge/replace choice. JSON/CSV exports (metadata only) are unchanged.
+  (`BackupManager.swift`)
+- **Session share card.** Share a branded summary of any session (spot, date,
+  rating, conditions, first photo) from the session detail toolbar.
+- **History search & richer filters.** Search across spot, notes, gear, and
+  buddies (diacritic-insensitive, debounced), plus multi-select spot/gear/buddy
+  filters, a minimum-rating filter, and date ranges, with a removable active-filter
+  chips row. (`HistoryFilters.swift`)
+- **Spots map.** A map of every pinned break with per-spot session-count badges,
+  reachable from Spots. Adding a spot now offers **Use My Location** with reverse
+  geocoding. (`SpotsMapView.swift`, `LocationService.swift`)
+
+### Changed
+
+- **Navigation.** Spots and Buddies are now direct rows in More (the redundant
+  Library hub and duplicated Quiver entry were removed).
+- **Higher limits.** The saved-spots cap went from 10 to 200, and session duration
+  now goes up to 8 hours in 5-minute steps (was 3 hours / 15-minute steps).
+
+### Fixed / Performance
+
+- **Adding photos no longer freezes the editor.** Photo compression and thumbnail
+  generation now run off the main thread (`@concurrent`), so multi-photo picks
+  stay smooth. (`SessionMediaStore.swift`, `SessionEditorView.swift`)
+- **Faster, lighter data access.** The session editor's query now prefetches
+  relationships, and the Open-Meteo conditions parser reuses cached formatters.
+- **Crash-proof launch.** A corrupt or unreadable data store no longer bricks the
+  app on launch: it's archived aside and a fresh store is created, with a one-time
+  notice. (`PeakDataStore.swift`)
+
+### Deferred to a later build
+
+- **Home/Lock Screen widgets** (streak + last session) are code-complete but
+  require registering the app's App Group identifier via the Developer portal /
+  Xcode (not creatable through the headless App Store Connect API). Held on the
+  `feature/2.5-widgets` branch until that one-time registration is done.
+
+## [2.4] — 2026-06-29 — TestFlight (builds 4 & 5, beta)
 
 ## [2.4] — 2026-06-29 — TestFlight (builds 4 & 5, beta)
 
