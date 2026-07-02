@@ -137,11 +137,25 @@ struct BuddyExport: Codable {
     }
 }
 
-// MARK: - Full-backup manifest (media sidecar)
+// MARK: - Full-backup file (`.peakbackup`)
 
-/// Sidecar manifest for `.peakbackup` archives. Extends the JSON export with
-/// media entries WITHOUT touching the SwiftData schema: media binaries live as
-/// files inside the archive and are keyed by a stable per-entry identifier.
+/// A single self-contained `.peakbackup` document: the standard JSON `export`
+/// plus a `manifest` that inlines every piece of session media as base64 so the
+/// backup is portable in one file (no sidecars, no zip/AppleArchive framework).
+struct PeakBackupFile: Codable {
+    let export: PeakExport
+    let manifest: PeakBackupManifest
+
+    enum CodingKeys: String, CodingKey {
+        case export
+        case manifest
+    }
+}
+
+/// Media manifest carried alongside the export inside a `.peakbackup` file.
+/// Extends the JSON export with media entries WITHOUT touching the SwiftData
+/// schema: each media binary is inlined as a base64 string on its entry and
+/// linked back to its owning session by `sessionId`.
 struct PeakBackupManifest: Codable {
     let backupVersion: String
     let exportedAt: String
@@ -155,7 +169,7 @@ struct PeakBackupManifest: Codable {
 }
 
 struct SessionMediaBackupEntry: Codable {
-    /// Stable identifier minted at backup time; keys this entry's files in the archive.
+    /// Stable identifier minted at backup time (diagnostics only; not persisted).
     let id: String
     /// Matches `SessionExport.id` (the owning session's createdAt timestamp string).
     let sessionId: String
@@ -166,10 +180,10 @@ struct SessionMediaBackupEntry: Codable {
     let cropWidth: Double
     let cropHeight: Double
     let createdAt: String
-    /// Archive-relative file paths (nil when the binary isn't part of the backup).
-    let photoFile: String?
-    let thumbnailFile: String?
-    let videoFile: String?
+    /// Inlined binaries as base64 (nil when that binary isn't part of the entry).
+    let photoBase64: String?
+    let thumbnailBase64: String?
+    let videoBase64: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -181,9 +195,9 @@ struct SessionMediaBackupEntry: Codable {
         case cropWidth = "crop_width"
         case cropHeight = "crop_height"
         case createdAt = "created_at"
-        case photoFile = "photo_file"
-        case thumbnailFile = "thumbnail_file"
-        case videoFile = "video_file"
+        case photoBase64 = "photo_base64"
+        case thumbnailBase64 = "thumbnail_base64"
+        case videoBase64 = "video_base64"
     }
 }
 
