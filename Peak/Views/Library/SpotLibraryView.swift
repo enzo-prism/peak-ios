@@ -60,6 +60,15 @@ struct SpotLibraryView: View {
         }
         .navigationTitle("Spots")
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                NavigationLink {
+                    SpotsMapView()
+                } label: {
+                    Image(systemName: "map")
+                }
+                .accessibilityIdentifier("spot.library.map")
+                .disabled(spots.allSatisfy { $0.coordinate == nil })
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     if isLimitReached {

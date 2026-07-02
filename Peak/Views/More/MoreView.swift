@@ -22,9 +22,20 @@ struct MoreView: View {
                             .buttonStyle(PressFeedbackButtonStyle())
 
                             NavigationLink {
-                                LibraryView()
+                                SpotLibraryView()
                             } label: {
-                                Label("Library", systemImage: "books.vertical")
+                                Label("Spots", systemImage: "mappin.and.ellipse")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+                                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+
+                            NavigationLink {
+                                BuddyLibraryView()
+                            } label: {
+                                Label("Buddies", systemImage: "person.2")
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Peak uses your location to pin surf spots near you.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Peak reads your Apple Watch surf workouts, heart rate, and calories to enrich your logged sessions.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Peak saves your surf sessions to Apple Health as surfing workouts.</string>
+</dict>
 </plist>

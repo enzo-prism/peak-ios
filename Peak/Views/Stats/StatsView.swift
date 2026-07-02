@@ -16,6 +16,7 @@ struct StatsView: View {
     @State private var cachedYearSummary = SurfYearSummary(
         year: Calendar.current.component(.year, from: Date()),
         totalDays: 0,
+        totalSessions: 0,
         monthlyCounts: [],
         currentWeekStreak: 0
     )

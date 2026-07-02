@@ -145,7 +145,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testSpotRowHitAreaFullWidth() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Spots")
 
         let row = app.buttons.matching(identifier: "spot.row").firstMatch
@@ -160,7 +159,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testBuddyRowHitAreaFullWidth() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Buddies")
 
         let row = app.buttons.matching(identifier: "buddy.row").firstMatch
@@ -265,9 +263,9 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(settings)
         assertFits(settings)
 
-        let library = app.staticTexts["Library"]
-        assertExists(library)
-        assertFits(library)
+        let spots = app.staticTexts["Spots"]
+        assertExists(spots)
+        assertFits(spots)
 
         attachScreenshot(name: "More")
     }
@@ -299,7 +297,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testSpotDeleteBlockedAlertLayout() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Spots")
         tapElement(named: "Ocean Beach")
 
@@ -319,7 +316,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testBuddyDeleteBlockedAlertLayout() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Buddies")
         tapElement(named: "Kai")
 
@@ -487,7 +483,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testSpotEditorKeyboardAvoidsFields() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Spots")
 
         let addSpot = app.buttons["spot.library.add"]
@@ -512,7 +507,6 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testBuddyEditorKeyboardAvoidsFields() {
         tapTab(named: "More")
-        tapElement(named: "Library")
         tapElement(named: "Buddies")
 
         let addBuddy = app.buttons["buddy.library.add"]
