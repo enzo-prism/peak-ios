@@ -137,6 +137,56 @@ struct BuddyExport: Codable {
     }
 }
 
+// MARK: - Full-backup manifest (media sidecar)
+
+/// Sidecar manifest for `.peakbackup` archives. Extends the JSON export with
+/// media entries WITHOUT touching the SwiftData schema: media binaries live as
+/// files inside the archive and are keyed by a stable per-entry identifier.
+struct PeakBackupManifest: Codable {
+    let backupVersion: String
+    let exportedAt: String
+    let media: [SessionMediaBackupEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case backupVersion = "backup_version"
+        case exportedAt = "exported_at"
+        case media
+    }
+}
+
+struct SessionMediaBackupEntry: Codable {
+    /// Stable identifier minted at backup time; keys this entry's files in the archive.
+    let id: String
+    /// Matches `SessionExport.id` (the owning session's createdAt timestamp string).
+    let sessionId: String
+    let kind: String
+    let sortIndex: Int
+    let cropOriginX: Double
+    let cropOriginY: Double
+    let cropWidth: Double
+    let cropHeight: Double
+    let createdAt: String
+    /// Archive-relative file paths (nil when the binary isn't part of the backup).
+    let photoFile: String?
+    let thumbnailFile: String?
+    let videoFile: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionId = "session_id"
+        case kind
+        case sortIndex = "sort_index"
+        case cropOriginX = "crop_origin_x"
+        case cropOriginY = "crop_origin_y"
+        case cropWidth = "crop_width"
+        case cropHeight = "crop_height"
+        case createdAt = "created_at"
+        case photoFile = "photo_file"
+        case thumbnailFile = "thumbnail_file"
+        case videoFile = "video_file"
+    }
+}
+
 enum ImportMode {
     case merge
     case replace
