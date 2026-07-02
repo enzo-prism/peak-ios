@@ -9,6 +9,9 @@ struct SettingsView: View {
     @State private var showImporter = false
     @State private var importPayload: PeakExport?
     @State private var showImportOptions = false
+    @State private var showBackupImporter = false
+    @State private var pendingBackupURL: URL?
+    @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
@@ -30,6 +33,22 @@ struct SettingsView: View {
                     }
                 } header: {
                     sectionHeader("Export")
+                }
+
+                Section {
+                    SettingsRow(title: "Back Up Everything", systemImage: "externaldrive.badge.timemachine", isDisabled: isWorking) {
+                        backUpEverything()
+                    }
+                    SettingsRow(title: "Restore from Backup", systemImage: "arrow.clockwise.icloud", isDisabled: isWorking) {
+                        showBackupImporter = true
+                    }
+                    Text("A full backup (.peakbackup) includes your photos and videos. JSON and CSV exports do not.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                        .padding(.horizontal, 4)
+                        .listRowBackground(Color.clear)
+                } header: {
+                    sectionHeader("Full Backup")
                 }
 
                 Section {
@@ -112,6 +131,24 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)
+        }
+        .fileImporter(isPresented: $showBackupImporter, allowedContentTypes: [.data]) { result in
+            handleBackupImport(result)
+        }
+        .confirmationDialog(
+            "Restore backup",
+            isPresented: $showBackupRestoreOptions,
+            titleVisibility: .visible
+        ) {
+            Button("Merge") {
+                restoreBackup(mode: .merge)
+            }
+            Button("Replace All Data", role: .destructive) {
+                restoreBackup(mode: .replace)
+            }
+            Button("Cancel", role: .cancel) { pendingBackupURL = nil }
+        } message: {
+            Text("Replace is recommended for a clean restore. Merge keeps current data but can duplicate photos if you restore the same backup twice.")
         }
         .confirmationDialog(
             "Import backup",
@@ -196,6 +233,43 @@ struct SettingsView: View {
             gear: try modelContext.fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)])),
             buddies: try modelContext.fetch(FetchDescriptor<Buddy>(sortBy: [SortDescriptor(\.name)]))
         )
+    }
+
+    private func backUpEverything() {
+        runWork("Backing Up...", errorTitle: "Backup Failed") {
+            let sessions = try modelContext.fetch(
+                SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies, \.media])
+            )
+            let spots = try modelContext.fetch(FetchDescriptor<Spot>(sortBy: [SortDescriptor(\.name)]))
+            let gear = try modelContext.fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)]))
+            let buddies = try modelContext.fetch(FetchDescriptor<Buddy>(sortBy: [SortDescriptor(\.name)]))
+            let url = try await BackupManager.makeBackupFile(
+                sessions: sessions, spots: spots, gear: gear, buddies: buddies
+            )
+            shareItems = [url]
+            showShareSheet = true
+        }
+    }
+
+    private func handleBackupImport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            pendingBackupURL = url
+            showBackupRestoreOptions = true
+        case .failure(let error):
+            alertMessage = errorAlert(title: "Restore Failed", error: error)
+        }
+    }
+
+    private func restoreBackup(mode: ImportMode) {
+        guard let url = pendingBackupURL else { return }
+        runWork("Restoring Backup...", errorTitle: "Restore Failed") {
+            defer { pendingBackupURL = nil }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            try await BackupManager.restore(from: url, mode: mode, context: modelContext)
+            alertMessage = AlertMessage(title: "Restore Complete", body: "Your backup has been restored.")
+        }
     }
 
     private func handleImport(_ result: Result<URL, Error>) {
