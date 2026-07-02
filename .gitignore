@@ -20,3 +20,7 @@ artifacts/
 # xcodemake generated files
 Makefile
 *xcodemake*build.log
+
+# Local build/release artifacts and marketing assets
+.asc/artifacts/
+marketing/
