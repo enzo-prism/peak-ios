@@ -36,6 +36,9 @@ struct SpotEditorView: View {
     @State private var showAlert = false
     @State private var suggestions: [SurfBreak] = []
     @State private var appliedName: String?
+    @State private var locationService = LocationService()
+    @State private var isLocating = false
+    @State private var showLocationUnavailable = false
     @FocusState private var nameFieldFocused: Bool
 
     init(mode: SpotEditorMode, suggestedName: String? = nil, onSave: ((Spot) -> Void)? = nil) {
@@ -129,6 +132,12 @@ struct SpotEditorView: View {
         } message: {
             Text(alertMessage)
         }
+        .alert("Location Unavailable", isPresented: $showLocationUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Peak couldn't read your location. You can allow location access in Settings, or tap the map to drop a pin.")
+        }
+        .task { await applyDefaultRegion() }
     }
 
     private var suggestionList: some View {
@@ -288,6 +297,10 @@ struct SpotEditorView: View {
                     .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
                     .padding(10)
                     .allowsHitTesting(false)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                useMyLocationButton
+                    .padding(10)
             }
             .frame(height: 220)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
