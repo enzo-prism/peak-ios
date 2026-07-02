@@ -17,6 +17,9 @@ struct SessionDetailView: View {
     @State private var showBuddiesSection = false
     @State private var showMediaSection = false
     @State private var showNotesSection = false
+    @State private var healthStats: SessionHealthStats?
+    @State private var shareContent: SessionShareContent?
+    @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
 
     var body: some View {
         ZStack {
@@ -26,6 +29,8 @@ struct SessionDetailView: View {
                 GlassContainer(spacing: 16) {
                     VStack(alignment: .leading, spacing: 16) {
                         heroCard
+
+                        healthCard
 
                         if !surfReportRows.isEmpty {
                             detailDisclosureSection("Surf report", isExpanded: $showSurfReportSection) {
@@ -82,6 +87,9 @@ struct SessionDetailView: View {
         .navigationTitle("Session")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
+                shareToolbarButton
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     showEdit = true
                 } label: {
@@ -89,8 +97,17 @@ struct SessionDetailView: View {
                 }
             }
         }
+        .task {
+            await loadHealthStats()
+            await prepareShareContent()
+        }
         .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
+                // Capture + remove the Health workout BEFORE deleting the model:
+                // the stable key is derived from `session.createdAt`, read
+                // synchronously inside deleteWorkout(for:). No-op when Health
+                // sync is off/unauthorized.
+                HealthKitService.shared.deleteWorkout(for: session)
                 SessionMediaStore.deleteStoredMedia(for: session.media)
                 modelContext.delete(session)
                 didDelete = true
@@ -105,6 +122,94 @@ struct SessionDetailView: View {
         .sheet(item: $selectedMedia) { media in
             SessionMediaViewer(media: media)
         }
+    }
+
+    // MARK: - Apple Health
+
+    /// Compact avg/max HR + active-energy card. Shown only when Health sync is
+    /// enabled AND real data came back. `fetchStats` returns nil when disabled,
+    /// unavailable, denied, or empty, so this stays silent — it never implies a
+    /// permission was refused.
+    @ViewBuilder
+    private var healthCard: some View {
+        if healthSyncEnabled, let stats = healthStats, !stats.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 6) {
+                    Image(systemName: "heart.fill")
+                        .font(.caption)
+                        .foregroundStyle(Theme.surfGreen)
+                    Text("APPLE HEALTH")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textMuted)
+                }
+
+                HStack(alignment: .top, spacing: 12) {
+                    if let average = stats.averageHeartRate {
+                        healthMetric(title: "Avg HR", value: "\(Int(average.rounded()))", unit: "bpm")
+                    }
+                    if let maximum = stats.maxHeartRate {
+                        healthMetric(title: "Max HR", value: "\(Int(maximum.rounded()))", unit: "bpm")
+                    }
+                    if let energy = stats.activeEnergyKilocalories {
+                        healthMetric(title: "Active", value: "\(Int(energy.rounded()))", unit: "cal")
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("session.detail.healthCard")
+        }
+    }
+
+    private func healthMetric(title: String, value: String, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(unit)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.textMuted)
+            }
+            Text(title.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Theme.textMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var shareToolbarButton: some View {
+        if let shareContent {
+            ShareLink(
+                item: shareContent,
+                preview: SharePreview(shareContent.caption, image: Image(uiImage: shareContent.image))
+            ) {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .accessibilityLabel("Share session")
+            .accessibilityIdentifier("session.detail.share")
+        } else {
+            Button {} label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .disabled(true)
+            .accessibilityLabel("Share session")
+            .accessibilityIdentifier("session.detail.share")
+        }
+    }
+
+    private func loadHealthStats() async {
+        guard healthSyncEnabled else { return }
+        healthStats = await HealthKitService.shared.fetchStats(for: session)
+    }
+
+    private func prepareShareContent() async {
+        shareContent = await SessionShareCardRenderer.makeContent(for: session)
     }
 
     private var conditionsSummaryCount: Int { surfReportRows.count }
