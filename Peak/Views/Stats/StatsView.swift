@@ -46,8 +46,12 @@ struct StatsView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            surfDaysSection
-                            summaryCards
+                            StatsMetricsRow(
+                                yearSummary: yearSummary,
+                                timeSummary: cachedTimeSummary,
+                                longestStreak: cachedLongestStreak
+                            )
+                            monthlyChartSection
 
                             StatListSection(title: "Top spots", items: summary.topSpots)
                             StatListSection(title: "Most-used gear", items: summary.topGear)
@@ -81,37 +85,12 @@ struct StatsView: View {
         cachedYearSummary
     }
 
-    private var summaryCards: some View {
-        GlassContainer(spacing: 12) {
-            HStack(spacing: 12) {
-                StatCardView(title: "Sessions", value: "\(summary.totalSessions)", subtitle: "All time")
-                StatCardView(title: "Avg rating", value: averageRatingLabel, subtitle: "Rated sessions")
-            }
-        }
-    }
-
-    private var surfDaysSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            MetricCardView(title: "Week Streak", value: streakLabel, subtitle: "Weeks")
-
-            UsageChartCard(
-                title: "Monthly surf days",
-                data: yearSummary.monthlyCounts,
-                valueLabel: "Surf Days"
-            )
-        }
-    }
-
-    private var streakLabel: String {
-        let streak = yearSummary.currentWeekStreak
-        return streak > 0 ? "\(streak) 🔥" : "0"
-    }
-
-    private var averageRatingLabel: String {
-        if summary.averageRating == 0 {
-            return "-"
-        }
-        return String(format: "%.1f", summary.averageRating)
+    private var monthlyChartSection: some View {
+        UsageChartCard(
+            title: "Monthly surf days",
+            data: yearSummary.monthlyCounts,
+            valueLabel: "Surf Days"
+        )
     }
 
     private func refreshSummaries() {
