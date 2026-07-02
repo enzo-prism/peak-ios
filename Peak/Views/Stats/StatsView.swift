@@ -213,7 +213,21 @@ private struct StatListSection<Destination: View>: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(item.name))
         .accessibilityValue(Text("\(item.count) session\(item.count == 1 ? "" : "s")"))
-        .accessibilityHint(isLink ? Text("Opens details") : Text(""))
+        .modifier(OpensDetailsHint(isLink: isLink))
+    }
+}
+
+/// Adds an "Opens details" VoiceOver hint only when the row actually links out,
+/// so plain (unresolved) rows stay quiet.
+private struct OpensDetailsHint: ViewModifier {
+    let isLink: Bool
+
+    func body(content: Content) -> some View {
+        if isLink {
+            content.accessibilityHint(Text("Opens details"))
+        } else {
+            content
+        }
     }
 }
 
