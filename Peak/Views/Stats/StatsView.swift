@@ -16,9 +16,21 @@ struct StatsView: View {
     @State private var cachedYearSummary = SurfYearSummary(
         year: Calendar.current.component(.year, from: Date()),
         totalDays: 0,
+        totalSessions: 0,
         monthlyCounts: [],
         currentWeekStreak: 0
     )
+    @State private var cachedTimeSummary = SurfTimeSummary(
+        totalMinutes: 0,
+        averageMinutes: nil,
+        sessionsWithDuration: 0
+    )
+    @State private var cachedLongestStreak = 0
+    @State private var cachedHeatmap: [SessionHeatmapCell] = []
+    @State private var cachedSpotMix: [CountedItem] = []
+    @State private var cachedWaveSamples: [WaveRatingSample] = []
+    @State private var cachedConditions: ConditionsInsight?
+    @State private var cachedMonthlySurfDays: [MonthlyCount] = []
 
     var body: some View {
         NavigationStack {
@@ -105,6 +117,13 @@ struct StatsView: View {
     private func refreshSummaries() {
         cachedSummary = StatsCalculator.summarize(sessions: sessions)
         cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
+        cachedTimeSummary = StatsCalculator.timeInWater(sessions: sessions)
+        cachedLongestStreak = StatsCalculator.longestWeekStreak(sessions: sessions)
+        cachedHeatmap = StatsCalculator.sessionHeatmap(sessions: sessions)
+        cachedSpotMix = StatsCalculator.spotMix(sessions: sessions)
+        cachedWaveSamples = StatsCalculator.waveHeightRatingSamples(sessions: sessions)
+        cachedConditions = StatsCalculator.bestConditions(sessions: sessions)
+        cachedMonthlySurfDays = StatsCalculator.monthlySurfDays(sessions: sessions)
     }
 }
 
