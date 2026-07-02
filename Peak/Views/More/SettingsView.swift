@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var pendingBackupURL: URL?
     @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
+    @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
     @State private var alertMessage: AlertMessage?
@@ -57,6 +58,48 @@ struct SettingsView: View {
                     }
                 } header: {
                     sectionHeader("Import / Restore")
+                }
+
+                if HealthKitService.isHealthDataAvailable {
+                    Section {
+                        Toggle(isOn: $healthSyncEnabled) {
+                            Label("Sync with Apple Health", systemImage: "heart.fill")
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                        .tint(Theme.textPrimary)
+                        .padding(12)
+                        .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
+                        .listRowBackground(Color.clear)
+                        .onChange(of: healthSyncEnabled) { _, isOn in
+                            guard isOn else { return }
+                            Task { try? await HealthKitService.shared.requestAuthorization() }
+                        }
+
+                        if healthSyncEnabled {
+                            NavigationLink {
+                                HealthImportView()
+                            } label: {
+                                Label("Import from Health", systemImage: "square.and.arrow.down")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: true)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.clear)
+
+                            SettingsRow(title: "Sync Existing Sessions", systemImage: "arrow.triangle.2.circlepath", isDisabled: isWorking) {
+                                syncExistingToHealth()
+                            }
+                        }
+
+                        Text("Your surf sessions are saved to Apple Health as surfing workouts. Apple Watch workouts you record surface heart rate and calories on each session.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.textMuted)
+                            .padding(.horizontal, 4)
+                            .listRowBackground(Color.clear)
+                    } header: {
+                        sectionHeader("Apple Health")
+                    }
                 }
 
                 Section {
@@ -233,6 +276,17 @@ struct SettingsView: View {
             gear: try modelContext.fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)])),
             buddies: try modelContext.fetch(FetchDescriptor<Buddy>(sortBy: [SortDescriptor(\.name)]))
         )
+    }
+
+    private func syncExistingToHealth() {
+        runWork("Syncing to Health...", errorTitle: "Sync Failed") {
+            let all = try modelContext.fetch(SurfSession.sortedByDateDescending())
+            let summary = await HealthKitService.shared.syncAllSessions(all)
+            alertMessage = AlertMessage(
+                title: "Health Sync Complete",
+                body: "\(summary.written) saved, \(summary.skipped) skipped, \(summary.failed) failed."
+            )
+        }
     }
 
     private func backUpEverything() {

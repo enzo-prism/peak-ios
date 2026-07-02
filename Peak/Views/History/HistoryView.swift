@@ -294,6 +294,7 @@ struct HistoryView: View {
         guard let session = sessionPendingDelete else { return }
         sessionPendingDelete = nil
         SessionMediaStore.deleteStoredMedia(for: session.media)
+        HealthKitService.shared.deleteWorkout(for: session)
         modelContext.delete(session)
         deletionCount += 1
     }

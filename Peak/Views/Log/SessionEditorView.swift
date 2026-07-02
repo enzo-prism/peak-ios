@@ -977,6 +977,7 @@ struct SessionEditorView: View {
             )
             modelContext.insert(session)
             mediaFailures = applyMedia(to: session)
+            HealthKitService.shared.saveOrUpdateWorkout(for: session)
         case .edit(let session):
             session.date = draft.date
             session.spot = spot
@@ -1003,6 +1004,7 @@ struct SessionEditorView: View {
             session.notes = draft.notes
             session.updatedAt = Date()
             mediaFailures = applyMedia(to: session)
+            HealthKitService.shared.saveOrUpdateWorkout(for: session)
         }
 
         didSave = true
