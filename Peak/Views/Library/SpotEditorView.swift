@@ -311,6 +311,68 @@ struct SpotEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private var useMyLocationButton: some View {
+        Button {
+            Task { await useMyLocation() }
+        } label: {
+            HStack(spacing: 6) {
+                if isLocating {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "location.fill")
+                }
+                Text("My Location")
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.textPrimary)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+        }
+        .disabled(isLocating)
+        .accessibilityIdentifier("spot.editor.useMyLocation")
+    }
+
+    /// Frames the map on first appearance without overriding an existing pin:
+    /// the spot's own coordinate, else the user's location (only if already
+    /// authorized — never prompts on appear), else a region fitted to the
+    /// user's other pinned spots, else a wide default. Never lands on 0,0.
+    private func applyDefaultRegion() async {
+        guard selectedCoordinate == nil else { return }
+        let userCoordinate = locationService.isAuthorized ? await locationService.currentLocation() : nil
+        let region = SpotMapRegion.defaultRegion(
+            spotCoordinate: selectedCoordinate,
+            userCoordinate: userCoordinate,
+            pinnedSpotCoordinates: spots.compactMap(\.coordinate)
+        )
+        cameraPosition = .region(region)
+    }
+
+    /// Drops a pin at the user's current location (requesting permission if
+    /// needed) and reverse-geocodes a city/region label when one isn't set.
+    private func useMyLocation() async {
+        isLocating = true
+        defer { isLocating = false }
+        guard let coordinate = await locationService.currentLocation() else {
+            showLocationUnavailable = true
+            return
+        }
+        selectedCoordinate = coordinate
+        cameraPosition = Self.cameraPosition(for: coordinate)
+        if locationName.trimmedNonEmpty == nil,
+           let label = await Self.reverseGeocode(coordinate) {
+            locationName = label
+        }
+    }
+
+    nonisolated private static func reverseGeocode(_ coordinate: CLLocationCoordinate2D) async -> String? {
+        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        guard let placemark = try? await CLGeocoder().reverseGeocodeLocation(location).first else { return nil }
+        let parts = [placemark.locality, placemark.administrativeArea].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
+
     private static func cameraPosition(for coordinate: CLLocationCoordinate2D?) -> MapCameraPosition {
         if let coordinate {
             return .region(

@@ -624,7 +624,7 @@ enum SurfConditionsError: LocalizedError {
     }
 }
 
-private struct OpenMeteoMarineResponse: Decodable, Sendable {
+private nonisolated struct OpenMeteoMarineResponse: Decodable, Sendable {
     let latitude: Double?
     let longitude: Double?
     let hourly: Hourly
@@ -642,7 +642,7 @@ private struct OpenMeteoMarineResponse: Decodable, Sendable {
     }
 }
 
-private struct OpenMeteoWeatherResponse: Decodable, Sendable {
+private nonisolated struct OpenMeteoWeatherResponse: Decodable, Sendable {
     let hourly: Hourly
 
     struct Hourly: Decodable, Sendable {
@@ -652,7 +652,7 @@ private struct OpenMeteoWeatherResponse: Decodable, Sendable {
     }
 }
 
-private struct OpenMeteoErrorResponse: Decodable, Sendable {
+private nonisolated struct OpenMeteoErrorResponse: Decodable, Sendable {
     let error: Bool?
     let reason: String?
 }
