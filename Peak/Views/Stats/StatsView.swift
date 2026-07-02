@@ -51,6 +51,11 @@ struct StatsView: View {
                                 timeSummary: cachedTimeSummary,
                                 longestStreak: cachedLongestStreak
                             )
+
+                            if !cachedHeatmap.isEmpty {
+                                ConsistencyHeatmapCard(cells: cachedHeatmap)
+                            }
+
                             monthlyChartSection
 
                             StatListSection(title: "Top spots", items: summary.topSpots)
