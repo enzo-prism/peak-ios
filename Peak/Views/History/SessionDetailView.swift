@@ -20,6 +20,7 @@ struct SessionDetailView: View {
     @State private var healthStats: SessionHealthStats?
     @State private var shareContent: SessionShareContent?
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -81,6 +82,7 @@ struct SessionDetailView: View {
                         .glassButtonStyle(prominent: false)
                     }
                     .padding()
+                    .readableContentWidth()
                 }
             }
         }
@@ -176,7 +178,7 @@ struct SessionDetailView: View {
                     .foregroundStyle(Theme.textMuted)
             }
             Text(title.uppercased())
-                .font(.system(size: 10, weight: .semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(Theme.textMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -232,6 +234,11 @@ struct SessionDetailView: View {
         }
         .padding(Theme.Spacing.l)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        // Honor Reduce Motion: strip the disclosure's expand/collapse animation,
+        // matching the session editor's behavior.
+        .transaction { transaction in
+            if reduceMotion { transaction.animation = nil }
+        }
     }
 
     private var heroCard: some View {

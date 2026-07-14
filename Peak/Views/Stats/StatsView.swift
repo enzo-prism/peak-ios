@@ -95,6 +95,7 @@ struct StatsView: View {
                             }
                         }
                         .padding()
+                        .readableContentWidth()
                         .opacity(showContent || reduceMotion ? 1 : 0)
                         .offset(y: showContent || reduceMotion ? 0 : 12)
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)

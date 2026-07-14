@@ -92,14 +92,14 @@ struct SpotEditorView: View {
                             .accessibilityIdentifier("spot.editor.location")
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("PIN LOCATION")
+                            Text("PIN LOCATION — OPTIONAL")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Theme.textMuted)
 
                             mapPicker
 
                             if selectedCoordinate == nil {
-                                Text("Drop a pin to save this surf break.")
+                                Text("Add a pin to unlock maps and one-tap conditions. You can do this later.")
                                     .font(.caption)
                                     .foregroundStyle(Theme.textMuted)
                             }
@@ -112,6 +112,7 @@ struct SpotEditorView: View {
                         }
                     }
                     .padding()
+                    .readableContentWidth()
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -207,16 +208,11 @@ struct SpotEditorView: View {
 
     private func save() {
         guard let trimmed = name.trimmedNonEmpty else { return }
-        guard let location = locationName.trimmedNonEmpty else {
-            alertMessage = "Add a location for this surf break."
-            showAlert = true
-            return
-        }
-        guard let coordinate = selectedCoordinate else {
-            alertMessage = "Drop a pin on the map to save."
-            showAlert = true
-            return
-        }
+        // Location and pin are optional: a first-time surfer can save a break
+        // with just a name and add coordinates later. Conditions auto-fill only
+        // needs a pin, so it stays a progressive enhancement, never a gate.
+        let location = locationName.trimmedNonEmpty
+        let coordinate = selectedCoordinate
         let existing = modelContext.existingSpot(named: trimmed)
 
         switch mode {
@@ -235,8 +231,8 @@ struct SpotEditorView: View {
                 let spot = try modelContext.createSpot(
                     name: trimmed,
                     locationName: location,
-                    latitude: coordinate.latitude,
-                    longitude: coordinate.longitude
+                    latitude: coordinate?.latitude,
+                    longitude: coordinate?.longitude
                 )
                 onSave?(spot)
             } catch {
@@ -253,8 +249,8 @@ struct SpotEditorView: View {
             spot.name = trimmed
             spot.key = Spot.makeKey(from: trimmed)
             spot.locationName = location
-            spot.latitude = coordinate.latitude
-            spot.longitude = coordinate.longitude
+            spot.latitude = coordinate?.latitude
+            spot.longitude = coordinate?.longitude
             onSave?(spot)
         }
         dismiss()
@@ -262,8 +258,6 @@ struct SpotEditorView: View {
 
     private var canSave: Bool {
         guard name.trimmedNonEmpty != nil else { return false }
-        guard locationName.trimmedNonEmpty != nil else { return false }
-        guard selectedCoordinate != nil else { return false }
         if isLimitReached { return false }
         return true
     }

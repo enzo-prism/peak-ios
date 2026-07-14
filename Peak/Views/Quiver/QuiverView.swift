@@ -48,6 +48,7 @@ struct QuiverView: View {
                     }
                 }
                 .padding()
+                .readableContentWidth()
             }
         }
         .navigationTitle("Quiver")

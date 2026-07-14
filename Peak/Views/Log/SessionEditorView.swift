@@ -512,21 +512,22 @@ struct SessionEditorView: View {
                     .foregroundStyle(Theme.textMuted)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Wind")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Text(windLabel)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
+            // Wind and wave height are small named sets, not continuous ranges,
+            // so a menu picker (HIG: pickers for a fixed set of options) reads the
+            // labels directly and avoids a slider's "drag to the right value" fuzz.
+            HStack {
+                Text("Wind")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 12)
+                Picker("Wind", selection: $draft.windCondition) {
+                    Text("Not set").tag(WindCondition?.none)
+                    ForEach(WindCondition.allCases) { condition in
+                        Text(condition.label).tag(WindCondition?.some(condition))
+                    }
                 }
-                Slider(
-                    value: windBinding,
-                    in: 0...Double(WindCondition.allCases.count),
-                    step: 1
-                )
+                .labelsHidden()
+                .pickerStyle(.menu)
                 .tint(Theme.textPrimary)
                 .accessibilityIdentifier("session.editor.wind")
                 .accessibilityValue(windLabel)
@@ -534,21 +535,19 @@ struct SessionEditorView: View {
             .padding(12)
             .glassInput()
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Wave height")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textPrimary)
-                    Spacer()
-                    Text(waveHeightLabel)
-                        .font(.caption)
-                        .foregroundStyle(Theme.textMuted)
+            HStack {
+                Text("Wave height")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textPrimary)
+                Spacer(minLength: 12)
+                Picker("Wave height", selection: $draft.waveHeight) {
+                    Text("Not set").tag(WaveHeight?.none)
+                    ForEach(WaveHeight.allCases) { height in
+                        Text(height.label).tag(WaveHeight?.some(height))
+                    }
                 }
-                Slider(
-                    value: waveHeightBinding,
-                    in: 0...Double(WaveHeight.allCases.count),
-                    step: 1
-                )
+                .labelsHidden()
+                .pickerStyle(.menu)
                 .tint(Theme.textPrimary)
                 .accessibilityIdentifier("session.editor.waveHeight")
                 .accessibilityValue(waveHeightLabel)
@@ -731,10 +730,14 @@ struct SessionEditorView: View {
                                     .foregroundStyle(Theme.foam)
                                     .padding(6)
                                     .background(Color.black.opacity(0.5), in: Circle())
-                                    .padding(6)
+                                    // 44pt minimum hit target (HIG: controls) around
+                                    // the small visible badge.
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Circle())
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
                             .accessibilityLabel("Remove media")
+                            .accessibilityIdentifier("session.editor.media.remove")
                         }
                     }
                 }
@@ -818,48 +821,12 @@ struct SessionEditorView: View {
         SessionDurationFormatter.string(from: draft.durationMinutes > 0 ? draft.durationMinutes : nil)
     }
 
-    private var windBinding: Binding<Double> {
-        Binding(
-            get: { Double(windIndex) },
-            set: { newValue in
-                let clamped = max(0, min(Int(newValue.rounded()), WindCondition.allCases.count))
-                draft.windCondition = clamped == 0 ? nil : WindCondition.allCases[clamped - 1]
-            }
-        )
-    }
-
     private var windLabel: String {
         draft.windCondition?.label ?? "Not set"
     }
 
-    private var windIndex: Int {
-        guard let condition = draft.windCondition,
-              let index = WindCondition.allCases.firstIndex(of: condition) else {
-            return 0
-        }
-        return index + 1
-    }
-
-    private var waveHeightBinding: Binding<Double> {
-        Binding(
-            get: { Double(waveHeightIndex) },
-            set: { newValue in
-                let clamped = max(0, min(Int(newValue.rounded()), WaveHeight.allCases.count))
-                draft.waveHeight = clamped == 0 ? nil : WaveHeight.allCases[clamped - 1]
-            }
-        )
-    }
-
     private var waveHeightLabel: String {
         draft.waveHeight?.label ?? "Not set"
-    }
-
-    private var waveHeightIndex: Int {
-        guard let height = draft.waveHeight,
-              let index = WaveHeight.allCases.firstIndex(of: height) else {
-            return 0
-        }
-        return index + 1
     }
 
     private func sortedGear(for kind: GearKind) -> [Gear] {

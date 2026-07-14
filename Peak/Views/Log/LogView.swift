@@ -5,6 +5,7 @@ struct LogView: View {
     @Query(SurfSession.sortedByDateDescending(limit: 3, prefetch: [\.spot, \.gear, \.buddies, \.media]))
     private var sessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var showNewSession = false
     @State private var showContent = false
 
@@ -45,6 +46,7 @@ struct LogView: View {
                         }
                     }
                     .padding(.vertical)
+                    .readableContentWidth()
                     .opacity(showContent || reduceMotion ? 1 : 0)
                     .offset(y: showContent || reduceMotion ? 0 : 12)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
@@ -63,6 +65,11 @@ struct LogView: View {
         }
         .sheet(isPresented: $showNewSession) {
             SessionEditorView(mode: .new)
+        }
+        // Light impact when the primary "Log Session" action opens the editor,
+        // matching the save/delete haptics elsewhere in the app.
+        .sensoryFeedback(trigger: showNewSession) { _, isPresented in
+            isPresented ? .impact : nil
         }
         .onAppear {
             showContent = true
@@ -108,17 +115,18 @@ struct LogView: View {
         }
     }
 
-    // The logo mark is drawn for a dark backdrop, so the badge keeps an
-    // app-icon-style dark tile in both color schemes.
+    // The mark ships in two forms — a foam mark for dark tiles and an ink mark
+    // (LogoMarkLight) for light tiles — so the badge stays legible and on-brand
+    // in both color schemes instead of a fixed near-black tile on white paper.
     private var logoBadge: some View {
-        Image("LogoMark")
+        Image(colorScheme == .dark ? "LogoMark" : "LogoMarkLight")
             .resizable()
             .scaledToFit()
             .frame(width: 28, height: 28)
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(white: 0.04))
+                    .fill(colorScheme == .dark ? Color(white: 0.04) : Color(white: 0.96))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(Theme.glassStroke, lineWidth: 1)
