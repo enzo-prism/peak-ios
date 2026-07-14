@@ -12,7 +12,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Photo and video attachments per session
 - History timeline with filters (spot, gear, buddy)
 - Basic stats (totals, top spots, most-used gear)
-- Spot library with pinned locations (required for auto-fill, capped at 10)
+- Spot library with optional pinned locations (a pin unlocks maps + conditions auto-fill; name-only spots are fine)
 - JSON + CSV export, JSON import (merge or replace)
 
 ## Surf conditions auto-fill

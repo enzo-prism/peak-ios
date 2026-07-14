@@ -53,4 +53,34 @@ final class ModelMigrationTests: XCTestCase {
         XCTAssertEqual(item.cropWidth, 1, accuracy: 0.0001)
         XCTAssertEqual(item.cropHeight, 1, accuracy: 0.0001)
     }
+
+    /// Guards the "HEAD schema references the live models" convention. `PeakSchemaV8` is HEAD and its
+    /// `models` are the live `@Model` classes, so editing a model field silently redefines the shipped
+    /// 1.7.0 schema — and a store already at 1.7.0 then fails to open and is shunted to the recovery
+    /// archive. This test pins HEAD's shape. When it fails: FREEZE the current HEAD as an inline
+    /// `PeakSchemaVn` snapshot, add a new live-referencing HEAD carrying the real field delta plus a
+    /// `.lightweight` stage, point `PeakDataStore` at the new HEAD, then update `expected` below.
+    /// (SwiftData rejects two identical-shape schemas in one plan — "duplicate version checksums" — so
+    /// the freeze is only valid alongside a genuine shape change, which is exactly when this fires.)
+    func testHeadSchemaShapeIsPinned() throws {
+        let schema = Schema(versionedSchema: PeakSchemaV8.self)
+        var actual: [String: [String]] = [:]
+        for entity in schema.entities {
+            actual[entity.name] = (entity.attributes.map(\.name) + entity.relationships.map(\.name)).sorted()
+        }
+
+        let expected: [String: [String]] = [
+            "Spot": ["createdAt", "key", "latitude", "locationName", "longitude", "name"],
+            "Gear": ["brand", "createdAt", "isArchived", "key", "kind", "model", "name", "notes", "photoData", "size", "volumeLiters"],
+            "Buddy": ["createdAt", "key", "name"],
+            "SessionMedia": ["createdAt", "cropHeight", "cropOriginX", "cropOriginY", "cropWidth", "kind", "photoData", "sortIndex", "thumbnailData", "videoFileName"],
+            "SurfSession": ["buddies", "conditionsFetchedAt", "conditionsLatitude", "conditionsLongitude", "conditionsSource", "createdAt", "date", "durationMinutes", "gear", "media", "notes", "rating", "seaSurfaceTemperatureC", "spot", "swellWaveDirectionDegrees", "swellWaveHeightMeters", "swellWavePeriodSeconds", "updatedAt", "waveHeight", "waveHeightMeters", "windCondition", "windDirectionDegrees", "windSpeedKph", "windWaveDirectionDegrees", "windWaveHeightMeters", "windWavePeriodSeconds"],
+        ]
+
+        XCTAssertEqual(
+            actual,
+            expected,
+            "HEAD (PeakSchemaV8) model shape changed. Freeze it as a versioned snapshot + add a new HEAD/stage before changing model fields, then update `expected`."
+        )
+    }
 }

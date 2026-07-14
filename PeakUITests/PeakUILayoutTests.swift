@@ -217,7 +217,11 @@ final class PeakUILayoutTests: XCTestCase {
         let referenceHeight = tabIconHeight(named: "History")
         // Custom vector tab glyphs can have a wider visual-height spread than SF Symbols.
         let tolerance: CGFloat = 12
-        let maxIconHeight = tabBar.frame.height * 0.65
+        // Guards against absurdly-large glyphs. The ceiling is a ratio of the tab-bar
+        // height; the iOS 26 Liquid Glass tab bar is a touch shorter than earlier bars,
+        // so a normal ~54pt system symbol sits right at 0.65 — 0.72 keeps the guard
+        // meaningful (catches >72% glyphs) without failing on sub-pixel rendering.
+        let maxIconHeight = tabBar.frame.height * 0.72
 
         for name in ["Log", "Stats", "Quiver", "More"] {
             let iconHeight = tabIconHeight(named: name)

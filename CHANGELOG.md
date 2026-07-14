@@ -8,7 +8,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Status at a glance:
 
 - **App Store (live):** `2.0`
-- **TestFlight (beta):** `2.5` — build 1, uploaded 2026-07-02 (this is the large feature release below); `2.4` builds 4–5 previously in beta
+- **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
+
+## [2.6] — 2026-07-13 — TestFlight (build 1, beta)
+
+An Apple-best-practices polish pass driven by a full audit against the current
+Human Interface Guidelines and iOS 26 SDK docs: a friendlier first run, correct
+input controls, deeper accessibility, iPad-aware layout, an App Store compliance
+fix, and a SwiftData safety hardening.
+
+### Added
+
+- **iPad / regular-width layout.** New `readableContentWidth()` caps content at a
+  comfortable ~720pt measure and centers it on iPad, landscape, and Split View,
+  instead of stretching cards edge-to-edge. It's a no-op at iPhone-portrait widths.
+  Applied to Log, Stats, Quiver, Session detail, and the Spot editor.
+  (`Peak/Views/Components/ReadableContentWidth.swift`)
+- **Haptic on the primary action.** Logging a session now gives a light impact,
+  matching the save/delete feedback already elsewhere. (`LogView.swift`)
+
+### Changed
+
+- **First run no longer hits a wall.** Saving a surf break used to require a name,
+  a location string, *and* a dropped map pin — so the very first log forced a full
+  map detour. Now only a name is required; location and pin are optional
+  progressive enhancements (the data model already allowed it), and the existing
+  "My Location" shortcut fills them in one tap. (`SpotEditorView.swift`)
+- **Wind & Wave height are pickers, not sliders.** They're small named sets, not
+  continuous ranges — menu pickers (HIG: pickers for a fixed set) now read the
+  labels directly instead of dragging a slider to the right notch. (`SessionEditorView.swift`)
+- **Adaptive logo badge.** The Log hero badge now uses the ink mark on a light
+  tile in light mode (was a fixed near-black tile on white paper). (`LogView.swift`)
+
+### Accessibility
+
+- The media **remove** button now has a 44pt hit target (HIG minimum).
+- A fixed 10pt detail caption is now a semantic `.caption2` that scales with
+  Dynamic Type. (`SessionDetailView.swift`)
+- **Reduce Motion** now strips the Session-detail disclosure animation, matching
+  the editor.
+
+### Fixed
+
+- **Privacy manifest completeness (App Store upload).** `PrivacyInfo.xcprivacy`
+  now declares the required-reason APIs the app actually uses — UserDefaults
+  (`CA92.1`), file timestamps (`C617.1`), and disk space (`E174.1`). Previously an
+  empty array, which risks the ITMS-91053 rejection on upload.
+
+### Internal
+
+- **SwiftData schema hardening.** The HEAD schema (`PeakSchemaV8`) references the
+  live model classes, so a future field edit could silently redefine the shipped
+  1.7.0 schema and shunt a user's store into the recovery archive. A new guard
+  test (`testHeadSchemaShapeIsPinned`) pins HEAD's field set, so any accidental
+  live-model edit now fails CI with instructions to freeze + migrate first. (A
+  literal no-op freeze isn't possible — SwiftData rejects two identical-shape
+  schemas in one plan — so the pin is the correct enforcement.)
+  (`ModelMigrationTests.swift`)
+- **CI** pinned to macOS 15 + Xcode 26 (reproducible; exercises the shipping iOS 26
+  Liquid Glass code paths). (`.github/workflows/ci.yml`)
 
 ## [2.5] — 2026-07-02 — TestFlight (build 1, beta)
 

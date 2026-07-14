@@ -7,13 +7,16 @@ on:
 
 jobs:
   tests:
-    runs-on: macos-14
+    # macOS 15 + a pinned Xcode 26 major: reproducible, and required to build the
+    # real iOS 26 Liquid Glass code paths (the pre-26 fallback compiles anywhere,
+    # but CI should exercise what ships).
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: '26'
       - name: Run fast test gate
         env:
           DESTINATION_OS: latest
