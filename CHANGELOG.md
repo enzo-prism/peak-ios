@@ -7,10 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Status at a glance:
 
-- **App Store (live):** `2.0`
-- **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
+- **App Store (live):** `2.4`
+- **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
+- **TestFlight / ship binary:** `2.6` build **2** (privacy policy + CI host-store hardening; product features same as build 1)
 
-## [2.6] — 2026-07-13 — TestFlight (build 1, beta)
+## [2.6] — 2026-07-15 — App Store submission (build 2)
+
+### Docs / compliance (build 2)
+- Privacy policy (repo + in-app) documents Apple Health, optional location, Open-Meteo auto-fill, and local-only storage so App Review matches the binary.
+- Unit-test host opens an ephemeral store; catalog search no longer touches `@Model Spot` (CI stability).
+
+## [2.6] — 2026-07-13 — TestFlight (build 1, product features)
 
 An Apple-best-practices polish pass driven by a full audit against the current
 Human Interface Guidelines and iOS 26 SDK docs: a friendlier first run, correct
@@ -126,9 +133,7 @@ Apple Health integration, History search, a spots map, and a broad performance p
   Xcode (not creatable through the headless App Store Connect API). Held on the
   `feature/2.5-widgets` branch until that one-time registration is done.
 
-## [2.4] — 2026-06-29 — TestFlight (builds 4 & 5, beta)
-
-## [2.4] — 2026-06-29 — TestFlight (builds 4 & 5, beta)
+## [2.4] — 2026-06-29 — App Store (builds 4 & 5)
 
 Two UI refinements re-authored onto the 2.0 adaptive (light/dark, HIG) design
 trunk. Build 4 shipped the session-detail header redesign; build 5 adds the Log

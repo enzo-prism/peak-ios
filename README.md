@@ -5,15 +5,17 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 ## Product scope
 - Offline-first, on-device storage only
 - No accounts or social features
-- Quick session logging (date + spot required)
+- Quick session logging (date + spot required; location/pin optional)
 - Optional wind and wave height conditions
 - Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
 - Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
 - Photo and video attachments per session
-- History timeline with filters (spot, gear, buddy)
-- Basic stats (totals, top spots, most-used gear)
-- Spot library with optional pinned locations (a pin unlocks maps + conditions auto-fill; name-only spots are fine)
-- JSON + CSV export, JSON import (merge or replace)
+- History timeline with search + filters (spot, gear, buddy, rating, date range)
+- Stats 2.0 (time in water, streaks, heatmap, monthly bars, spot mix, conditions insights)
+- Spot library + map of pinned breaks (name-only spots are fine)
+- Optional Apple Health (save surfing workouts; import Watch HR/calories) — iPhone, opt-in
+- JSON + CSV export; full `.peakbackup` with media; JSON/backup restore (merge or replace)
+- Session share card
 
 ## Surf conditions auto-fill
 - Requires a session start time, duration, and a surf break with a pinned location.
