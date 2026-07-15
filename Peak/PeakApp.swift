@@ -16,7 +16,11 @@ struct PeakApp: App {
 
     init() {
         let isUITest = TestingDefaults.isUITest
-        let result = PeakDataStore.load(isUITest: isUITest)
+        // Unit tests host Peak.app; open an in-memory store so the host does not
+        // fight test-local ModelContainers (SwiftData dual-store heap corruption
+        // has shown up as malloc crashes in unrelated suites on Xcode 26 CI).
+        let useEphemeralStore = isUITest || TestingDefaults.isRunningTests
+        let result = PeakDataStore.load(isUITest: useEphemeralStore)
         container = result.container
         storeOutcome = result.outcome
 
