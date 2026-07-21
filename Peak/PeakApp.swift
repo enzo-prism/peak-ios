@@ -22,6 +22,7 @@ struct PeakApp: App {
         // App Intents (Siri, Spotlight, Action button) read the logbook through
         // this container rather than opening a second one.
         PeakIntentStore.register(container)
+        PeakTips.configure()
 
         if isUITest {
             // A UI-test run must never inherit an in-progress or ended-but-
@@ -48,14 +49,26 @@ struct PeakApp: App {
 private struct RootView: View {
     let outcome: StoreLoadOutcome
 
+    @AppStorage(WelcomeExperience.hasSeenWelcomeKey) private var hasSeenWelcome = false
     @State private var didEvaluateOutcome = false
     @State private var isRecoveryAlertPresented = false
+    @State private var isWelcomePresented = false
 
     var body: some View {
         ContentView()
+            .fullScreenCover(isPresented: $isWelcomePresented) {
+                WelcomeView(
+                    onLogFirstSession: {
+                        finishWelcome()
+                        QuickLogCoordinator.shared.requestNewSession()
+                    },
+                    onFinish: finishWelcome
+                )
+            }
             .onAppear {
                 guard !didEvaluateOutcome else { return }
                 didEvaluateOutcome = true
+                isWelcomePresented = WelcomeExperience.shouldPresent(hasSeenWelcome: hasSeenWelcome)
                 if outcome != .normal {
                     isRecoveryAlertPresented = true
                 }
@@ -65,6 +78,11 @@ private struct RootView: View {
             } message: {
                 Text(recoveryMessage)
             }
+    }
+
+    private func finishWelcome() {
+        hasSeenWelcome = true
+        isWelcomePresented = false
     }
 
     private var recoveryTitle: String {

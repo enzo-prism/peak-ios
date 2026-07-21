@@ -510,6 +510,7 @@ struct SessionEditorView: View {
                 .accessibilityIdentifier("session.editor.autoFillConditions")
                 .glassButtonStyle(prominent: false)
                 .disabled(isFetchingConditions)
+                .peakTip(AutoFillConditionsTip())
 
                 Text(conditionsHintText)
                     .font(.caption)
@@ -979,6 +980,7 @@ struct SessionEditorView: View {
         }
 
         didSave = true
+        PeakTips.markSessionSaved()
 
         if mediaFailures > 0 {
             mediaAlertMessage = mediaFailures == 1

@@ -16,6 +16,13 @@ nonisolated enum TestingDefaults {
         ProcessInfo.processInfo.environment["PEAK_SCREENSHOTS"] == "1"
     }
 
+    /// Forces the first-run welcome even under `UITESTS`, which otherwise skips
+    /// it so every pre-2.9 UI-test baseline still launches straight into the Log
+    /// tab. Only the dedicated welcome test sets this.
+    static var forcesWelcome: Bool {
+        ProcessInfo.processInfo.environment["UITESTS_SHOW_WELCOME"] == "1"
+    }
+
     /// A deep link handed to the app at launch. The UI suite can't ask the
     /// system to deliver a real widget tap, so it injects the same URL here and
     /// the app routes it through the identical `onOpenURL` handler.
