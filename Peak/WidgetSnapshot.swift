@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 
 /// A small, derived snapshot the app writes to a shared App Group container so
 /// the widget can render without touching the SwiftData store (the store stays
@@ -45,6 +46,18 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         sessionsThisMonth: 0,
         generatedAt: .distantPast
     )
+}
+
+/// One place to ask WidgetKit for a refresh, so the test gate is stated once.
+nonisolated enum PeakWidgetRefresh {
+    /// Skipped under UI test: no widgets are installed for the suite to look at,
+    /// and waking the extension on every session change costs enough simulator
+    /// time to turn unrelated `waitForExistence` assertions flaky. The snapshot
+    /// itself is still written, so nothing about the data path is bypassed.
+    static func reloadTimelines() {
+        guard !TestingDefaults.isUITest else { return }
+        WidgetCenter.shared.reloadAllTimelines()
+    }
 }
 
 /// The URL scheme the widgets and Live Activity use to hand the surfer back to

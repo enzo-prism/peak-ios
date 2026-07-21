@@ -1,6 +1,5 @@
 import ActivityKit
 import Foundation
-import WidgetKit
 
 /// Starts and stops the "session in progress" Live Activity, and keeps the
 /// App-Group state that backs it in step.
@@ -17,7 +16,7 @@ nonisolated enum SessionActivityController {
     static func start(_ state: ActiveSessionState, defaults: UserDefaults = ActiveSessionStore.sharedDefaults) {
         ActiveSessionStore.saveActive(state, to: defaults)
         requestActivity(for: state)
-        WidgetCenter.shared.reloadAllTimelines()
+        PeakWidgetRefresh.reloadTimelines()
     }
 
     /// Ends the in-progress session, parks it as a pending log for the editor,
@@ -30,7 +29,7 @@ nonisolated enum SessionActivityController {
     ) -> EndedSessionRecord? {
         let record = ActiveSessionStore.endActive(at: endDate, in: defaults)
         dismissActivities()
-        WidgetCenter.shared.reloadAllTimelines()
+        PeakWidgetRefresh.reloadTimelines()
         return record
     }
 
@@ -38,7 +37,7 @@ nonisolated enum SessionActivityController {
     static func discard(defaults: UserDefaults = ActiveSessionStore.sharedDefaults) {
         ActiveSessionStore.clearActive(in: defaults)
         dismissActivities()
-        WidgetCenter.shared.reloadAllTimelines()
+        PeakWidgetRefresh.reloadTimelines()
     }
 
     // MARK: - ActivityKit

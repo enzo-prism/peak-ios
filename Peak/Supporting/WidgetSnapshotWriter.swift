@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import WidgetKit
 
 /// App-side helper that derives a `PeakWidgetSnapshot` from the current sessions
 /// and publishes it to the shared App Group store, then asks WidgetKit to reload.
@@ -9,7 +8,7 @@ enum WidgetSnapshotWriter {
     static func update(from sessions: [SurfSession], now: Date = Date(), calendar: Calendar = .current) {
         let snapshot = makeSnapshot(from: sessions, now: now, calendar: calendar)
         PeakWidgetStore.write(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        PeakWidgetRefresh.reloadTimelines()
     }
 
     /// Pure, testable derivation of the snapshot.
