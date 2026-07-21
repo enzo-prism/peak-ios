@@ -37,8 +37,14 @@ final class PeakUILayoutTests: XCTestCase {
             assertFits(recentTitle)
         }
 
+        // The Best Window card sits above the recents list from 2.8 on, so the
+        // first recent row now starts below the fold on a 6.3" screen. Scroll it
+        // into view before asserting: the check is that content is not clipped or
+        // overflowing horizontally, which still has to hold — not that everything
+        // fits on one screenful.
         let row = app.staticTexts["Trestles"]
         if row.waitForExistence(timeout: 2) {
+            scrollToVisible(row, in: app.scrollViews.firstMatch)
             assertFits(row)
         }
 

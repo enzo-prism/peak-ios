@@ -10,6 +10,68 @@ Status at a glance:
 - **App Store (live):** `2.0`
 - **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
 
+## [Unreleased] — 2.8 "Tide + Best Window Today"
+
+Peak answers the surfer's daily question — *when today?* — from their own
+logbook rather than from someone else's forecast model. Tide joins the
+conditions Peak records, and a card on the Log tab scores the next 24 hours at
+your favourite spots against every session you've rated there. Still no account,
+no backend, and no network call you didn't ask for.
+
+### Added
+
+- **Tide in the conditions snapshot.** Auto-fill now records sea level relative
+  to mean sea level plus a rising / high / falling / low trend, derived from the
+  hourly curve either side of your session. It shows in the auto-fill summary and
+  in the detail Surf report, and round-trips through export/import.
+  (`Peak/Supporting/SurfConditionsService.swift`, `SurfConditionsFormatter.swift`,
+  `Peak/Models/TideTrend.swift`)
+- **Optional US tide precision.** For spots NOAA gauges, `TideService` fetches
+  station-accurate high/low predictions from CO-OPS (free, no key, no account).
+  The nearest station is resolved once and cached on the spot. Spots outside US
+  coverage silently keep the Open-Meteo curve — that is not an error and is never
+  shown as one. (`Peak/Supporting/TideService.swift`)
+- **Best Window Today.** A card at the top of the Log tab for your most-logged
+  located spots: *"Best window today: 6–9 am — 1.2 m @ 12 s, wind from NE,
+  falling tide. Similar to your 5★ session on Mar 12"*, with the cited session
+  tappable through to its detail. `WindowScorer` ranks each forecast hour by
+  similarity to your own rated sessions at that spot — rating-weighted kernel
+  regression with leave-one-out self-calibration, missing readings imputed at
+  expected distance rather than skipped. (`Peak/Supporting/WindowScorer.swift`,
+  `TodayWindowService.swift`, `Peak/Views/Today/BestWindowTodayCard.swift`)
+- **Settings → Best Window Today**: "Refresh automatically when I open Peak",
+  **off by default**.
+
+### Changed
+
+- Schema **V9** (1.8.0): `SurfSession.seaLevelHeightM`, `SurfSession.tideTrend`,
+  `Spot.tideStationId`. Lightweight additive migration; V8 is frozen as an inline
+  snapshot in the same change.
+- The marine request now asks for `sea_level_height_msl` and covers three extra
+  hours either side of the session, so the tide curve has enough shape to read a
+  turning point. Every other reading still averages over the session window only.
+- `String+Normalization`, `TideTrend` and `WindowScorer` are `nonisolated` so the
+  networking and scoring paths genuinely leave the main actor.
+
+### Notes
+
+- **What the tide numbers mean.** Open-Meteo's sea level is model-derived and
+  MSL-referenced. It is trustworthy for direction and rough state — rising,
+  falling, roughly when it turns — and not for chart-datum heights or exact turn
+  times, so the copy never claims either. Only the NOAA layer quotes a datum
+  (MLLW), because only it has one.
+- **Confidence, not the predicted rating, gates the card.** With zero or one
+  rated session at a spot confidence is exactly zero by construction, and a
+  logbook where every session got the same rating carries no signal however large
+  it is. Below the threshold the card says "log a few more rated sessions here
+  and Peak will learn what works" — it never shows a fabricated window.
+- **No offshore/onshore claims.** Deciding that needs the coastline orientation
+  of the break, which Peak does not model and will not guess at; wind is
+  described by strength and bearing ("wind from NE") instead.
+- **No passive networking.** The card is idle until you tap "Check conditions"
+  unless you opt in. Ranking runs off the main actor (`@concurrent`), since it
+  costs well over a frame on a deep logbook.
+
 ## [Unreleased] — 2.9 "Quiver Analytics · Memory Layer · First-Run"
 
 Peak starts using the data it already has: what each board actually does for
