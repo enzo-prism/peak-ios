@@ -38,7 +38,14 @@ enum SpotCoordinateResolver {
     /// suddenly knows where the break is reads as a bug.
     @discardableResult
     static func resolveMissingCoordinates(for spot: Spot, catalog: SurfBreakCatalog = .shared) -> Bool {
-        guard spot.latitude == nil || spot.longitude == nil else { return false }
+        // Both halves must be absent, not either. A spot carrying one of the two
+        // has a coordinate the surfer's data put there — a hand-edited or
+        // truncated JSON import can produce exactly that, since `restore` copies
+        // `latitude` and `longitude` across independently — and overwriting a
+        // real latitude because its longitude went missing would be silently
+        // moving a break the surfer supplied. Half-located spots stay
+        // unforecastable and the card asks, which is the honest outcome.
+        guard spot.latitude == nil, spot.longitude == nil else { return false }
         guard let match = unambiguousMatch(forSpotNamed: spot.name, catalog: catalog) else { return false }
 
         spot.latitude = match.latitude

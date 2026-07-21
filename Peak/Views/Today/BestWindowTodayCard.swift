@@ -459,16 +459,23 @@ struct BestWindowTodayCard: View {
                 // The result carries the spot it was computed for, so staleness is
                 // a property of the answer rather than of whatever the view
                 // happened to remember.
-                guard TodayWindowService.accepts(outlook, for: selectedSpot) else { return }
-                result = .loaded(outlook)
+                result = TodayWindowService.accepts(outlook, for: selectedSpot) ? .loaded(outlook) : .idle
             } catch {
-                result = .failed(errorMessage(for: error))
+                // A failure is stale in exactly the same way a success is.
+                result = selectedSpot?.persistentModelID == requestedSpotID
+                    ? .failed(errorMessage(for: error))
+                    : .idle
             }
 
-            // A failure is stale in exactly the same way a success is. Dropped
-            // *before* clearing `refreshTask`, which by now may belong to a newer
-            // fetch.
-            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
+            // Cancellation is the one case where the slot is not ours to clear:
+            // only `select` cancels, and it has already emptied `refreshTask` and
+            // may have handed it to a newer fetch. Every other path *must* clear
+            // it, including the stale ones. `spots` is derived from the logbook,
+            // so deleting the last session at the chosen break re-picks the
+            // selection without going through `select` — and an early `return`
+            // there used to strand `refreshTask`, which left the card spinning on
+            // `.loading` with its only button disabled, permanently.
+            guard !Task.isCancelled else { return }
             refreshTask = nil
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                 state = result
@@ -520,8 +527,16 @@ struct BestWindowTodayCard: View {
                         break
                     }
                 }
-                guard selectedSpot?.persistentModelID == requestedSpotID else { return }
-                backfill = .running(completed: summary.attempted, total: candidates.count)
+                // Progress belongs to the spot that is on screen; the *run* does
+                // not. It used to `return` here when the selection had moved on,
+                // which abandoned the loop between a write and its save and left
+                // `backfillTask` set — so the button never came back. The written
+                // sessions are correct either way (the coordinates were captured
+                // from the spot the run started for), so the run finishes and
+                // only the progress line is withheld.
+                if selectedSpot?.persistentModelID == requestedSpotID {
+                    backfill = .running(completed: summary.attempted, total: candidates.count)
+                }
             }
 
             // Saved before the staleness check, not after: the conditions were
@@ -531,8 +546,17 @@ struct BestWindowTodayCard: View {
                 try? modelContext.save()
             }
 
-            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
+            // As in `refresh`: only cancellation means the slot belongs to
+            // someone else. Anything else has to hand it back or the action is
+            // dead for the rest of the session.
+            guard !Task.isCancelled else { return }
             backfillTask = nil
+            guard selectedSpot?.persistentModelID == requestedSpotID else {
+                // Someone else's break is on screen; its own backfill offer is
+                // what belongs there, not this run's progress line.
+                backfill = .idle
+                return
+            }
             backfill = .finished(summary.message)
             // The history just changed, so any answer on screen was computed from
             // the old one. Better to ask again than to show a stale verdict.

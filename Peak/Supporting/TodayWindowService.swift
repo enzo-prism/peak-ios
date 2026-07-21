@@ -25,7 +25,8 @@ enum TodayWindowService {
 
     /// Hard ceiling on hours requested from the provider, matching
     /// `SurfConditionsService.fetchDayForecast`'s own cap. Reaching the end of
-    /// tomorrow from late this evening is the widest span the card ever needs.
+    /// tomorrow from just after midnight is the widest span the card ever needs,
+    /// and it lands exactly on 48.
     static let maxForecastHours = 48
 
     /// Below this many whole hours left in the local day, the card stops calling
@@ -36,6 +37,63 @@ enum TodayWindowService {
     /// and evening is exactly when a surfer is deciding about tomorrow anyway.
     /// The label always says which day it found — see `Recommendation.dayOffset`.
     static let minRemainingHoursToday = 3
+
+    // MARK: Daylight
+
+    /// How far before sunrise, and how far after sunset, an hour may still be
+    /// recommended. **The single place these margins are defined.**
+    ///
+    /// The card must never answer "when today?" with 2 am. Once the evening
+    /// fallback started planning tomorrow, tomorrow's small hours became ordinary
+    /// candidates, and a glassy windless 3 am with a nice tide scores extremely
+    /// well — the scorer has no concept of darkness. One confidently recommended
+    /// middle-of-the-night window destroys a feature whose entire value is being
+    /// trustworthy.
+    ///
+    /// Daylight, not a hardcoded clock range: "not the middle of the night" means
+    /// something different in Bali in March and in Scotland in December, and a
+    /// fixed 5 am–9 pm rule is wrong in both. Sunrise and sunset come from the
+    /// same Open-Meteo forecast request the wind already uses.
+    ///
+    /// Not a hard sunrise/sunset cut either, because surfers legitimately surf
+    /// outside it:
+    ///
+    /// - **45 minutes before sunrise.** Dawn patrol is a deliberate, extremely
+    ///   common plan: you park in the dark and paddle out as it turns grey. At
+    ///   mid-latitudes the sun is roughly 6-9° below the horizon 45 minutes
+    ///   before it rises — civil twilight, when the horizon and the sets are
+    ///   already readable. Being at the car park an hour early is normal; being
+    ///   in the water two hours early is not.
+    /// - **30 minutes after sunset.** Shorter on purpose, and the asymmetry is
+    ///   the point. Dawn light is arriving and every minute is better than the
+    ///   last, so an early start is a plan. Dusk light is leaving and every
+    ///   minute is worse, so a late start is how a surfer gets caught out. Peak
+    ///   will not be the thing that suggested it.
+    ///
+    /// Both are margins on *civil* daylight rather than an attempt at real
+    /// twilight angles, which would need a solar-position model for a difference
+    /// of a few minutes that no surfer would notice.
+    static let preSunriseMargin: TimeInterval = 45 * 60
+    static let postSunsetMargin: TimeInterval = 30 * 60
+
+    /// The hours a window may be built from: those inside daylight, plus the
+    /// margins above.
+    ///
+    /// Returns `hours` untouched when `daylight` is empty. Empty means the
+    /// provider did not say — an older response shape, a wind request that
+    /// failed while marine succeeded, a polar day it cannot compute — and the
+    /// honest degradation there is the behaviour that shipped before, not an
+    /// empty card. Being occasionally too permissive when the sun is unknown
+    /// beats showing nothing whenever the daily block is missing.
+    static func surfableHours(_ hours: [ForecastHour], daylight: [DaylightInterval]) -> [ForecastHour] {
+        guard !daylight.isEmpty else { return hours }
+        return hours.filter { hour in
+            daylight.contains { interval in
+                hour.date >= interval.sunrise.addingTimeInterval(-preSunriseMargin)
+                    && hour.date <= interval.sunset.addingTimeInterval(postSunsetMargin)
+            }
+        }
+    }
 
     // MARK: Spot selection
 
@@ -144,13 +202,33 @@ enum TodayWindowService {
         let until: Date
         /// 0 = the rest of today, 1 = tomorrow. Never negative.
         let dayOffset: Int
+        /// End of the day *after* this one — the furthest instant a roll-forward
+        /// could need. Carried on the plan so it respects the same calendar, and
+        /// so a 23- or 25-hour DST day is measured rather than assumed.
+        let spare: Date
 
-        /// Hours of forecast to request so the provider covers `until`.
+        /// The plan for the following day, used when this one turns out to have
+        /// no daylight left in it.
+        func rollingForward() -> DayPlan {
+            DayPlan(from: until, until: spare, dayOffset: dayOffset + 1, spare: spare)
+        }
+
+        /// Hours of forecast to request so the provider covers `until` **and the
+        /// day after it**.
+        ///
+        /// The extra day is what pays for `outlook`'s roll-forward. Late in the
+        /// afternoon this plan is still "today", but once the daylight filter is
+        /// applied today may have nothing surfable left in it, and the only
+        /// honest answer then is tomorrow's dawn. That decision cannot be made
+        /// before the fetch, because daylight arrives *with* the fetch — so the
+        /// fetch has to already contain tomorrow. It costs no extra requests,
+        /// only a longer hourly series in the same two responses.
         ///
         /// Measured from the top of the current hour because that is where the
         /// provider's series starts, and clamped to the service's own cap.
         func hoursToRequest(from now: Date) -> Int {
-            let span = until.timeIntervalSince(TodayWindowService.floorToHour(now)) / 3600
+            let reach = max(until, spare)
+            let span = reach.timeIntervalSince(TodayWindowService.floorToHour(now)) / 3600
             guard span.isFinite else { return maxForecastHours }
             return max(1, min(maxForecastHours, Int(span.rounded(.up))))
         }
@@ -174,12 +252,14 @@ enum TodayWindowService {
             ?? todayStart.addingTimeInterval(86_400)
         let dayAfterStart = calendar.date(byAdding: .day, value: 2, to: todayStart)
             ?? tomorrowStart.addingTimeInterval(86_400)
+        let thirdDayStart = calendar.date(byAdding: .day, value: 3, to: todayStart)
+            ?? dayAfterStart.addingTimeInterval(86_400)
 
         let hoursLeftToday = tomorrowStart.timeIntervalSince(now) / 3600
         if hoursLeftToday >= Double(minRemainingHoursToday) {
-            return DayPlan(from: now, until: tomorrowStart, dayOffset: 0)
+            return DayPlan(from: now, until: tomorrowStart, dayOffset: 0, spare: dayAfterStart)
         }
-        return DayPlan(from: tomorrowStart, until: dayAfterStart, dayOffset: 1)
+        return DayPlan(from: tomorrowStart, until: dayAfterStart, dayOffset: 1, spare: thirdDayStart)
     }
 
     // MARK: Presentation
@@ -352,26 +432,61 @@ enum TodayWindowService {
             hours: plan.hoursToRequest(from: now),
             session: session
         )
+        let series = forecast.hours.sorted { $0.date < $1.date }
 
-        // Only the planned day is scored. An hour of tomorrow morning is not an
-        // answer to "when today?", and a rolling 24 hours quietly made it one.
-        let hours = forecast
-            .filter { $0.date >= plan.from && $0.date < plan.until }
-            .sorted { $0.date < $1.date }
+        var chosen = plan
+        var candidates = candidateHours(in: plan, from: series, daylight: forecast.daylight)
 
-        let windows = await WindowScorer.rankOffMain(forecast: hours, history: history)
+        // Nothing surfable left in the planned day — it is dark, or nearly. That
+        // is not "no window", it is "not today", and answering with tomorrow's
+        // dawn is what a surfer standing on the sand at dusk actually wants. Only
+        // ever forward from today: a plan that is already tomorrow stays there
+        // rather than wandering off into the week.
+        if candidates.isEmpty && plan.dayOffset == 0 {
+            let next = plan.rollingForward()
+            let nextCandidates = candidateHours(in: next, from: series, daylight: forecast.daylight)
+            if !nextCandidates.isEmpty {
+                chosen = next
+                candidates = nextCandidates
+            }
+        }
+
+        let windows = await WindowScorer.rankOffMain(forecast: candidates, history: history)
 
         // The readout shows the hour the surfer is standing in, not the first hour
-        // that survived the day filter — at 09:30 the 09:00 hour is what "now"
-        // means, and it is dropped from scoring because it is half over. When the
-        // plan is a future day, this lands on that day's first hour instead.
-        let readout = forecast.last { $0.date <= plan.from } ?? hours.first ?? forecast.first
+        // that survived the filters — at 09:30 the 09:00 hour is what "now" means,
+        // and it is dropped from scoring because it is half over. When the answer
+        // is a future day, it lands on that day's first surfable hour instead,
+        // which is the hour the card names in its heading.
+        let readout: ForecastHour?
+        if chosen.dayOffset == 0 {
+            readout = series.last { $0.date <= chosen.from } ?? candidates.first ?? series.first
+        } else {
+            readout = candidates.first ?? series.first { $0.date >= chosen.from } ?? series.first
+        }
 
         return Outlook(
             spotID: spotID,
-            recommendation: windows.first.map { Recommendation(window: $0, dayOffset: plan.dayOffset) },
+            recommendation: windows.first.map { Recommendation(window: $0, dayOffset: chosen.dayOffset) },
             conditions: readout.map(Conditions.init(hour:)).flatMap { $0.hasAnyReading ? $0 : nil },
-            dayOffset: plan.dayOffset
+            dayOffset: chosen.dayOffset
+        )
+    }
+
+    /// The hours of `series` that belong to `plan`'s day *and* are surfable.
+    ///
+    /// Two filters, in this order and both load-bearing. The day filter is what
+    /// stops an hour of tomorrow morning answering "when today?" — a rolling 24
+    /// hours quietly made it one. The daylight filter is what stops the answer
+    /// being 3 am; see `preSunriseMargin`.
+    static func candidateHours(
+        in plan: DayPlan,
+        from series: [ForecastHour],
+        daylight: [DaylightInterval]
+    ) -> [ForecastHour] {
+        surfableHours(
+            series.filter { $0.date >= plan.from && $0.date < plan.until },
+            daylight: daylight
         )
     }
 }

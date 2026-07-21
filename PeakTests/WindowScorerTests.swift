@@ -2493,6 +2493,37 @@ final class SpotCoordinateResolverTests: XCTestCase {
         XCTAssertEqual(spot.latitude ?? 0, 1, accuracy: 0.0001)
     }
 
+    /// Half a coordinate is still the surfer's data. `restore` copies `latitude`
+    /// and `longitude` across independently, so a hand-edited or truncated JSON
+    /// export can leave one of the two set — and overwriting a real latitude
+    /// because its longitude went missing would silently move a break the surfer
+    /// supplied. The spot stays unforecastable and the card asks instead.
+    func testASpotWithHalfACoordinateIsNeverOverwritten() throws {
+        let context = try makeContext()
+        let halfLocated = Spot(name: "Pipeline", latitude: 40.5, longitude: nil)
+        context.insert(halfLocated)
+        XCTAssertFalse(SpotCoordinateResolver.resolveMissingCoordinates(for: halfLocated, catalog: catalog))
+        XCTAssertEqual(halfLocated.latitude ?? 0, 40.5, accuracy: 0.0001,
+                       "the surfer's own latitude was replaced by the catalog's")
+        XCTAssertNil(halfLocated.longitude)
+
+        let otherHalf = Spot(name: "Uluwatu", latitude: nil, longitude: 12.5)
+        context.insert(otherHalf)
+        XCTAssertFalse(SpotCoordinateResolver.resolveMissingCoordinates(for: otherHalf, catalog: catalog))
+        XCTAssertEqual(otherHalf.longitude ?? 0, 12.5, accuracy: 0.0001)
+    }
+
+    /// Running it twice writes once. The card resolves on every appearance, so a
+    /// second pass has to be a pure no-op rather than a repeated store write.
+    func testResolvingIsIdempotent() throws {
+        let context = try makeContext()
+        let spot = context.upsertSpot(named: "Pipeline")
+        XCTAssertTrue(SpotCoordinateResolver.resolveMissingCoordinates(for: spot, catalog: catalog))
+        XCTAssertFalse(SpotCoordinateResolver.resolveMissingCoordinates(for: spot, catalog: catalog),
+                       "a second pass reported another write")
+        XCTAssertEqual(spot.latitude ?? 0, 21.665, accuracy: 0.0001)
+    }
+
     func testResolvingAListReportsHowManyWereRepaired() throws {
         let context = try makeContext()
         let spots = ["Pipeline", "Uluwatu", "The Point", "Nowhere"].map { context.upsertSpot(named: $0) }
@@ -2699,5 +2730,438 @@ final class ConditionsBackfillTests: XCTestCase {
         let stopped = ConditionsBackfill.Summary(filled: 3, attempted: 6, eligible: 20, stoppedEarly: true).message
         XCTAssertTrue(stopped.contains("3"), stopped)
         XCTAssertTrue(stopped.lowercased().contains("again"), "no retry offered after giving up: \(stopped)")
+    }
+}
+
+// MARK: - Daylight
+
+/// The card must never answer "when today?" with 2 am.
+///
+/// Once the evening fallback started planning tomorrow, tomorrow's 00:00-04:00
+/// became ordinary candidates — and a glassy, windless, nicely-tided 3 am scores
+/// extremely well, because the scorer has no concept of darkness. These pin that
+/// the fix is daylight-shaped rather than a hardcoded clock range, that dawn
+/// patrol survives it, and that missing sunrise data degrades to the old
+/// behaviour instead of to an empty card.
+final class DaylightWindowTests: XCTestCase {
+
+    /// GMT throughout, so none of this depends on where the machine running it is.
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }()
+
+    private func date(_ iso: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.date(from: iso) ?? .distantPast
+    }
+
+    /// Sunrise 06:30, sunset 20:15, on the day being planned and the days either
+    /// side. With the shipped margins that makes 05:45 the first surfable instant
+    /// and 20:45 the last, so the 06:00 hour is a legitimate dawn patrol and the
+    /// 05:00 hour is not.
+    private var daylight: [DaylightInterval] {
+        ["2026-07-21", "2026-07-22", "2026-07-23"].map {
+            DaylightInterval(sunrise: date("\($0) 06:30"), sunset: date("\($0) 20:15"))
+        }
+    }
+
+    // Two sets of conditions a mile apart, so the scorer's choice between them is
+    // unambiguous and the test is about the filter rather than about tuning.
+    private let glassy = ConditionsSample(
+        swellWaveHeightMeters: 1.5, swellWavePeriodSeconds: 14, swellWaveDirectionDegrees: 270,
+        windWaveHeightMeters: 0.1, waveHeightMeters: 1.5, windSpeedKph: 3, windDirectionDegrees: 45,
+        seaSurfaceTemperatureC: 18, seaLevelHeightMeters: 0.2, tideTrend: .rising
+    )
+    private let blownOut = ConditionsSample(
+        swellWaveHeightMeters: 1.5, swellWavePeriodSeconds: 14, swellWaveDirectionDegrees: 270,
+        windWaveHeightMeters: 1.0, waveHeightMeters: 1.8, windSpeedKph: 30, windDirectionDegrees: 200,
+        seaSurfaceTemperatureC: 18, seaLevelHeightMeters: 0.2, tideTrend: .rising
+    )
+
+    /// A logbook that unambiguously prefers glass: enough sessions, and enough
+    /// rating spread, to clear the confidence gate on its own merits. No
+    /// threshold is touched anywhere in these tests.
+    private func history(endingAt end: Date, count: Int = 24) -> [RatedSession] {
+        (0..<count).map { index in
+            let clean = index % 2 == 0
+            return RatedSession(
+                date: end.addingTimeInterval(Double(-index) * 86_400),
+                rating: clean ? 5 : 1,
+                conditions: clean ? glassy : blownOut
+            )
+        }
+    }
+
+    /// Hourly forecast across `days` from midnight, glassy only at `glassyHours`
+    /// (local hour-of-day) and blown out otherwise.
+    private func forecast(from start: Date, hours: Int, glassyHours: Set<Int>) -> [ForecastHour] {
+        (0..<hours).map { offset in
+            let stamp = start.addingTimeInterval(Double(offset) * 3600)
+            let hourOfDay = calendar.component(.hour, from: stamp)
+            return ForecastHour(date: stamp, conditions: glassyHours.contains(hourOfDay) ? glassy : blownOut)
+        }
+    }
+
+    // MARK: The defect
+
+    /// The whole point. The night is the best-scoring part of this forecast, and
+    /// it must not be recommended anyway.
+    func testANightHourIsNeverRecommended() {
+        let dayStart = date("2026-07-22 00:00")
+        let series = forecast(from: dayStart, hours: 24, glassyHours: [0, 1, 2, 3, 8, 9, 10])
+        let log = history(endingAt: date("2026-07-20 07:00"))
+        let plan = TodayWindowService.dayPlan(now: date("2026-07-21 22:30"), calendar: calendar)
+        XCTAssertEqual(plan.dayOffset, 1, "the fixture is not exercising the evening fallback")
+
+        // Control: without daylight the scorer really does pick the middle of the
+        // night, so this test is measuring the filter and not a lucky forecast.
+        let unfiltered = TodayWindowService.candidateHours(in: plan, from: series, daylight: [])
+        let nightWindow = WindowScorer.rank(forecast: unfiltered, history: log).first
+        XCTAssertEqual(calendar.component(.hour, from: try! XCTUnwrap(nightWindow).start), 0,
+                       "the fixture does not actually tempt the scorer into the small hours")
+
+        let candidates = TodayWindowService.candidateHours(in: plan, from: series, daylight: daylight)
+        XCTAssertFalse(candidates.isEmpty, "daylight filtering removed the entire day")
+        for hour in candidates {
+            XCTAssertGreaterThanOrEqual(hour.date, date("2026-07-22 05:45"),
+                                        "a pre-dawn-margin hour survived: \(hour.date)")
+            XCTAssertLessThanOrEqual(hour.date, date("2026-07-22 20:45"),
+                                     "a post-dusk-margin hour survived: \(hour.date)")
+        }
+
+        let window = WindowScorer.rank(forecast: candidates, history: log).first
+        let start = try! XCTUnwrap(window, "daylight filtering left nothing recommendable").start
+        XCTAssertGreaterThanOrEqual(start, date("2026-07-22 05:45"),
+                                    "recommended a window in the middle of the night")
+    }
+
+    /// Surfers legitimately paddle out before the sun is up, so the cut is a
+    /// margin around daylight and not sunrise itself. The 06:00 hour is 30
+    /// minutes before this day's sunrise and has to survive.
+    func testADawnPatrolHourBeforeSunriseIsStillOffered() {
+        let dayStart = date("2026-07-22 00:00")
+        // Glassy *only* before sunrise, so if the margin is dropped the answer
+        // changes rather than merely shifting.
+        let series = forecast(from: dayStart, hours: 24, glassyHours: [6])
+        let log = history(endingAt: date("2026-07-20 07:00"))
+        let plan = TodayWindowService.dayPlan(now: date("2026-07-21 22:30"), calendar: calendar)
+
+        let candidates = TodayWindowService.candidateHours(in: plan, from: series, daylight: daylight)
+        XCTAssertTrue(candidates.contains { $0.date == date("2026-07-22 06:00") },
+                      "dawn patrol was filtered out along with the night")
+        XCTAssertFalse(candidates.contains { $0.date == date("2026-07-22 05:00") },
+                       "an hour a full 90 minutes before sunrise was treated as surfable")
+
+        let window = WindowScorer.rank(forecast: candidates, history: log).first
+        XCTAssertEqual(try! XCTUnwrap(window).start, date("2026-07-22 06:00"),
+                       "the pre-sunrise dawn patrol was not recommended")
+    }
+
+    /// Honest degradation. No sunrise data is "unknown", never "dark all day":
+    /// the card falls back to the behaviour that shipped rather than to nothing.
+    func testWithoutSunriseDataTheDayIsScoredExactlyAsBefore() {
+        let dayStart = date("2026-07-22 00:00")
+        let series = forecast(from: dayStart, hours: 24, glassyHours: [7, 8, 9])
+        let log = history(endingAt: date("2026-07-20 07:00"))
+        let plan = TodayWindowService.dayPlan(now: date("2026-07-21 22:30"), calendar: calendar)
+
+        let candidates = TodayWindowService.candidateHours(in: plan, from: series, daylight: [])
+        XCTAssertEqual(candidates.count, 24, "the day was narrowed despite no daylight being known")
+        XCTAssertFalse(WindowScorer.rank(forecast: candidates, history: log).isEmpty,
+                       "missing sunrise data cost the surfer their window entirely")
+    }
+
+    /// The margins are the documented ones, checked at the instant either side of
+    /// each boundary rather than by restating the constants.
+    func testTheMarginsAreExactlyWhereTheyAreDocumented() {
+        let sunrise = date("2026-07-22 06:30")
+        let sunset = date("2026-07-22 20:15")
+        let interval = [DaylightInterval(sunrise: sunrise, sunset: sunset)]
+        func surfable(_ offset: TimeInterval, from anchor: Date) -> Bool {
+            !TodayWindowService.surfableHours(
+                [ForecastHour(date: anchor.addingTimeInterval(offset), conditions: glassy)],
+                daylight: interval
+            ).isEmpty
+        }
+
+        XCTAssertTrue(surfable(-TodayWindowService.preSunriseMargin, from: sunrise))
+        XCTAssertFalse(surfable(-TodayWindowService.preSunriseMargin - 60, from: sunrise))
+        XCTAssertTrue(surfable(TodayWindowService.postSunsetMargin, from: sunset))
+        XCTAssertFalse(surfable(TodayWindowService.postSunsetMargin + 60, from: sunset))
+        // Dawn is the generous end on purpose: light arriving beats light leaving.
+        XCTAssertGreaterThan(TodayWindowService.preSunriseMargin, TodayWindowService.postSunsetMargin)
+    }
+
+    // MARK: Pairing sunrises with sunsets
+
+    /// Open-Meteo buckets sunrise and sunset by the day of the *requested*
+    /// timezone, and Peak asks in GMT. For a break east of Greenwich that puts a
+    /// sunset before its own row's sunrise, so index-pairing the two arrays would
+    /// produce intervals that run backwards and classify the whole day as dark.
+    func testSunrisesArePairedByInstantNotByIndex() {
+        // Bali-shaped: within GMT day D, sunset (10:12Z, local 18:12) happens
+        // before sunrise (22:20Z, local 06:20 the next day).
+        let intervals = SurfConditionsService.daylightIntervals(
+            sunrise: ["2026-07-20T22:20", "2026-07-21T22:20"],
+            sunset: ["2026-07-20T10:12", "2026-07-21T10:12", "2026-07-22T10:12"]
+        )
+        XCTAssertEqual(intervals.count, 2)
+        for interval in intervals {
+            XCTAssertLessThan(interval.sunrise, interval.sunset, "an interval runs backwards")
+            XCTAssertLessThan(interval.sunset.timeIntervalSince(interval.sunrise), 24 * 3600)
+        }
+        // And local dawn really is inside one of them.
+        let dawn = ISO8601DateFormatter().date(from: "2026-07-20T23:00:00Z") ?? .distantPast
+        XCTAssertTrue(intervals.contains { dawn >= $0.sunrise && dawn <= $0.sunset })
+    }
+
+    /// Polar summer and polar winter come back as nulls. Nothing to pair means
+    /// "unknown", which the filter treats as "do not filter".
+    func testNullSunrisesProduceNoIntervalsRatherThanABrokenOne() {
+        XCTAssertTrue(SurfConditionsService.daylightIntervals(
+            sunrise: [nil, nil], sunset: [nil, nil]).isEmpty)
+        XCTAssertTrue(SurfConditionsService.daylightIntervals(
+            sunrise: ["2026-07-21T06:00"], sunset: []).isEmpty)
+        XCTAssertTrue(SurfConditionsService.daylightIntervals(sunrise: [], sunset: []).isEmpty)
+        // Garbage the parser cannot read is dropped, not guessed at.
+        XCTAssertTrue(SurfConditionsService.daylightIntervals(
+            sunrise: ["not a date"], sunset: ["also not a date"]).isEmpty)
+    }
+
+    /// A trailing sunrise with no sunset after it is not an open-ended day.
+    func testASunriseWithNoFollowingSunsetIsDropped() {
+        let intervals = SurfConditionsService.daylightIntervals(
+            sunrise: ["2026-07-21T06:00", "2026-07-22T06:00"],
+            sunset: ["2026-07-21T20:00"]
+        )
+        XCTAssertEqual(intervals.count, 1)
+        XCTAssertEqual(intervals.first?.sunset, ISO8601DateFormatter().date(from: "2026-07-21T20:00:00Z"))
+    }
+
+}
+
+/// The daylight fix through the whole path the app actually runs: URL built,
+/// provider JSON parsed, sunrise/sunset joined to the hourly series, day chosen,
+/// window ranked. The unit tests above pin each piece; these pin that the pieces
+/// are wired to one another.
+final class DaylightOutlookIntegrationTests: XCTestCase {
+
+    private var calendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }()
+
+    private func date(_ iso: String) -> Date {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.date(from: iso) ?? .distantPast
+    }
+
+    /// Three days of hourly forecast from 2026-07-21 00:00 GMT. Sunrise 06:30,
+    /// sunset 20:15 on every day.
+    private let seriesStart = "2026-07-21 00:00"
+    private let seriesHours = 72
+
+    private func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    /// Every URL the run actually asked for, so the request itself can be
+    /// asserted on without reaching into the fileprivate URL builders.
+    private nonisolated(unsafe) static var requestedURLs: [URL] = []
+
+    /// Glassy at `glassyHours` (hour of day), blown out otherwise — the same
+    /// contrast the scorer-level tests use, expressed as provider JSON.
+    private func install(glassyHours: Set<Int>, includeDaily: Bool) {
+        let start = date(seriesStart)
+        let stamps: [(String, Bool)] = (0..<seriesHours).map { offset in
+            let stamp = start.addingTimeInterval(Double(offset) * 3600)
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = calendar.timeZone
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
+            return (formatter.string(from: stamp), glassyHours.contains(calendar.component(.hour, from: stamp)))
+        }
+
+        func series(_ glassy: Double, _ blown: Double) -> String {
+            stamps.map { $0.1 ? "\(glassy)" : "\(blown)" }.joined(separator: ",")
+        }
+        let times = stamps.map { "\"\($0.0)\"" }.joined(separator: ",")
+
+        let marineJSON = """
+        {"hourly":{"time":[\(times)],
+          "wave_height":[\(series(1.5, 1.8))],
+          "swell_wave_height":[\(series(1.5, 1.5))],
+          "swell_wave_period":[\(series(14.0, 14.0))],
+          "swell_wave_direction":[\(series(270.0, 270.0))],
+          "wind_wave_height":[\(series(0.1, 1.0))],
+          "wind_wave_period":[\(series(4.0, 6.0))],
+          "wind_wave_direction":[\(series(45.0, 200.0))],
+          "sea_surface_temperature":[\(series(18.0, 18.0))]}}
+        """
+
+        let daily: String
+        if includeDaily {
+            let days = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24"]
+            let sunrises = days.map { "\"\($0)T06:30\"" }.joined(separator: ",")
+            let sunsets = days.map { "\"\($0)T20:15\"" }.joined(separator: ",")
+            daily = ",\"daily\":{\"time\":[],\"sunrise\":[\(sunrises)],\"sunset\":[\(sunsets)]}"
+        } else {
+            daily = ""
+        }
+        let windJSON = """
+        {"hourly":{"time":[\(times)],
+          "wind_speed_10m":[\(series(3.0, 30.0))],
+          "wind_direction_10m":[\(series(45.0, 200.0))]}\(daily)}
+        """
+
+        Self.requestedURLs = []
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url, let host = url.host else { throw URLError(.badURL) }
+            Self.requestedURLs.append(url)
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            switch host {
+            case "marine-api.open-meteo.com": return (response, Data(marineJSON.utf8))
+            case "api.open-meteo.com": return (response, Data(windJSON.utf8))
+            default: throw URLError(.unsupportedURL)
+            }
+        }
+    }
+
+    private func history(count: Int = 24) -> [RatedSession] {
+        let glassy = ConditionsSample(
+            swellWaveHeightMeters: 1.5, swellWavePeriodSeconds: 14, swellWaveDirectionDegrees: 270,
+            windWaveHeightMeters: 0.1, waveHeightMeters: 1.5, windSpeedKph: 3,
+            windDirectionDegrees: 45, seaSurfaceTemperatureC: 18
+        )
+        let blownOut = ConditionsSample(
+            swellWaveHeightMeters: 1.5, swellWavePeriodSeconds: 14, swellWaveDirectionDegrees: 270,
+            windWaveHeightMeters: 1.0, waveHeightMeters: 1.8, windSpeedKph: 30,
+            windDirectionDegrees: 200, seaSurfaceTemperatureC: 18
+        )
+        return (0..<count).map { index in
+            let clean = index % 2 == 0
+            return RatedSession(
+                date: date("2026-07-01 07:00").addingTimeInterval(Double(-index) * 86_400),
+                rating: clean ? 5 : 1,
+                conditions: clean ? glassy : blownOut
+            )
+        }
+    }
+
+    override func tearDown() {
+        MockURLProtocol.requestHandler = nil
+        super.tearDown()
+    }
+
+    /// The reported defect, end to end: at 10:30 pm the card plans tomorrow, and
+    /// tomorrow's 00:00-04:00 is the best-scoring stretch of the whole day.
+    func testAnEveningFetchNeverComesBackWithAMiddleOfTheNightWindow() async throws {
+        install(glassyHours: [0, 1, 2, 3, 8, 9, 10], includeDaily: true)
+
+        let outlook = try await TodayWindowService.outlook(
+            history: history(), spotID: nil, latitude: 33.3, longitude: -117.6,
+            now: date("2026-07-21 22:30"), calendar: calendar, session: makeSession()
+        )
+
+        XCTAssertEqual(outlook.dayOffset, 1)
+        let start = try XCTUnwrap(outlook.recommendation, "no window at all from a day with glassy mornings").start
+        XCTAssertGreaterThanOrEqual(start, date("2026-07-22 05:45"),
+                                    "recommended the middle of the night: \(start)")
+        XCTAssertLessThan(start, date("2026-07-23 00:00"), "wandered past the day it planned")
+    }
+
+    /// At dusk there is technically time left in the day, and none of it is
+    /// surfable. Answering "nothing" would be wrong twice over — there *is* a
+    /// window, and the card's low-confidence copy would blame the surfer's
+    /// logbook for the sun having set.
+    func testAtDuskTheAnswerRollsForwardToTomorrowRatherThanTonight() async throws {
+        install(glassyHours: [8, 9, 10], includeDaily: true)
+
+        let now = date("2026-07-21 21:00")
+        XCTAssertEqual(TodayWindowService.dayPlan(now: now, calendar: calendar).dayOffset, 0,
+                       "the fixture is not exercising the roll-forward")
+
+        let outlook = try await TodayWindowService.outlook(
+            history: history(), spotID: nil, latitude: 33.3, longitude: -117.6,
+            now: now, calendar: calendar, session: makeSession()
+        )
+
+        XCTAssertEqual(outlook.dayOffset, 1, "stayed on a day with no daylight left in it")
+        let recommendation = try XCTUnwrap(outlook.recommendation)
+        XCTAssertGreaterThanOrEqual(recommendation.start, date("2026-07-22 05:45"))
+        // The heading and the label agree, because both read the same offset.
+        XCTAssertTrue(recommendation.timeRangeLabel(locale: Locale(identifier: "en_US"))
+            .hasPrefix("Tomorrow "), "a window found for tomorrow was not labelled tomorrow")
+    }
+
+    /// Degrading honestly: a response with no `daily` block behaves exactly as it
+    /// did before the fix rather than filtering everything away.
+    func testAResponseWithoutSunriseDataStillProducesAWindow() async throws {
+        install(glassyHours: [0, 1, 2, 3], includeDaily: false)
+
+        let outlook = try await TodayWindowService.outlook(
+            history: history(), spotID: nil, latitude: 33.3, longitude: -117.6,
+            now: date("2026-07-21 22:30"), calendar: calendar, session: makeSession()
+        )
+        XCTAssertNotNil(outlook.recommendation,
+                        "a missing daily block cost the surfer their window entirely")
+    }
+
+    /// A picker-only logbook measures 0.1927 confidence — below the 0.25 gate —
+    /// and the daylight work must not have moved that. No window, but the
+    /// conditions are still reported.
+    func testTheConfidenceGateStillRefusesAThinLogbook() async throws {
+        install(glassyHours: [8, 9, 10], includeDaily: true)
+
+        let outlook = try await TodayWindowService.outlook(
+            history: [], spotID: nil, latitude: 33.3, longitude: -117.6,
+            now: date("2026-07-21 22:30"), calendar: calendar, session: makeSession()
+        )
+        XCTAssertNil(outlook.recommendation, "recommended a window with no history at all")
+        XCTAssertNotNil(outlook.conditions, "left the card with nothing true to say")
+        XCTAssertEqual(Tuning().minConfidence, 0.25, "the confidence gate was moved")
+    }
+
+    /// The daylight rides along on the wind request that already existed — one
+    /// host, one extra parameter, no second service — and the parameters the
+    /// provider rejects alongside an explicit hour range stay gone.
+    func testTheDayForecastAsksForSunriseAndSunsetOnTheRequestItAlreadyMakes() async throws {
+        install(glassyHours: [8, 9, 10], includeDaily: true)
+        _ = try await TodayWindowService.outlook(
+            history: history(), spotID: nil, latitude: 33.3, longitude: -117.6,
+            now: date("2026-07-21 22:30"), calendar: calendar, session: makeSession()
+        )
+
+        XCTAssertEqual(Self.requestedURLs.count, 2, "the daylight came at the cost of an extra request")
+        let windURL = try XCTUnwrap(Self.requestedURLs.first { $0.host == "api.open-meteo.com" })
+        let items = try XCTUnwrap(URLComponents(url: windURL, resolvingAgainstBaseURL: false)?.queryItems)
+
+        XCTAssertEqual(items.first { $0.name == "daily" }?.value, "sunrise,sunset")
+        // `daily` alongside a bare start_hour/end_hour comes back with empty
+        // arrays, so the date bounds have to be sent as well — padded a day
+        // either side so every scored hour has an event in front of it.
+        XCTAssertNotNil(items.first { $0.name == "start_date" })
+        XCTAssertNotNil(items.first { $0.name == "end_date" })
+        // The two parameters the provider now rejects outright when a request
+        // also carries an explicit range.
+        XCTAssertNil(items.first { $0.name == "past_days" })
+        XCTAssertNil(items.first { $0.name == "forecast_days" })
+
+        let marineURL = try XCTUnwrap(Self.requestedURLs.first { $0.host == "marine-api.open-meteo.com" })
+        let marineItems = try XCTUnwrap(URLComponents(url: marineURL, resolvingAgainstBaseURL: false)?.queryItems)
+        XCTAssertNil(marineItems.first { $0.name == "forecast_days" })
+        XCTAssertNil(marineItems.first { $0.name == "daily" },
+                     "the marine endpoint was asked for daylight it does not serve")
     }
 }

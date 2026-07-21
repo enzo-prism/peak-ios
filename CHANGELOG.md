@@ -54,6 +54,53 @@ defect below was measured against a real store, not inferred.
   the spot they were computed for and are rejected if it no longer matches; the
   task is cancelled on switch, and the concurrency guard no longer depends on
   view state that the switch itself resets.
+- **The card could confidently recommend the middle of the night.** Once the
+  evening fallback started planning tomorrow, tomorrow's 00:00-04:00 became
+  ordinary candidates — and a glassy, windless 3 am with a nice tide scores
+  *extremely* well, because the scorer has no concept of darkness. A card whose
+  entire job is to be trustworthy was one dawn-planning session away from telling
+  a surfer to paddle out at 2 am. Windows are now restricted to daylight, taken
+  from `daily=sunrise,sunset` on the Open-Meteo forecast request the wind
+  readings already use — no second service and no extra round trip. Not a
+  hardcoded clock range: "the middle of the night" means something different in
+  Bali in March and in Scotland in December. Not a hard sunrise/sunset cut
+  either, because surfers legitimately surf outside it — the margin is **sunrise
+  − 45 min to sunset + 30 min**, deliberately asymmetric because dawn light is
+  arriving (an early start is a plan) while dusk light is leaving (a late start
+  is how you get caught out). Both constants and the full reasoning live in one
+  place, `TodayWindowService.preSunriseMargin`. If sunrise and sunset are
+  unavailable for any reason — an older response shape, a wind request that
+  failed while marine succeeded, a polar day the provider cannot compute — the
+  day is scored unfiltered exactly as before, because showing nothing is worse
+  than showing an unfiltered day.
+  (`Peak/Supporting/TodayWindowService.swift`,
+  `Peak/Supporting/SurfConditionsService.swift`)
+- **At dusk the card now answers with tomorrow instead of with nothing.** A
+  consequence of the above: at 9 pm there is technically time left in the day and
+  none of it is surfable, which used to leave the card blaming the surfer's
+  logbook for the sun having set. The forecast request already reaches into the
+  following day, so the answer rolls forward and the heading and label both say
+  "tomorrow".
+- **Every request that reached outside today was failing at the provider.**
+  Open-Meteo rejects `past_days` and `forecast_days` outright when a request also
+  carries an explicit range — "Parameter 'forecast_days' is mutually exclusive
+  with 'start_date' and 'end_date'", HTTP 400, no data — and Peak's
+  `start_hour`/`end_hour` count as one. Peak sent both together. That meant
+  auto-filling conditions for any session **not logged the same day** failed, the
+  new "Fill in past conditions" action would have failed on every single session,
+  and the Best Window fetch — a span from now that always crosses midnight —
+  failed every single time. The hours already bound the range on their own, and
+  on their own they serve the provider's full archive and forecast horizon, so
+  the day counts are gone. (`Peak/Supporting/SurfConditionsService.swift`)
+- **A stale fetch could strand the card on its loading spinner.** The favourite
+  spots are derived from the logbook, so deleting the last session at the
+  selected break re-picks the selection *without* going through the spot-switch
+  path that cancels in flight work. The task then returned early without handing
+  back its slot, leaving `state` on `.loading` and the only button disabled —
+  permanently, for the rest of the session. The same shape in the backfill
+  abandoned the run between a write and its save. Both now release the slot on
+  every path except cancellation, which is the one case where it belongs to
+  somebody else.
 - **The empty-state copy was actively misleading.** "Log a few more rated
   sessions and Peak will learn what works here" was false: plain sessions
   contributed nothing at all, so following it changed nothing. The copy now names
@@ -67,7 +114,11 @@ defect below was measured against a real store, not inferred.
   `SurfBreaks.json` and repaired permanently, which also makes session auto-fill
   start working for it. Only on an unambiguous single match — a near miss, a
   substring, or two catalog breaks sharing a name all decline, because writing a
-  coordinate decides which patch of ocean gets reported on.
+  coordinate decides which patch of ocean gets reported on. A spot that already
+  carries *either* half of a coordinate is never touched: `restore` copies
+  latitude and longitude across independently, so a truncated import can leave
+  one set, and overwriting a real latitude because its longitude went missing
+  would silently move a break the surfer supplied.
   (`Peak/Supporting/SpotCoordinateResolver.swift`)
 - **An actionable state for spots that still cannot be placed.** Explains the
   problem, names the spot, and opens the spot editor. Never an empty view.
