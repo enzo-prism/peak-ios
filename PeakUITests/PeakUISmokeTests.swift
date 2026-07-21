@@ -518,7 +518,7 @@ final class PeakWelcomeUITests: XCTestCase {
         XCTAssertTrue(skip.waitForExistence(timeout: 10))
         skip.tap()
 
-        XCTAssertTrue(app.buttons["log.hero.cta"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["welcome.cta"].exists)
     }
 
@@ -526,7 +526,7 @@ final class PeakWelcomeUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["log.hero.cta"].waitForExistence(timeout: 10),
+            app.buttons["Log Session"].waitForExistence(timeout: 10),
             "A plain UI-test launch must land on the Log tab, not the welcome"
         )
         XCTAssertFalse(app.buttons["welcome.next"].exists)
