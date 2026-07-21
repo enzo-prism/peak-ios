@@ -10,6 +10,7 @@
 		072C5513ACE1CF85B536287E /* WidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F477A4A48D8B74FD308BFDC /* WidgetSnapshotTests.swift */; };
 		0ECA65A2DC0B4AFAE096D9F1 /* SurfConditionsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BC124DE3B901E9AE51964B /* SurfConditionsServiceTests.swift */; };
 		B39C2D1F506E7B8C9D0E1F20 /* WindowScorerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28B1C0E4F5D6A7B8C9D0E1F /* WindowScorerTests.swift */; };
+		C1A2B3C4D5E6F70819203A12 /* InsightsEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3C4D5E6F70819203A11 /* InsightsEngineTests.swift */; };
 		B2F0B2C3D4E5F60718293A04 /* WaveRouteGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2F0B2C3D4E5F60718293A03 /* WaveRouteGenerator.swift */; };
 		B1F0B2C3D4E5F60718293A02 /* WaveAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F0B2C3D4E5F60718293A01 /* WaveAnalyzerTests.swift */; };
 		0F474B03CE0B08253DBFD97E /* PeakUILayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D501A791D6CF37DED6AF29 /* PeakUILayoutTests.swift */; };
@@ -115,6 +116,7 @@
 		9F477A4A48D8B74FD308BFDC /* WidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		A1BC124DE3B901E9AE51964B /* SurfConditionsServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfConditionsServiceTests.swift; sourceTree = "<group>"; };
 		A28B1C0E4F5D6A7B8C9D0E1F /* WindowScorerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScorerTests.swift; sourceTree = "<group>"; };
+		C1A2B3C4D5E6F70819203A11 /* InsightsEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsEngineTests.swift; sourceTree = "<group>"; };
 		A2F0B2C3D4E5F60718293A03 /* WaveRouteGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveRouteGenerator.swift; sourceTree = "<group>"; };
 		A1F0B2C3D4E5F60718293A01 /* WaveAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveAnalyzerTests.swift; sourceTree = "<group>"; };
 		A6F91466E2C16A347C160444 /* TestingDefaults.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TestingDefaults.swift; path = ../Peak/Supporting/TestingDefaults.swift; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 				FC886C42F2EA3E70A95563AD /* ActiveSessionTests.swift */,
 				AFB1E6C1413665E142724DEC /* SessionIntentQueriesTests.swift */,
 				A28B1C0E4F5D6A7B8C9D0E1F /* WindowScorerTests.swift */,
+				C1A2B3C4D5E6F70819203A11 /* InsightsEngineTests.swift */,
 				A2F0B2C3D4E5F60718293A03 /* WaveRouteGenerator.swift */,
 				A1F0B2C3D4E5F60718293A01 /* WaveAnalyzerTests.swift */,
 			);
@@ -474,6 +477,7 @@
 				B2C3D4E5F60718293A4B5C6D /* UsageMetricsTests.swift in Sources */,
 				0ECA65A2DC0B4AFAE096D9F1 /* SurfConditionsServiceTests.swift in Sources */,
 				B39C2D1F506E7B8C9D0E1F20 /* WindowScorerTests.swift in Sources */,
+				C1A2B3C4D5E6F70819203A12 /* InsightsEngineTests.swift in Sources */,
 				B2F0B2C3D4E5F60718293A04 /* WaveRouteGenerator.swift in Sources */,
 				B1F0B2C3D4E5F60718293A02 /* WaveAnalyzerTests.swift in Sources */,
 				358868331853B18B51C837FB /* SessionMediaStoreTests.swift in Sources */,

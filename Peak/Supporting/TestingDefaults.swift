@@ -57,6 +57,20 @@ nonisolated enum TestingDefaults {
         return value
     }
 
+    /// Drives the on-device insights surfaces under UI test. The simulator has
+    /// no Apple Intelligence, so the AI layout would otherwise be unreachable
+    /// from the UI suite. `stub` substitutes a canned, model-free draft; unset
+    /// (the default) leaves the real availability gate in charge, which on the
+    /// simulator means the plain-stats fallback.
+    static var insightsScenario: String? {
+        guard let value = ProcessInfo.processInfo.environment["UITESTS_INSIGHTS_SCENARIO"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
     static var isRunningTests: Bool {
         if isUITest {
             return true

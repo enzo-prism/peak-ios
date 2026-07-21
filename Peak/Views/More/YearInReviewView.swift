@@ -16,6 +16,10 @@ struct YearInReviewView: View {
     @State private var review: YearInReview?
     @State private var highlights: [SessionMedia] = []
     @State private var shareContent: RecapShareContent?
+    /// The model's version of the paragraph. `nil` means the plain one renders —
+    /// same facts, flatter prose — which is what every device without Apple
+    /// Intelligence sees.
+    @State private var narrative: String?
 
     var body: some View {
         ZStack {
@@ -36,6 +40,7 @@ struct YearInReviewView: View {
 
                         if let review {
                             headlineCard(review)
+                            narrativeCard(review)
                             metricsSection(review)
                             if !review.waveHeightDistribution.isEmpty {
                                 waveDistributionSection(review)
@@ -74,6 +79,9 @@ struct YearInReviewView: View {
         .task(id: review) {
             await prepareShareContent()
         }
+        .task(id: review) {
+            await refreshNarrative()
+        }
     }
 
     private var availableYears: [Int] {
@@ -107,6 +115,31 @@ struct YearInReviewView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassTint, isInteractive: false)
+    }
+
+    /// The year in a paragraph. Always present, because the plain rendering is
+    /// built from the same aggregates the metric grid below shows; the model only
+    /// ever changes how it reads, never what it says.
+    private func narrativeCard(_ review: YearInReview) -> some View {
+        let facts = InsightsEngine.yearFacts(review: review)
+        let text = narrative ?? facts.plainNarrative
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            if narrative != nil {
+                OnDeviceInsightFootnote()
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Year summary"))
+        // The privacy line rides along in the value: where the words came from
+        // is not something a screen-reader user should have to take on trust.
+        .accessibilityValue(Text(narrative == nil ? text : "\(text) \(OnDeviceInsightFootnote.text)"))
     }
 
     private func headline(_ review: YearInReview) -> String {
@@ -236,6 +269,18 @@ struct YearInReviewView: View {
         }
         review = YearInReviewCalculator.summary(sessions: sessions, year: year)
         highlights = YearInReviewCalculator.mediaHighlights(sessions: sessions, year: year)
+    }
+
+    /// Same contract as the Stats card: silent on every failure, and the
+    /// paragraph on screen is already correct before this runs.
+    private func refreshNarrative() async {
+        narrative = nil
+        guard let review, !review.isEmpty else { return }
+        guard let generator = InsightsModel.makeGenerator() else { return }
+        let facts = InsightsEngine.yearFacts(review: review)
+        let result = await InsightsEngine.yearNarrative(facts: facts, generator: generator)
+        guard !Task.isCancelled, self.review == review else { return }
+        narrative = result
     }
 
     private func prepareShareContent() async {

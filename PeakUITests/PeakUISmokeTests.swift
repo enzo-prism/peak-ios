@@ -897,3 +897,154 @@ final class PeakWelcomeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["welcome.cta"].exists)
     }
 }
+
+// MARK: - On-device insights (3.2)
+
+/// The 3.2 surfaces, tested on a simulator that has no Apple Intelligence and
+/// never will.
+///
+/// Two things have to hold and both are checked here:
+///  * with no model, the recap and the year paragraph still render, in full,
+///    from the aggregates — the feature's absence must be invisible;
+///  * with the model boundary stubbed, the AI layout renders and carries its
+///    privacy line — so the half of the UI a simulator cannot reach still cannot
+///    rot unnoticed.
+///
+/// The stub is a fixed string injected at the `InsightsGenerating` seam. No test
+/// in this class touches, or depends on, a real model response.
+final class PeakInsightsUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    /// The canned draft `StubInsightsGenerator` returns.
+    private let stubbedHeadline = "A solid stretch in the water"
+    private let privacyLine = "Written on this iPhone. Your logbook never leaves it."
+
+    override func tearDown() {
+        app = nil
+        super.tearDown()
+    }
+
+    /// Anchors the seeded logbook to the 20th of the *current* real month.
+    ///
+    /// The recap card is about "this month", and the app reads that from the real
+    /// clock. Pinning the seed to a fixed calendar date would leave the current
+    /// month empty and the card correctly hidden; pinning it to `Date()` would
+    /// break on the first of the month, when the -7 and -14 day sessions fall
+    /// into the previous one. The 20th is inside every month and leaves every
+    /// seeded session in it.
+    private func launch(insightsScenario: String? = nil) {
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_FIXED_DATE"] = Self.currentMonthAnchor()
+        if let insightsScenario {
+            app.launchEnvironment["UITESTS_INSIGHTS_SCENARIO"] = insightsScenario
+        }
+        app.launch()
+    }
+
+    private static func currentMonthAnchor() -> String {
+        let calendar = Calendar.current
+        var components = calendar.dateComponents([.year, .month], from: Date())
+        components.day = 20
+        components.hour = 12
+        let anchor = calendar.date(from: components) ?? Date()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: anchor)
+    }
+
+    private var expectedTitle: String {
+        "\(Date().formatted(.dateTime.month(.wide))) recap"
+    }
+
+    /// The card, addressed by its merged accessibility element rather than by an
+    /// identifier — identifiers on content inside a ScrollView clobber each other.
+    private var recapCard: XCUIElement {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", expectedTitle))
+            .firstMatch
+    }
+
+    private func openStats() {
+        let tab = app.tabBars.buttons["Stats"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 10), "Stats tab never appeared")
+        tab.tap()
+    }
+
+    func testMonthlyRecapRendersFromAggregatesWithoutAnyModel() {
+        launch()
+        openStats()
+
+        XCTAssertTrue(recapCard.waitForExistence(timeout: 10), "No monthly recap card on Stats")
+
+        let value = recapCard.value as? String ?? ""
+        XCTAssertTrue(
+            value.contains("session"),
+            "The recap did not lead with its figures: \(value)"
+        )
+        XCTAssertTrue(
+            value.contains("Most days at"),
+            "The recap dropped its plain-stats highlights: \(value)"
+        )
+    }
+
+    /// The graceful-absence requirement, stated as an assertion: with no model on
+    /// the device, nothing on screen refers to one.
+    func testNothingHintsAtAModelWhenThereIsNoneOnTheDevice() {
+        launch()
+        openStats()
+
+        XCTAssertTrue(recapCard.waitForExistence(timeout: 10))
+        let value = recapCard.value as? String ?? ""
+
+        XCTAssertFalse(value.contains(privacyLine), "Privacy note shown with no model behind it")
+        XCTAssertFalse(value.contains(stubbedHeadline))
+        XCTAssertFalse(
+            app.staticTexts[privacyLine].exists,
+            "A device with no Apple Intelligence must show no trace of the feature"
+        )
+    }
+
+    func testStubbedInsightRendersAlongsideTheFiguresAndItsPrivacyNote() {
+        launch(insightsScenario: "stub")
+        openStats()
+
+        XCTAssertTrue(recapCard.waitForExistence(timeout: 10))
+
+        // The prose is additive: the figures are still there next to it.
+        let value = NSPredicate(format: "value CONTAINS %@", stubbedHeadline)
+        XCTAssertTrue(
+            recapCard.waitForExistence(timeout: 5) && value.evaluate(with: recapCard),
+            "Generated prose never reached the card: \(recapCard.value as? String ?? "")"
+        )
+
+        let full = recapCard.value as? String ?? ""
+        XCTAssertTrue(full.contains("session"), "Prose replaced the figures instead of joining them")
+        XCTAssertTrue(full.contains(privacyLine), "Generated text shown without saying where it came from")
+    }
+
+    func testYearInReviewAlwaysCarriesANarrativeParagraph() {
+        launch()
+
+        let more = app.tabBars.buttons["More"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+
+        let entry = app.buttons["Year in Review"].firstMatch
+        if entry.waitForExistence(timeout: 5) {
+            entry.tap()
+        } else {
+            app.staticTexts["Year in Review"].firstMatch.tap()
+        }
+
+        let summary = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Year summary"))
+            .firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), "Year in Review had no narrative paragraph")
+
+        let text = summary.value as? String ?? ""
+        XCTAssertTrue(text.contains("You logged"), "The plain narrative did not render: \(text)")
+        XCTAssertFalse(text.contains(privacyLine), "Claimed on-device authorship with no model present")
+    }
+}

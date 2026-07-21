@@ -10,6 +10,69 @@ Status at a glance:
 - **App Store (live):** `2.0`
 - **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
 
+## [Unreleased] — 3.2 "On-device AI insights"
+
+Peak can now write about your surfing, on your phone, without your logbook going
+anywhere. Apple's on-device model supplies phrasing and nothing else: every
+number, spot name and date on screen is computed by Peak's own calculators and
+interpolated into the sentence. On a phone that cannot run the model — an older
+iPhone, iOS 17 or 18, or Apple Intelligence simply switched off — the feature is
+invisible and the same facts render as plain stats. No network call was added.
+
+### Added
+
+- **Monthly recap card on Stats.** Sessions, hours and average rating for the
+  current month, plus aggregate highlights: most-surfed break, the board that
+  earned its keep and in what conditions, and how the month compares with the one
+  before. Renders on every supported device.
+  (`Peak/Views/Stats/MonthlyRecapCard.swift`)
+- **A narrative paragraph in Year in Review.** Always present, built from the
+  same aggregates the metric grid below it shows.
+  (`Peak/Views/More/YearInReviewView.swift`)
+- **`InsightsEngine`** — reduces `StatsCalculator`, `GearInsightsCalculator` and
+  `YearInReviewCalculator` output to a small, bounded facts value, builds the
+  prompt, screens what comes back, and renders the plain form. A surfer with ten
+  thousand sessions produces exactly the same prompt size as one with ten; raw
+  session rows never reach the model. (`Peak/Supporting/InsightsEngine.swift`)
+- **`InsightsModel` / `FoundationModelsInsightsGenerator`** — the only code that
+  touches `SystemLanguageModel`, behind `#if canImport(FoundationModels)` and
+  `if #available(iOS 26, *)`. Guided generation into a `@Generable` type whose
+  every field is prose. Responses are streamed rather than awaited whole so a
+  reply that hits its token ceiling still yields its finished prefix instead of
+  throwing it away. (`Peak/Supporting/FoundationModelsInsights.swift`)
+
+### Notes
+
+- **How hallucinated figures are prevented.** Three independent measures, any one
+  of which would have to fail silently for a wrong number to reach the screen.
+  The prompt contains no numerals at all — facts are handed over as qualitative
+  descriptors ("busier than last month", "excellent"), so there is no figure in
+  context to copy. The `@Generable` schema has no numeric field. And
+  `InsightsSanitizer` discards any generated text containing a digit, a number
+  word, a star or percent sign, or a capitalised word absent from an allow-list
+  built from the facts; a rejected field is dropped rather than repaired, and a
+  rejected headline drops the whole draft back to plain figures. The only digits
+  permitted anywhere are those inside names the surfer typed themselves, such as
+  a board called `6'2" Fish`.
+- **Availability.** Every unavailability reason — ineligible device, Apple
+  Intelligence off, model still downloading, iOS below 26 — is silent. Peak never
+  tells a surfer about a feature their phone cannot run.
+- **Off the main actor.** `FoundationModelsInsightsGenerator.draft` is
+  `@concurrent`, not merely `nonisolated`: under `SWIFT_DEFAULT_ACTOR_ISOLATION =
+  MainActor` a nonisolated async function inherits its caller's actor, and
+  inference takes seconds. Figures render synchronously; prose arrives later and
+  only ever replaces prose.
+- Deployment target stays **iOS 17.0**, and the project still builds for it.
+
+### Testing
+
+- +48 unit tests (`PeakTests/InsightsEngineTests.swift`) over aggregation, prompt
+  building, output screening, truncation repair, the unavailable-model path and
+  the plain-stats fallback rendering. CI never runs a model: every test drives the
+  pipeline through the injected `InsightsGenerating` seam.
+- +4 UI tests covering the no-model rendering on a simulator (which has no Apple
+  Intelligence) and, via a stubbed generator, the AI layout and its privacy line.
+
 ## [Unreleased] — 2.8 "Tide + Best Window Today"
 
 Peak answers the surfer's daily question — *when today?* — from their own

@@ -39,6 +39,9 @@ struct StatsView: View {
     @State private var cachedGearReports: [GearReport] = []
     @State private var cachedWaveRecords = WaveRecords()
     @State private var cachedWavesPerSession: [WavesPerMonth] = []
+    /// Plain figures the moment the tab appears; upgraded in place with the
+    /// model's prose by `insightsTask` when the device can run one.
+    @State private var cachedRecap: MonthlyRecap?
     @State private var cachedGoal = MonthlyGoalProgress(
         metric: .sessions,
         target: MonthlyGoalCalculator.defaultTarget,
@@ -71,6 +74,10 @@ struct StatsView: View {
                             // surfer can act on this month, the heatmap is the
                             // record of what already happened.
                             MonthlyGoalCard(progress: cachedGoal, monthName: currentMonthName)
+
+                            if let cachedRecap {
+                                MonthlyRecapCard(recap: cachedRecap)
+                            }
 
                             if !cachedHeatmap.isEmpty {
                                 ConsistencyHeatmapCard(cells: cachedHeatmap)
@@ -126,6 +133,7 @@ struct StatsView: View {
                         .offset(y: showContent || reduceMotion ? 0 : 12)
                         .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
                     }
+                    .accessibilityIdentifier("stats.scroll")
                     .onAppear {
                         showContent = true
                     }
@@ -144,6 +152,13 @@ struct StatsView: View {
         }
         .onChange(of: goalTarget) { _, _ in
             refreshGoal()
+        }
+        // Keyed on the facts, not on the session list: re-running inference
+        // because an unrelated session was edited would burn seconds of Neural
+        // Engine time to produce the same sentence. Identical facts, identical
+        // task identity, no re-run.
+        .task(id: cachedRecap?.facts) {
+            await refreshInsight()
         }
     }
 
@@ -193,7 +208,28 @@ struct StatsView: View {
         )
         cachedWaveRecords = WaveStatsCalculator.records(sessions: sessions)
         cachedWavesPerSession = WaveStatsCalculator.wavesPerSession(sessions: sessions)
+        // Figures first, synchronously. Any prose arrives later and only ever
+        // replaces prose — the numbers on screen never wait on a model. Rebuilt
+        // only when the facts actually moved, so re-entering the tab keeps the
+        // sentence it already has instead of blanking and re-inferring it.
+        let recapFacts = InsightsEngine.monthlyFacts(sessions: sessions, boards: gear)
+        if cachedRecap?.facts != recapFacts {
+            cachedRecap = MonthlyRecap(facts: recapFacts, narrative: nil, suggestion: nil)
+        }
         refreshGoal()
+    }
+
+    /// Asks the on-device model to phrase this month, if there is one to ask.
+    ///
+    /// Silent on every failure path — no generator, empty month, cancelled task,
+    /// model refusal. The card is already on screen with correct figures; the
+    /// only thing at stake is whether it also gets a sentence.
+    private func refreshInsight() async {
+        guard let facts = cachedRecap?.facts, !facts.isEmpty else { return }
+        guard let generator = InsightsModel.makeGenerator() else { return }
+        let result = await InsightsEngine.recap(facts: facts, generator: generator)
+        guard !Task.isCancelled, result.facts == cachedRecap?.facts else { return }
+        cachedRecap = result
     }
 
     private func refreshGoal() {
