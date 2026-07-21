@@ -36,6 +36,7 @@ extension PeakWidgetSnapshot {
         totalSessions: 42,
         sessionsThisMonth: 6,
         lastSessionSpot: "Trestles",
+        lastSessionSpotKey: "trestles",
         lastSessionDate: Calendar.current.date(byAdding: .day, value: -2, to: .now),
         lastSessionRating: 4,
         daysSinceLastSession: 2,

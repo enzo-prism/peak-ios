@@ -4,31 +4,52 @@ import Foundation
 /// the widget can render without touching the SwiftData store (the store stays
 /// in the app's own container — no risky App Group store migration). The app
 /// recomputes and rewrites this whenever its data changes; the widget only reads.
-struct PeakWidgetSnapshot: Codable, Equatable {
+nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
     var currentStreakWeeks: Int
     var totalSessions: Int
     var sessionsThisMonth: Int
     var lastSessionSpot: String?
+    /// `Spot.key` for the last session's spot, so a session started from the
+    /// Action button or Control Center can preselect it without the store.
+    var lastSessionSpotKey: String?
     var lastSessionDate: Date?
     var lastSessionRating: Int?
     var daysSinceLastSession: Int?
     var generatedAt: Date
 
+    init(
+        currentStreakWeeks: Int,
+        totalSessions: Int,
+        sessionsThisMonth: Int,
+        lastSessionSpot: String? = nil,
+        lastSessionSpotKey: String? = nil,
+        lastSessionDate: Date? = nil,
+        lastSessionRating: Int? = nil,
+        daysSinceLastSession: Int? = nil,
+        generatedAt: Date
+    ) {
+        self.currentStreakWeeks = currentStreakWeeks
+        self.totalSessions = totalSessions
+        self.sessionsThisMonth = sessionsThisMonth
+        self.lastSessionSpot = lastSessionSpot
+        self.lastSessionSpotKey = lastSessionSpotKey
+        self.lastSessionDate = lastSessionDate
+        self.lastSessionRating = lastSessionRating
+        self.daysSinceLastSession = daysSinceLastSession
+        self.generatedAt = generatedAt
+    }
+
     static let empty = PeakWidgetSnapshot(
         currentStreakWeeks: 0,
         totalSessions: 0,
         sessionsThisMonth: 0,
-        lastSessionSpot: nil,
-        lastSessionDate: nil,
-        lastSessionRating: nil,
-        daysSinceLastSession: nil,
         generatedAt: .distantPast
     )
 }
 
 /// Shared read/write for the widget snapshot, backed by a JSON file in the App
 /// Group container. Safe to call from either the app or the widget extension.
-enum PeakWidgetStore {
+nonisolated enum PeakWidgetStore {
     static let appGroupIdentifier = "group.com.designprism.peak"
     private static let fileName = "widget-snapshot.json"
 

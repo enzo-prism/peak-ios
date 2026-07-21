@@ -10,7 +10,9 @@ import SwiftData
 
 struct ContentView: View {
     @Bindable private var quickLog = QuickLogCoordinator.shared
+    @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query(sort: \Spot.name) private var spots: [Spot]
 
     var body: some View {
         ZStack {
@@ -47,20 +49,39 @@ struct ContentView: View {
             .tint(Theme.accent)
             .tabBarMinimizeOnScroll()
         }
-        .sheet(isPresented: $quickLog.showNewSession) {
-            SessionEditorView(mode: .new)
+        // Clearing on dismiss means a prefill is used exactly once: the next
+        // manual "Log Session" opens blank whether the surfer saved or cancelled.
+        .sheet(isPresented: $quickLog.showNewSession, onDismiss: { quickLog.pendingLog = nil }) {
+            SessionEditorView(mode: .new, prefill: prefillDraft)
         }
+        // Snapshot refresh points: launch, any session insert/edit/delete (the
+        // @Query republishes, which also covers a backup restore), and every
+        // return to the foreground so "days since" doesn't go stale on the
+        // Home Screen.
         .task {
+            quickLog.drainPendingLogFromStore()
             WidgetSnapshotWriter.update(from: sessions)
         }
         .onChange(of: sessions) { _, newValue in
             WidgetSnapshotWriter.update(from: newValue)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            quickLog.drainPendingLogFromStore()
+            WidgetSnapshotWriter.update(from: sessions)
         }
         .onOpenURL { url in
             if url.host == "new-session" || url.path == "/new-session" {
                 quickLog.requestNewSession()
             }
         }
+    }
+
+    /// A session ended outside the editor opens it prefilled; everything else
+    /// gets a blank draft.
+    private var prefillDraft: SessionDraft? {
+        guard let record = quickLog.pendingLog else { return nil }
+        return ActiveSessionCalculator.makeDraft(from: record, spots: spots)
     }
 }
 

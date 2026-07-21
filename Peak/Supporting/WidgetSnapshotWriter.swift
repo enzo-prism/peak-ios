@@ -31,6 +31,7 @@ enum WidgetSnapshotWriter {
             totalSessions: sessions.count,
             sessionsThisMonth: sessionsThisMonth,
             lastSessionSpot: last?.spot?.name,
+            lastSessionSpotKey: last?.spot?.key,
             lastSessionDate: last?.date,
             lastSessionRating: last.map { $0.rating },
             daysSinceLastSession: daysSinceLast,

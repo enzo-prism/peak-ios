@@ -19,8 +19,15 @@ struct PeakApp: App {
         let result = PeakDataStore.load(isUITest: isUITest)
         container = result.container
         storeOutcome = result.outcome
+        // App Intents (Siri, Spotlight, Action button) read the logbook through
+        // this container rather than opening a second one.
+        PeakIntentStore.register(container)
 
         if isUITest {
+            // A UI-test run must never inherit an in-progress or ended-but-
+            // unlogged session from an earlier run — the App Group defaults
+            // outlive the in-memory store.
+            ActiveSessionStore.reset()
             PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
             if ProcessInfo.processInfo.environment["UITESTS_DISABLE_ANIMATIONS"] == "1" {
                 UIView.setAnimationsEnabled(false)

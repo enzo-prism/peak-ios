@@ -81,13 +81,17 @@ struct SessionEditorView: View {
     @FocusState private var focusedField: FocusField?
     @StateObject private var keyboardObserver = KeyboardObserver()
 
-    init(mode: SessionEditorMode) {
+    /// `prefill` seeds a `.new` editor with values Peak already knows — today
+    /// that's a session ended from the Live Activity or the in-app timer, which
+    /// arrives with its start time, duration and spot filled in. Defaulted so
+    /// every existing call site is unchanged.
+    init(mode: SessionEditorMode, prefill: SessionDraft? = nil) {
         self.mode = mode
 
         let initialDraft: SessionDraft
         switch mode {
         case .new:
-            initialDraft = SessionDraft()
+            initialDraft = prefill ?? SessionDraft()
         case .edit(let session):
             initialDraft = SessionDraft(session: session)
         }

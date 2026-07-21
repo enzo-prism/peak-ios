@@ -1,6 +1,6 @@
 import Foundation
 
-enum TestingDefaults {
+nonisolated enum TestingDefaults {
     static var isUITest: Bool {
         ProcessInfo.processInfo.environment["UITESTS"] == "1"
     }

@@ -8,6 +8,9 @@ struct LogView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var showNewSession = false
     @State private var showContent = false
+    /// Mirrors the App-Group record so the hero can swap between "start" and a
+    /// live timer. Re-read on appear and whenever the surfer starts/ends.
+    @State private var activeSession: ActiveSessionState?
 
     var body: some View {
         NavigationStack {
@@ -73,6 +76,7 @@ struct LogView: View {
         }
         .onAppear {
             showContent = true
+            activeSession = ActiveSessionStore.loadActive()
         }
     }
 
@@ -107,11 +111,96 @@ struct LogView: View {
                 }
                 .glassButtonStyle(prominent: true)
                 .accessibilityIdentifier("log.hero.cta")
+
+                sessionTimerControl
             }
             .padding(Theme.Spacing.xl)
             .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassTint, isInteractive: true)
             .padding(.horizontal)
             .accessibilityIdentifier("log.hero.card")
+        }
+    }
+
+    /// Start/end control for a session logged as it happens. Starting parks the
+    /// state in the App Group (and raises the Live Activity); ending hands the
+    /// record to `QuickLogCoordinator`, which opens the editor prefilled.
+    @ViewBuilder
+    private var sessionTimerControl: some View {
+        if let activeSession {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "record.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textSecondary)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(activeSession.spotName ?? "Session in progress")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .lineLimit(1)
+                        elapsedLabel(since: activeSession.startDate)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                Button {
+                    endSession()
+                } label: {
+                    Label("End Session", systemImage: "stop.fill")
+                        .font(.headline)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity)
+                }
+                .glassButtonStyle()
+                .accessibilityIdentifier("log.hero.end")
+            }
+        } else {
+            Button {
+                startSession()
+            } label: {
+                Label("Start Session", systemImage: "play.fill")
+                    .font(.headline)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+            }
+            .glassButtonStyle()
+            .accessibilityIdentifier("log.hero.start")
+        }
+    }
+
+    /// A live counter in the app, a stable string under UI test — a ticking
+    /// label would make every layout assertion on this screen a race.
+    @ViewBuilder
+    private func elapsedLabel(since startDate: Date) -> some View {
+        if TestingDefaults.isUITest {
+            Text("In progress")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
+        } else {
+            Text(timerInterval: startDate...Date.distantFuture, countsDown: false)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel("Session running")
+        }
+    }
+
+    /// Starts at the most recent session's spot — the recents-first default the
+    /// rest of the app uses. The spot is still editable when the log opens.
+    private func startSession() {
+        let lastSpot = sessions.first?.spot
+        let state = ActiveSessionState(
+            spotKey: lastSpot?.key,
+            spotName: lastSpot?.name,
+            startDate: Date()
+        )
+        SessionActivityController.start(state)
+        activeSession = state
+    }
+
+    private func endSession() {
+        let record = SessionActivityController.end()
+        activeSession = nil
+        if let record {
+            QuickLogCoordinator.shared.requestLog(for: record)
         }
     }
 
