@@ -45,7 +45,7 @@ final class SurfBreakCatalogTests: XCTestCase {
     }
 
     func testExcludingKeysHidesSavedBreak() {
-        let savedKey = Spot.makeKey(from: "Uluwatu")
+        let savedKey = "Uluwatu".normalizedKey
         XCTAssertTrue(makeCatalog().search("uluw", excludingKeys: [savedKey]).isEmpty)
     }
 

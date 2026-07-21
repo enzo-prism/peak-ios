@@ -80,7 +80,7 @@ Optional overrides:
 - Auth + health check: `./scripts/asc-sync.sh doctor`
 - App/version status: `./scripts/asc-sync.sh status`
 - Latest build: `./scripts/asc-sync.sh latest-build`
-- Next build number for a version: `./scripts/asc-sync.sh next-build 1.9 IOS`
+- Next build number for a version: `./scripts/asc-sync.sh next-build 2.6 IOS`
 - Full snapshot (app, versions, latest build): `./scripts/asc-sync.sh snapshot`
 - Advanced ASC workflow commands (requires modern `asc`): `./scripts/asc-ops.sh`
 - Release response checklist: `RELEASE_PLAYBOOK.md`
