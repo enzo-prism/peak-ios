@@ -183,6 +183,8 @@ final class ExportImportTests: XCTestCase {
             windWavePeriodSeconds: nil,
             windWaveDirectionDegrees: nil,
             seaSurfaceTemperatureC: nil,
+            seaLevelHeightM: nil,
+            tideTrend: nil,
             conditionsSource: nil,
             conditionsFetchedAt: nil,
             conditionsLatitude: nil,

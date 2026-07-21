@@ -74,7 +74,7 @@ struct SurfConditionsSourceView: View {
     }
 
     private var footnote: some View {
-        Text("Times shown in your local time zone. Auto-fill averages data across the session window.")
+        Text("Times shown in your local time zone. Auto-fill averages data across the session window. Tide is modelled relative to mean sea level, so it is reliable for direction — rising or falling — but not for exact heights or turn times.")
             .font(.caption)
             .foregroundStyle(Theme.textMuted)
             .padding(12)

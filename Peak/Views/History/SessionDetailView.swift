@@ -506,6 +506,15 @@ struct SessionDetailView: View {
             rows.append((title: "Water temp", value: SurfConditionsFormatter.temperature(seaSurfaceTemperatureC)))
         }
 
+        // "Tide", not "High tide at 06:12": the source is a modelled MSL curve,
+        // good for direction and rough state only. See SurfConditionsFormatter.tide.
+        if let tide = SurfConditionsFormatter.tide(
+            trend: session.tide,
+            seaLevelMeters: session.seaLevelHeightM
+        ) {
+            rows.append((title: "Tide", value: tide))
+        }
+
         if let source = session.conditionsSource {
             let sourceValue: String
             if let fetchedAt = session.conditionsFetchedAt {

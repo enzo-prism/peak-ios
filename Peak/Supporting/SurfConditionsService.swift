@@ -15,6 +15,10 @@ struct SurfConditionsSnapshot: Sendable {
     let windWavePeriodSeconds: Double?
     let windWaveDirectionDegrees: Double?
     let seaSurfaceTemperatureC: Double?
+    /// Sea level relative to MSL, in metres, averaged over the session window.
+    /// Model-derived, not a chart-datum tide table — see `SurfConditionsService`.
+    let seaLevelHeightMeters: Double?
+    let tideTrend: TideTrend?
 
     var windCondition: WindCondition? {
         SurfConditionsMapping.windCondition(for: windSpeedKph)
@@ -36,7 +40,9 @@ struct SurfConditionsSnapshot: Sendable {
         windWaveHeightMeters != nil ||
         windWavePeriodSeconds != nil ||
         windWaveDirectionDegrees != nil ||
-        seaSurfaceTemperatureC != nil
+        seaSurfaceTemperatureC != nil ||
+        seaLevelHeightMeters != nil ||
+        tideTrend != nil
     }
 
     var hasAnyReadings: Bool {
@@ -46,6 +52,17 @@ struct SurfConditionsSnapshot: Sendable {
 
 enum SurfConditionsService {
     static let sourceName = "Open-Meteo"
+
+    /// Hours of extra marine data fetched either side of the session window,
+    /// purely so the tide series has enough shape to read.
+    ///
+    /// A 90-minute session yields two or three hourly sea-level samples — enough
+    /// for a slope, nowhere near enough to tell "just past high" from "halfway
+    /// down". Three hours each side covers roughly half a semi-diurnal cycle, so
+    /// the local maximum or minimum is visible. Every other reading still averages
+    /// over the real window only: `indices(in:start:end:)` filters back to it, so
+    /// the pad cannot leak into wave height or wind.
+    static let tideContextHours = 3
 
     static func fetch(
         start: Date,
@@ -117,7 +134,9 @@ enum SurfConditionsService {
             windWaveHeightMeters: marine?.windWaveHeightMeters,
             windWavePeriodSeconds: marine?.windWavePeriodSeconds,
             windWaveDirectionDegrees: marine?.windWaveDirectionDegrees,
-            seaSurfaceTemperatureC: marine?.seaSurfaceTemperatureC
+            seaSurfaceTemperatureC: marine?.seaSurfaceTemperatureC,
+            seaLevelHeightMeters: marine?.seaLevelHeightMeters,
+            tideTrend: marine?.tideTrend
         )
 
         guard snapshot.hasAnyReadings else {
@@ -125,6 +144,64 @@ enum SurfConditionsService {
         }
 
         return snapshot
+    }
+
+    /// Classifies where in the tide cycle `date` sits, from an hourly sea-level
+    /// series.
+    ///
+    /// **Honesty note.** Open-Meteo's `sea_level_height_msl` is a *model* field
+    /// referenced to mean sea level, not a harmonic prediction against chart
+    /// datum. It is reliable for the shape of the curve — which way the water is
+    /// moving, and roughly when it turns — and not for "high tide is 1.7 m at
+    /// 06:12". Everything derived here stays on the shape side of that line, and
+    /// the UI copy says so.
+    ///
+    /// Method: central-difference the slope at the sample nearest `date`, then
+    /// compare it against the steepest slope this curve could have. For a
+    /// semi-diurnal sinusoid of amplitude A and period 12.42 h the peak rate is
+    /// A * 2π/12.42 ≈ 0.51 A per hour, and the flat quarter around each turn is
+    /// where the rate falls below a quarter of that — hence the 0.13 A cut for
+    /// calling it high or low rather than rising or falling.
+    nonisolated static func deriveTideTrend(
+        times: [Date],
+        levels: [Double?]?,
+        around date: Date
+    ) -> TideTrend? {
+        guard let levels else { return nil }
+
+        // Pair up and drop anything unusable. Sea level is legitimately negative,
+        // so only non-finite values are rejected.
+        var samples: [(date: Date, level: Double)] = []
+        for (index, time) in times.enumerated() {
+            guard levels.indices.contains(index), let level = levels[index], level.isFinite else { continue }
+            samples.append((time, level))
+        }
+        samples.sort { $0.date < $1.date }
+        guard samples.count >= 2 else { return nil }
+
+        guard let pivot = nearestIndex(for: date, in: samples.map(\.date)) else { return nil }
+
+        // Central difference where possible; one-sided at the ends. Slope is per
+        // hour so the threshold below is in metres-per-hour.
+        let lower = max(0, pivot - 1)
+        let upper = min(samples.count - 1, pivot + 1)
+        guard lower != upper else { return nil }
+        let hours = samples[upper].date.timeIntervalSince(samples[lower].date) / 3600
+        guard hours > 0 else { return nil }
+        let slope = (samples[upper].level - samples[lower].level) / hours
+        guard slope.isFinite else { return nil }
+
+        let levelsOnly = samples.map(\.level)
+        guard let highest = levelsOnly.max(), let lowest = levelsOnly.min() else { return nil }
+        let amplitude = (highest - lowest) / 2
+        // A dead-flat series carries no tide signal at all; claiming a trend from
+        // it would be inventing one.
+        guard amplitude > 0.01 else { return nil }
+
+        if abs(slope) < 0.13 * amplitude {
+            return samples[pivot].level >= (highest + lowest) / 2 ? .high : .low
+        }
+        return slope > 0 ? .rising : .falling
     }
 
     private static func mockSnapshot(
@@ -154,7 +231,9 @@ enum SurfConditionsService {
                 windWaveHeightMeters: 0.6,
                 windWavePeriodSeconds: 6,
                 windWaveDirectionDegrees: 298,
-                seaSurfaceTemperatureC: 17.8
+                seaSurfaceTemperatureC: 17.8,
+                seaLevelHeightMeters: 0.42,
+                tideTrend: .falling
             )
         case "no_data", "nodata":
             throw SurfConditionsError.noDataAvailable
@@ -180,6 +259,8 @@ private extension SurfConditionsService {
         let windWavePeriodSeconds: Double?
         let windWaveDirectionDegrees: Double?
         let seaSurfaceTemperatureC: Double?
+        let seaLevelHeightMeters: Double?
+        let tideTrend: TideTrend?
     }
 
     struct WindConditions: Sendable {
@@ -218,6 +299,16 @@ private extension SurfConditionsService {
         let windWavePeriodSeconds = average(values: values(at: indices, in: response.hourly.wind_wave_period))
         let windWaveDirectionDegrees = average(values: values(at: indices, in: response.hourly.wind_wave_direction))
         let seaSurfaceTemperatureC = average(values: values(at: indices, in: response.hourly.sea_surface_temperature))
+        let seaLevelHeightMeters = average(values: values(at: indices, in: response.hourly.sea_level_height_msl))
+
+        // Trend reads the WHOLE returned series (padded either side of the
+        // session), not just the in-window slice, because a turning point is only
+        // visible with context. Height still averages over the window alone.
+        let tideTrend = deriveTideTrend(
+            times: times,
+            levels: response.hourly.sea_level_height_msl,
+            around: start.addingTimeInterval(end.timeIntervalSince(start) / 2)
+        )
 
         return MarineConditions(
             latitude: response.latitude ?? latitude,
@@ -229,7 +320,9 @@ private extension SurfConditionsService {
             windWaveHeightMeters: windWaveHeightMeters,
             windWavePeriodSeconds: windWavePeriodSeconds,
             windWaveDirectionDegrees: windWaveDirectionDegrees,
-            seaSurfaceTemperatureC: seaSurfaceTemperatureC
+            seaSurfaceTemperatureC: seaSurfaceTemperatureC,
+            seaLevelHeightMeters: seaLevelHeightMeters,
+            tideTrend: tideTrend
         )
     }
 
@@ -275,8 +368,13 @@ private extension SurfConditionsService {
         components.host = "marine-api.open-meteo.com"
         components.path = "/v1/marine"
 
-        let startHour = floorToHour(start)
-        let endHour = ceilToHour(end)
+        // Padded so the tide series has context either side of the session; see
+        // `tideContextHours`. Averaging is unaffected — it re-filters to the window.
+        let pad = Double(tideContextHours) * 3600
+        let paddedStart = start.addingTimeInterval(-pad)
+        let paddedEnd = end.addingTimeInterval(pad)
+        let startHour = floorToHour(paddedStart)
+        let endHour = ceilToHour(paddedEnd)
         let hourlyVariables = [
             "wave_height",
             "swell_wave_height",
@@ -285,7 +383,8 @@ private extension SurfConditionsService {
             "wind_wave_height",
             "wind_wave_period",
             "wind_wave_direction",
-            "sea_surface_temperature"
+            "sea_surface_temperature",
+            "sea_level_height_msl"
         ]
 
         let queryItems: [URLQueryItem] = [
@@ -298,7 +397,7 @@ private extension SurfConditionsService {
             URLQueryItem(name: "timezone", value: "GMT"),
             URLQueryItem(name: "length_unit", value: "metric"),
             URLQueryItem(name: "cell_selection", value: "sea")
-        ] + pastFutureQueryItems(start: start, end: end, maxPastDays: 92, maxForecastDays: 8)
+        ] + pastFutureQueryItems(start: paddedStart, end: paddedEnd, maxPastDays: 92, maxForecastDays: 8)
 
         components.queryItems = queryItems
         guard let url = components.url else {
@@ -639,6 +738,7 @@ private nonisolated struct OpenMeteoMarineResponse: Decodable, Sendable {
         let wind_wave_period: [Double?]?
         let wind_wave_direction: [Double?]?
         let sea_surface_temperature: [Double?]?
+        let sea_level_height_msl: [Double?]?
     }
 }
 

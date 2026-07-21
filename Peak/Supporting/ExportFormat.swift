@@ -38,6 +38,8 @@ struct SessionExport: Codable {
     let windWavePeriodSeconds: Double?
     let windWaveDirectionDegrees: Double?
     let seaSurfaceTemperatureC: Double?
+    let seaLevelHeightM: Double?
+    let tideTrend: String?
     let conditionsSource: String?
     let conditionsFetchedAt: String?
     let conditionsLatitude: Double?
@@ -67,6 +69,8 @@ struct SessionExport: Codable {
         case windWavePeriodSeconds = "wind_wave_period_seconds"
         case windWaveDirectionDegrees = "wind_wave_direction_degrees"
         case seaSurfaceTemperatureC = "sea_surface_temperature_c"
+        case seaLevelHeightM = "sea_level_height_m"
+        case tideTrend = "tide_trend"
         case conditionsSource = "conditions_source"
         case conditionsFetchedAt = "conditions_fetched_at"
         case conditionsLatitude = "conditions_latitude"
@@ -269,6 +273,8 @@ enum PeakExportManager {
                 windWavePeriodSeconds: session.windWavePeriodSeconds,
                 windWaveDirectionDegrees: session.windWaveDirectionDegrees,
                 seaSurfaceTemperatureC: session.seaSurfaceTemperatureC,
+                seaLevelHeightM: session.seaLevelHeightM,
+                tideTrend: session.tideTrend,
                 conditionsSource: session.conditionsSource,
                 conditionsFetchedAt: session.conditionsFetchedAt.map(ExportDateFormatter.string(from:)),
                 conditionsLatitude: session.conditionsLatitude,
@@ -341,7 +347,7 @@ enum PeakExportManager {
 
     static func sessionsCSV(sessions: [SurfSession]) -> String {
         var rows = [
-            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
+            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
         ]
         for session in sessions {
             let id = ExportDateFormatter.string(from: session.createdAt)
@@ -363,6 +369,8 @@ enum PeakExportManager {
             let windWavePeriodSeconds = session.windWavePeriodSeconds.map { String($0) } ?? ""
             let windWaveDirectionDegrees = session.windWaveDirectionDegrees.map { String($0) } ?? ""
             let seaSurfaceTemperatureC = session.seaSurfaceTemperatureC.map { String($0) } ?? ""
+            let seaLevelHeightM = session.seaLevelHeightM.map { String($0) } ?? ""
+            let tideTrend = session.tideTrend ?? ""
             let conditionsSource = session.conditionsSource ?? ""
             let conditionsFetchedAt = session.conditionsFetchedAt.map(ExportDateFormatter.string(from:)) ?? ""
             let conditionsLatitude = session.conditionsLatitude.map { String($0) } ?? ""
@@ -388,6 +396,8 @@ enum PeakExportManager {
                 windWavePeriodSeconds,
                 windWaveDirectionDegrees,
                 seaSurfaceTemperatureC,
+                seaLevelHeightM,
+                tideTrend,
                 conditionsSource,
                 conditionsFetchedAt,
                 conditionsLatitude,
@@ -400,7 +410,7 @@ enum PeakExportManager {
 
     nonisolated static func sessionsCSV(export: PeakExport) -> String {
         var rows = [
-            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
+            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
         ]
         let spotLookup = Dictionary(uniqueKeysWithValues: export.spots.map { ($0.id, $0.name) })
         let gearLookup = Dictionary(uniqueKeysWithValues: export.gear.map { ($0.id, $0) })
@@ -426,6 +436,8 @@ enum PeakExportManager {
             let windWavePeriodSeconds = session.windWavePeriodSeconds.map { String($0) } ?? ""
             let windWaveDirectionDegrees = session.windWaveDirectionDegrees.map { String($0) } ?? ""
             let seaSurfaceTemperatureC = session.seaSurfaceTemperatureC.map { String($0) } ?? ""
+            let seaLevelHeightM = session.seaLevelHeightM.map { String($0) } ?? ""
+            let tideTrend = session.tideTrend ?? ""
             let conditionsSource = session.conditionsSource ?? ""
             let conditionsFetchedAt = session.conditionsFetchedAt ?? ""
             let conditionsLatitude = session.conditionsLatitude.map { String($0) } ?? ""
@@ -451,6 +463,8 @@ enum PeakExportManager {
                 windWavePeriodSeconds,
                 windWaveDirectionDegrees,
                 seaSurfaceTemperatureC,
+                seaLevelHeightM,
+                tideTrend,
                 conditionsSource,
                 conditionsFetchedAt,
                 conditionsLatitude,
@@ -575,6 +589,8 @@ enum PeakExportManager {
             session.windWavePeriodSeconds = sessionExport.windWavePeriodSeconds
             session.windWaveDirectionDegrees = sessionExport.windWaveDirectionDegrees
             session.seaSurfaceTemperatureC = sessionExport.seaSurfaceTemperatureC
+            session.seaLevelHeightM = sessionExport.seaLevelHeightM
+            session.tideTrend = sessionExport.tideTrend
             session.conditionsSource = sessionExport.conditionsSource
             session.conditionsFetchedAt = sessionExport.conditionsFetchedAt.flatMap(ExportDateFormatter.date(from:))
             session.conditionsLatitude = sessionExport.conditionsLatitude

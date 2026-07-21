@@ -891,6 +891,8 @@ struct SessionEditorView: View {
         draft.windWavePeriodSeconds = session.windWavePeriodSeconds
         draft.windWaveDirectionDegrees = session.windWaveDirectionDegrees
         draft.seaSurfaceTemperatureC = session.seaSurfaceTemperatureC
+        draft.seaLevelHeightM = session.seaLevelHeightM
+        draft.tideTrend = session.tide
         draft.conditionsSource = session.conditionsSource
         draft.conditionsFetchedAt = session.conditionsFetchedAt
         draft.conditionsLatitude = session.conditionsLatitude
@@ -939,6 +941,8 @@ struct SessionEditorView: View {
                 windWavePeriodSeconds: draft.windWavePeriodSeconds,
                 windWaveDirectionDegrees: draft.windWaveDirectionDegrees,
                 seaSurfaceTemperatureC: draft.seaSurfaceTemperatureC,
+                seaLevelHeightM: draft.seaLevelHeightM,
+                tideTrend: draft.tideTrend?.rawValue,
                 conditionsSource: draft.conditionsSource,
                 conditionsFetchedAt: draft.conditionsFetchedAt,
                 conditionsLatitude: draft.conditionsLatitude,
@@ -969,6 +973,8 @@ struct SessionEditorView: View {
             session.windWavePeriodSeconds = draft.windWavePeriodSeconds
             session.windWaveDirectionDegrees = draft.windWaveDirectionDegrees
             session.seaSurfaceTemperatureC = draft.seaSurfaceTemperatureC
+            session.seaLevelHeightM = draft.seaLevelHeightM
+            session.tide = draft.tideTrend
             session.conditionsSource = draft.conditionsSource
             session.conditionsFetchedAt = draft.conditionsFetchedAt
             session.conditionsLatitude = draft.conditionsLatitude
@@ -1162,7 +1168,8 @@ struct SessionEditorView: View {
     private func successMessage(for snapshot: SurfConditionsSnapshot) -> String {
         let summary = SurfConditionsFormatter.compactSummary(
             waveHeightMeters: snapshot.waveHeightMeters,
-            windSpeedKph: snapshot.windSpeedKph
+            windSpeedKph: snapshot.windSpeedKph,
+            tideTrend: snapshot.tideTrend
         )
         switch (snapshot.hasWaveReadings, snapshot.hasWindReadings) {
         case (true, true):

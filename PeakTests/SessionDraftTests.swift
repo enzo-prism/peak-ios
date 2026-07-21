@@ -79,7 +79,9 @@ final class SessionDraftTests: XCTestCase {
             windWaveHeightMeters: 0.6,
             windWavePeriodSeconds: 6,
             windWaveDirectionDegrees: 300,
-            seaSurfaceTemperatureC: 17.5
+            seaSurfaceTemperatureC: 17.5,
+            seaLevelHeightMeters: -0.35,
+            tideTrend: .falling
         )
 
         draft.applySurfConditions(snapshot)
@@ -89,6 +91,22 @@ final class SessionDraftTests: XCTestCase {
         XCTAssertEqual(draft.conditionsSource, "Open-Meteo")
         XCTAssertEqual(draft.conditionsLatitude, 33.3)
         XCTAssertEqual(draft.conditionsLongitude, -117.6)
+        XCTAssertEqual(draft.seaLevelHeightM, -0.35)
+        XCTAssertEqual(draft.tideTrend, .falling)
         XCTAssertTrue(draft.hasSurfConditions)
+    }
+
+    /// A snapshot carrying nothing but tide still counts as conditions worth
+    /// keeping — the editor uses `hasSurfConditions` to decide whether to warn
+    /// before overwriting.
+    func testTideAloneCountsAsSurfConditions() {
+        var draft = SessionDraft()
+        XCTAssertFalse(draft.hasSurfConditions)
+        draft.tideTrend = .rising
+        XCTAssertTrue(draft.hasSurfConditions)
+
+        var other = SessionDraft()
+        other.seaLevelHeightM = 0.2
+        XCTAssertTrue(other.hasSurfConditions)
     }
 }

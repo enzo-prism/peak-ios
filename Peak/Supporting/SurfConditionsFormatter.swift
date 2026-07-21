@@ -36,9 +36,40 @@ enum SurfConditionsFormatter {
         return "\(label) (\(rounded)°)"
     }
 
+    /// Sea level relative to MSL, signed. The sign is the whole point — "-0.3 m"
+    /// means below mean sea level — so it is always shown, using a real minus sign
+    /// rather than a hyphen.
+    static func seaLevel(_ meters: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        let magnitude = self.meters(abs(meters), locale: locale)
+        return meters < 0 ? "\u{2212}\(magnitude)" : "+\(magnitude)"
+    }
+
+    /// One line for the surf report's tide row.
+    ///
+    /// Deliberately reads as a state, not a time: Open-Meteo's sea level is a
+    /// model field referenced to mean sea level, so "falling, -0.3 m from mean" is
+    /// supportable and "low tide at 4:52 pm, 0.2 ft" is not.
+    static func tide(
+        trend: TideTrend?,
+        seaLevelMeters: Double?,
+        locale: Locale = .autoupdatingCurrent
+    ) -> String? {
+        switch (trend, seaLevelMeters) {
+        case let (trend?, level?):
+            return "\(trend.label) (\(seaLevel(level, locale: locale)) from mean)"
+        case let (trend?, nil):
+            return trend.label
+        case let (nil, level?):
+            return "\(seaLevel(level, locale: locale)) from mean"
+        case (nil, nil):
+            return nil
+        }
+    }
+
     static func compactSummary(
         waveHeightMeters: Double?,
         windSpeedKph: Double?,
+        tideTrend: TideTrend? = nil,
         locale: Locale = .autoupdatingCurrent
     ) -> String? {
         var parts: [String] = []
@@ -47,6 +78,9 @@ enum SurfConditionsFormatter {
         }
         if let windSpeedKph {
             parts.append("\(speed(windSpeedKph, locale: locale)) wind")
+        }
+        if let tideTrend {
+            parts.append(tideTrend.phrase)
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " | ")

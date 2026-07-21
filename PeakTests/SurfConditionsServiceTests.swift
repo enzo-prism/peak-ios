@@ -415,6 +415,182 @@ final class SurfConditionsServiceTests: XCTestCase {
             XCTFail("Unexpected error: \(error)")
         }
     }
+
+    // MARK: - Tide
+
+    func testFetchParsesSeaLevelAndDerivesFallingTide() async throws {
+        let start = makeRecentGMTDate(hour: 10)
+        // A clean falling limb through the session window, with the padded context
+        // hours either side that the real request now asks for.
+        let hours = (-3...4).map { start.addingTimeInterval(Double($0) * 3600) }
+        let levels = [0.85, 0.80, 0.65, 0.42, 0.15, -0.15, -0.45, -0.68]
+        let times = hours.map { hourString($0) }.map { "\"\($0)\"" }.joined(separator: ",")
+        let levelList = levels.map { String($0) }.joined(separator: ",")
+        let nulls = Array(repeating: "null", count: levels.count).joined(separator: ",")
+
+        let marineJSON = """
+        {
+          "latitude": 33.3,
+          "longitude": -117.6,
+          "hourly": {
+            "time": [\(times)],
+            "wave_height": [\(nulls)],
+            "swell_wave_height": [\(nulls)],
+            "swell_wave_period": [\(nulls)],
+            "swell_wave_direction": [\(nulls)],
+            "wind_wave_height": [\(nulls)],
+            "wind_wave_period": [\(nulls)],
+            "wind_wave_direction": [\(nulls)],
+            "sea_surface_temperature": [\(nulls)],
+            "sea_level_height_msl": [\(levelList)]
+          }
+        }
+        """
+        let windJSON = """
+        {"hourly": {"time": [], "wind_speed_10m": [], "wind_direction_10m": []}}
+        """
+
+        var marineURL: URL?
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url, let host = url.host else { throw URLError(.badURL) }
+            if host == "marine-api.open-meteo.com" {
+                marineURL = url
+                return (self.makeResponse(url: url), Data(marineJSON.utf8))
+            }
+            return (self.makeResponse(url: url), Data(windJSON.utf8))
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let snapshot = try await SurfConditionsService.fetch(
+            start: start,
+            durationMinutes: 60,
+            latitude: 33.3,
+            longitude: -117.6,
+            session: makeSession()
+        )
+
+        // Sea level averages over the SESSION window only (10:00 and 11:00), never
+        // over the padded context hours.
+        XCTAssertEqual(snapshot.seaLevelHeightMeters ?? 0, (0.42 + 0.15) / 2, accuracy: 0.0001)
+        XCTAssertEqual(snapshot.tideTrend, .falling)
+        XCTAssertTrue(snapshot.hasWaveReadings, "tide alone should count as a wave reading")
+
+        let items = marineURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+        let hourly = items.first { $0.name == "hourly" }?.value ?? ""
+        XCTAssertTrue(hourly.contains("sea_level_height_msl"), "marine request did not ask for sea level: \(hourly)")
+    }
+
+    func testDeriveTideTrendReadsRisingAndFallingLimbs() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let times = (0..<8).map { base.addingTimeInterval(Double($0) * 3600) }
+
+        let rising: [Double?] = [-0.8, -0.6, -0.3, 0.05, 0.35, 0.6, 0.75, 0.8]
+        XCTAssertEqual(
+            SurfConditionsService.deriveTideTrend(times: times, levels: rising, around: times[3]),
+            .rising
+        )
+
+        let falling: [Double?] = rising.reversed()
+        XCTAssertEqual(
+            SurfConditionsService.deriveTideTrend(times: times, levels: falling, around: times[3]),
+            .falling
+        )
+    }
+
+    /// Near a turn the slope flattens, and that is a materially different thing to
+    /// tell a surfer than "rising" — a spot that only works on a pushing tide is
+    /// already done when the tide is standing at the top.
+    func testDeriveTideTrendReadsTurningPointsAsHighAndLow() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        // One full semi-diurnal cycle sampled hourly, peak at index 3.
+        let times = (0..<13).map { base.addingTimeInterval(Double($0) * 3600) }
+        let levels: [Double?] = (0..<13).map { i in
+            0.9 * cos(2 * Double.pi * (Double(i) - 3) / 12.42)
+        }
+
+        XCTAssertEqual(SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: times[3]), .high)
+        XCTAssertEqual(SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: times[9]), .low)
+        XCTAssertEqual(SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: times[6]), .falling)
+        XCTAssertEqual(SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: times[0]), .rising)
+    }
+
+    func testDeriveTideTrendReturnsNilRatherThanGuessing() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let times = (0..<6).map { base.addingTimeInterval(Double($0) * 3600) }
+
+        // No series at all.
+        XCTAssertNil(SurfConditionsService.deriveTideTrend(times: times, levels: nil, around: times[2]))
+        // Every value missing.
+        XCTAssertNil(SurfConditionsService.deriveTideTrend(
+            times: times, levels: Array(repeating: nil, count: 6), around: times[2]))
+        // A single usable sample cannot produce a slope.
+        XCTAssertNil(SurfConditionsService.deriveTideTrend(
+            times: times, levels: [nil, nil, 0.4, nil, nil, nil], around: times[2]))
+        // Dead flat: no tide signal, so no claim. Better than reporting "high"
+        // because the level happens to sit at its own maximum.
+        XCTAssertNil(SurfConditionsService.deriveTideTrend(
+            times: times, levels: Array(repeating: 0.3, count: 6), around: times[2]))
+        // Non-finite values are corrupt, not data.
+        XCTAssertNil(SurfConditionsService.deriveTideTrend(
+            times: times, levels: [.nan, .infinity, -.infinity, .nan, nil, nil], around: times[2]))
+    }
+
+    func testDeriveTideTrendHandlesUnsortedSeriesAndNegativeLevels() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let times = (0..<6).map { base.addingTimeInterval(Double($0) * 3600) }
+        let levels: [Double?] = [-1.4, -1.1, -0.7, -0.25, 0.2, 0.6]
+
+        // Provider order should not matter: the derivation sorts by time.
+        let forward = SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: times[2])
+        let reversed = SurfConditionsService.deriveTideTrend(
+            times: times.reversed(), levels: levels.reversed(), around: times[2])
+        XCTAssertEqual(forward, .rising)
+        XCTAssertEqual(reversed, .rising, "reversing the provider's series changed the answer")
+    }
+
+    /// Missing sea level must not break the rest of the snapshot — the marine
+    /// endpoint returns it as a separate array and can omit it entirely.
+    func testFetchSucceedsWhenSeaLevelIsAbsent() async throws {
+        let start = makeRecentGMTDate()
+        let hour = hourString(start)
+        let marineJSON = """
+        {
+          "latitude": 33.3,
+          "longitude": -117.6,
+          "hourly": {
+            "time": ["\(hour)"],
+            "wave_height": [1.3],
+            "swell_wave_height": [1.1],
+            "swell_wave_period": [11.0],
+            "swell_wave_direction": [270.0],
+            "wind_wave_height": [0.5],
+            "wind_wave_period": [5.0],
+            "wind_wave_direction": [290.0],
+            "sea_surface_temperature": [17.0]
+          }
+        }
+        """
+        let windJSON = """
+        {"hourly": {"time": ["\(hour)"], "wind_speed_10m": [10.0], "wind_direction_10m": [250.0]}}
+        """
+
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url, let host = url.host else { throw URLError(.badURL) }
+            if host == "marine-api.open-meteo.com" {
+                return (self.makeResponse(url: url), Data(marineJSON.utf8))
+            }
+            return (self.makeResponse(url: url), Data(windJSON.utf8))
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let snapshot = try await SurfConditionsService.fetch(
+            start: start, durationMinutes: 60, latitude: 33.3, longitude: -117.6, session: makeSession()
+        )
+
+        XCTAssertNil(snapshot.seaLevelHeightMeters)
+        XCTAssertNil(snapshot.tideTrend)
+        XCTAssertEqual(snapshot.waveHeightMeters ?? 0, 1.3, accuracy: 0.01)
+    }
 }
 
 private extension SurfConditionsServiceTests {

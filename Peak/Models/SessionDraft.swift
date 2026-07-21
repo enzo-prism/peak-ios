@@ -22,6 +22,8 @@ struct SessionDraft {
     var windWavePeriodSeconds: Double?
     var windWaveDirectionDegrees: Double?
     var seaSurfaceTemperatureC: Double?
+    var seaLevelHeightM: Double?
+    var tideTrend: TideTrend?
     var conditionsSource: String?
     var conditionsFetchedAt: Date?
     var conditionsLatitude: Double?
@@ -51,6 +53,8 @@ struct SessionDraft {
         windWavePeriodSeconds = session.windWavePeriodSeconds
         windWaveDirectionDegrees = session.windWaveDirectionDegrees
         seaSurfaceTemperatureC = session.seaSurfaceTemperatureC
+        seaLevelHeightM = session.seaLevelHeightM
+        tideTrend = session.tide
         conditionsSource = session.conditionsSource
         conditionsFetchedAt = session.conditionsFetchedAt
         conditionsLatitude = session.conditionsLatitude
@@ -108,6 +112,8 @@ struct SessionDraft {
         windWavePeriodSeconds != nil ||
         windWaveDirectionDegrees != nil ||
         seaSurfaceTemperatureC != nil ||
+        seaLevelHeightM != nil ||
+        tideTrend != nil ||
         conditionsSource != nil ||
         conditionsFetchedAt != nil
     }
@@ -125,6 +131,8 @@ struct SessionDraft {
         windWavePeriodSeconds = snapshot.windWavePeriodSeconds
         windWaveDirectionDegrees = snapshot.windWaveDirectionDegrees
         seaSurfaceTemperatureC = snapshot.seaSurfaceTemperatureC
+        seaLevelHeightM = snapshot.seaLevelHeightMeters
+        tideTrend = snapshot.tideTrend
         conditionsSource = snapshot.source
         conditionsFetchedAt = snapshot.fetchedAt
         conditionsLatitude = snapshot.latitude
