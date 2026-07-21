@@ -2,7 +2,20 @@ import Foundation
 
 /// Read-only catalog of popular surf breaks (bundled JSON), powering the Add Spot autocomplete.
 /// Loaded once into a case/diacritic-folded index; search is prefix-first then contains, capped.
-final class SurfBreakCatalog {
+///
+/// `nonisolated`: every stored property is a `let` and every method is a pure function of
+/// them, so the catalog needs no actor. Marking it explicitly is load-bearing, not cosmetic.
+/// The target builds with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, which would otherwise
+/// infer `@MainActor` here — and a global-actor-isolated class gets an *isolated deinit*.
+/// Because `IPHONEOS_DEPLOYMENT_TARGET` is 17.0, below the OS that provides
+/// `swift_task_deinitOnExecutor` natively, that isolated deinit is routed through the
+/// back-deployed `swift_task_deinitOnExecutorMainActorBackDeploy` shim emitted into the app
+/// binary. On the iOS 26.2 simulator built by Xcode 26.3 that shim over-releases inside
+/// `libswift_Concurrency` ("pointer being freed was not allocated"), so *deallocating* a
+/// catalog aborted the whole unit-test host process. `SurfBreakCatalog.shared` is never
+/// deallocated, which is why only the tests that build a throwaway catalog ever crashed.
+/// Keep this `nonisolated`.
+nonisolated final class SurfBreakCatalog {
     static let shared = SurfBreakCatalog()
 
     private struct Indexed {
