@@ -10,7 +10,7 @@ import Foundation
 /// The four cases form a *cycle* — rising -> high -> falling -> low -> rising —
 /// and `WindowScorer` relies on that: `rising` is genuinely closer to `high` than
 /// to `falling`, because the tide passes through high on the way.
-enum TideTrend: String, Codable, Sendable, Hashable, CaseIterable {
+nonisolated enum TideTrend: String, Codable, Sendable, Hashable, CaseIterable {
     case rising
     case high
     case falling

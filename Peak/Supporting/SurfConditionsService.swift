@@ -62,7 +62,7 @@ enum SurfConditionsService {
     /// the local maximum or minimum is visible. Every other reading still averages
     /// over the real window only: `indices(in:start:end:)` filters back to it, so
     /// the pad cannot leak into wave height or wind.
-    static let tideContextHours = 3
+    nonisolated static let tideContextHours = 3
 
     static func fetch(
         start: Date,

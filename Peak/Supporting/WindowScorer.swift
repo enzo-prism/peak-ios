@@ -30,7 +30,7 @@ import SwiftData
 // `TideTrend` itself lives in `Peak/Models/TideTrend.swift` because SwiftData
 // stores its raw value on `SurfSession`. Only the cyclic ordering the distance
 // function needs is defined here, so the model stays free of scorer internals.
-private extension TideTrend {
+nonisolated private extension TideTrend {
     /// Position on the tide cycle rising -> high -> falling -> low, used for
     /// cyclic distance. See `Tuning/tideTrendOppositeDistance`.
     var cyclePosition: Int {
@@ -50,7 +50,7 @@ private extension TideTrend {
 /// auto-fill call failed, or the spot had no coordinates. The scorer must compare
 /// a fully-populated forecast hour against a session that only recorded swell
 /// height without either crashing or pretending the comparison was informative.
-struct ConditionsSample: Sendable, Hashable, Codable {
+nonisolated struct ConditionsSample: Sendable, Hashable, Codable {
     var swellWaveHeightMeters: Double?
     var swellWavePeriodSeconds: Double?
     var swellWaveDirectionDegrees: Double?
@@ -89,7 +89,7 @@ struct ConditionsSample: Sendable, Hashable, Codable {
 }
 
 /// A past session the user logged and rated 0...5 stars.
-struct RatedSession: Sendable, Hashable, Codable {
+nonisolated struct RatedSession: Sendable, Hashable, Codable {
     var date: Date
     /// The user's own star rating, 0...5. Values outside the range are clamped.
     var rating: Int
@@ -109,7 +109,7 @@ struct RatedSession: Sendable, Hashable, Codable {
 }
 
 /// One hour of the forecast day being evaluated.
-struct ForecastHour: Sendable, Hashable, Codable {
+nonisolated struct ForecastHour: Sendable, Hashable, Codable {
     var date: Date
     var conditions: ConditionsSample
 
@@ -126,7 +126,7 @@ struct ForecastHour: Sendable, Hashable, Codable {
 /// Declared as an explicit ordered list rather than derived from reflection so
 /// that iteration order — and therefore every downstream sum and sort — is
 /// deterministic across runs and platforms.
-enum ConditionFeature: Int, Sendable, Hashable, CaseIterable, Codable {
+nonisolated enum ConditionFeature: Int, Sendable, Hashable, CaseIterable, Codable {
     case swellHeight
     case swellPeriod
     case swellDirection
@@ -159,7 +159,7 @@ enum ConditionFeature: Int, Sendable, Hashable, CaseIterable, Codable {
 
 /// A single scored forecast hour. Exposed publicly because the app can plot the
 /// per-hour curve, and because it makes window grouping independently testable.
-struct ScoredHour: Sendable, Hashable {
+nonisolated struct ScoredHour: Sendable, Hashable {
     var date: Date
     /// Expected star rating this user would give these conditions, 0...5.
     var predictedRating: Double
@@ -190,7 +190,7 @@ struct ScoredHour: Sendable, Hashable {
 }
 
 /// A contiguous run of good forecast hours, ranked.
-struct ScoredWindow: Sendable, Hashable {
+nonisolated struct ScoredWindow: Sendable, Hashable {
     /// Start of the first good hour.
     var start: Date
     /// Exclusive end: last good hour + one hour. Hours 6,7,8 yield 06:00...09:00.
@@ -239,7 +239,7 @@ struct ScoredWindow: Sendable, Hashable {
 /// data. They are the starting point that a real tuning pass against logged
 /// sessions should replace. Each constant documents the reasoning behind its
 /// value so a future tuner knows what they are trading off.
-struct Tuning: Sendable, Hashable {
+nonisolated struct Tuning: Sendable, Hashable {
 
     // MARK: Feature scales
 
@@ -810,7 +810,7 @@ nonisolated enum WindowScorer {
 
 /// Precomputes everything that depends only on the history, so scoring N forecast
 /// hours does not redo it N times.
-private struct Model {
+nonisolated private struct Model {
     let tuning: Tuning
     /// History sanitised: ratings clamped, corrupt numerics dropped, sessions with
     /// too little data removed.
@@ -1144,7 +1144,7 @@ private struct Model {
 
 // MARK: - Internal model types
 
-private struct CleanSession {
+nonisolated private struct CleanSession {
     let original: RatedSession
     let rating: Double
     let vector: FeatureVector
@@ -1163,7 +1163,7 @@ private struct CleanSession {
     }
 }
 
-private struct Neighbour {
+nonisolated private struct Neighbour {
     let index: Int
     /// Gaussian kernel of the imputed distance, discounted by how much of the
     /// feature vector was actually comparable.
@@ -1172,7 +1172,7 @@ private struct Neighbour {
 }
 
 /// One feature's contribution to a pairwise comparison.
-struct FeatureComparison: Sendable, Hashable {
+nonisolated struct FeatureComparison: Sendable, Hashable {
     let feature: ConditionFeature
     /// Normalised distance, 0 = identical, clamped at `Tuning.maxFeatureDistance`.
     let distance: Double
@@ -1182,7 +1182,7 @@ struct FeatureComparison: Sendable, Hashable {
 
 /// A `ConditionsSample` reduced to sanitised numeric slots plus the effective
 /// weights implied by it (which depend on the sample itself for wind direction).
-private struct FeatureVector {
+nonisolated private struct FeatureVector {
     /// Indexed by `ConditionFeature.rawValue`. `nil` = not comparable.
     let values: [Double?]
     let tideTrend: TideTrend?
@@ -1242,7 +1242,7 @@ private struct FeatureVector {
     }
 }
 
-private struct PairComparison {
+nonisolated private struct PairComparison {
     /// Effective normalised distance after imputing unobserved features.
     let distance: Double
     /// Fraction of total effective weight that was actually comparable.
@@ -1265,7 +1265,7 @@ private struct PairComparison {
 /// a plain mean because one badly-mismatched high-weight feature *should* pull the
 /// pair apart faster than several small disagreements — a 30 kph wind day is not
 /// "sort of like" a glassy day just because the swell matched.
-private func compare(
+nonisolated private func compare(
     _ a: FeatureVector,
     _ b: FeatureVector,
     tuning: Tuning,
@@ -1338,7 +1338,7 @@ private func compare(
 }
 
 /// Per-feature normalised distance in "scales". Circular features wrap correctly.
-private func normalisedDistance(
+nonisolated private func normalisedDistance(
     _ feature: ConditionFeature,
     _ lhs: Double,
     _ rhs: Double,
@@ -1367,7 +1367,7 @@ private func normalisedDistance(
 /// Cyclic categorical distance on rising -> high -> falling -> low -> rising.
 /// Adjacent states are half as far apart as opposed ones, because the tide really
 /// does pass through "high" on its way from rising to falling.
-private func tideTrendDistance(_ lhs: TideTrend?, _ rhs: TideTrend?, tuning: Tuning) -> Double? {
+nonisolated private func tideTrendDistance(_ lhs: TideTrend?, _ rhs: TideTrend?, tuning: Tuning) -> Double? {
     guard let lhs, let rhs else { return nil }
     let steps = abs(lhs.cyclePosition - rhs.cyclePosition)
     let cyclic = min(steps, TideTrend.allCases.count - steps)   // 0, 1 or 2
@@ -1376,14 +1376,14 @@ private func tideTrendDistance(_ lhs: TideTrend?, _ rhs: TideTrend?, tuning: Tun
 }
 
 /// Shortest angular separation in degrees, 0...180. 350 and 10 are 20 apart.
-private func angularDifference(_ lhs: Double, _ rhs: Double) -> Double {
+nonisolated private func angularDifference(_ lhs: Double, _ rhs: Double) -> Double {
     let raw = normaliseDegrees(lhs) - normaliseDegrees(rhs)
     let wrapped = normaliseDegrees(raw + 180) - 180
     return abs(wrapped)
 }
 
 /// Maps any finite degree value into 0..<360, including negatives and multiples.
-private func normaliseDegrees(_ degrees: Double) -> Double {
+nonisolated private func normaliseDegrees(_ degrees: Double) -> Double {
     guard degrees.isFinite else { return 0 }
     let r = degrees.truncatingRemainder(dividingBy: 360)
     return r < 0 ? r + 360 : r
@@ -1393,7 +1393,7 @@ private func normaliseDegrees(_ degrees: Double) -> Double {
 
 /// Rejects non-finite values, and negative readings for quantities that cannot be
 /// negative. Corrupt data becomes missing data rather than a poisoned distance.
-private func sanitise(_ value: Double?, feature: ConditionFeature) -> Double? {
+nonisolated private func sanitise(_ value: Double?, feature: ConditionFeature) -> Double? {
     guard let value, value.isFinite else { return nil }
     if feature.isNonNegativeMagnitude && value < 0 { return nil }
     return value
@@ -1401,7 +1401,7 @@ private func sanitise(_ value: Double?, feature: ConditionFeature) -> Double? {
 
 /// Gaussian kernel. Bandwidth is guarded so a zero or corrupt tuning value cannot
 /// divide by zero.
-private func gaussianKernel(distance: Double, bandwidth: Double) -> Double {
+nonisolated private func gaussianKernel(distance: Double, bandwidth: Double) -> Double {
     guard distance.isFinite else { return 0 }
     let h = bandwidth.isFinite && bandwidth > 1e-9 ? bandwidth : 1e-9
     let z = distance / h
@@ -1411,23 +1411,23 @@ private func gaussianKernel(distance: Double, bandwidth: Double) -> Double {
 
 /// `x / (x + halfLife)` — a saturating 0...1 map reaching 0.5 at `halfLife`.
 /// Used for every confidence factor so they share one shape and one intuition.
-private func saturating(_ x: Double, halfLife: Double) -> Double {
+nonisolated private func saturating(_ x: Double, halfLife: Double) -> Double {
     guard x.isFinite, x > 0 else { return 0 }
     let h = halfLife.isFinite && halfLife > 1e-9 ? halfLife : 1e-9
     return clamp(finite(x / (x + h), fallback: 0), 0, 1)
 }
 
-private func clamp(_ value: Double, _ lower: Double, _ upper: Double) -> Double {
+nonisolated private func clamp(_ value: Double, _ lower: Double, _ upper: Double) -> Double {
     guard value.isFinite else { return lower }
     return Swift.min(Swift.max(value, lower), upper)
 }
 
 /// Last line of defence: nothing non-finite ever escapes into a public field.
-private func finite(_ value: Double, fallback: Double) -> Double {
+nonisolated private func finite(_ value: Double, fallback: Double) -> Double {
     value.isFinite ? value : fallback
 }
 
-private extension Array where Element == ScoredHour {
+nonisolated private extension Array where Element == ScoredHour {
     /// Assumes already sorted by date. Keeps the first of each timestamp so windows
     /// cannot overlap because the caller passed a duplicate hour.
     func deduplicatedByDate() -> [ScoredHour] {
@@ -1438,7 +1438,7 @@ private extension Array where Element == ScoredHour {
     }
 }
 
-private extension Array where Element == ForecastHour {
+nonisolated private extension Array where Element == ForecastHour {
     func deduplicatedByDate() -> [ForecastHour] {
         var out: [ForecastHour] = []
         out.reserveCapacity(count)

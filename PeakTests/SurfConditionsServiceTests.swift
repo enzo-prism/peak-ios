@@ -593,6 +593,256 @@ final class SurfConditionsServiceTests: XCTestCase {
     }
 }
 
+/// NOAA CO-OPS is the *optional* precision layer. The behaviour that matters most
+/// is what it does when it cannot help: a spot outside US coverage must fall back
+/// to the Open-Meteo curve silently, never surface an error, and never adopt a
+/// distant American gauge as if it described the local water.
+final class TideServiceTests: XCTestCase {
+
+    // Real-ish coordinates for well-known gauges.
+    private let sanDiego = TideService.Station(id: "9410170", name: "San Diego", latitude: 32.7133, longitude: -117.1733)
+    private let laJolla = TideService.Station(id: "9410230", name: "La Jolla", latitude: 32.8669, longitude: -117.2571)
+    private let santaMonica = TideService.Station(id: "9410840", name: "Santa Monica", latitude: 34.0083, longitude: -118.5)
+    private let lisbon = TideService.Station(id: "0000001", name: "Fictional Lisbon gauge", latitude: 38.7, longitude: -9.4)
+
+    // MARK: Station selection
+
+    func testNearestStationPicksTheClosestWithinRange() throws {
+        let stations = [santaMonica, sanDiego, laJolla]
+        // Black's Beach, a few km from the La Jolla gauge.
+        let match = try XCTUnwrap(TideService.nearestStation(in: stations, latitude: 32.8886, longitude: -117.2519))
+        XCTAssertEqual(match.station.id, laJolla.id)
+        XCTAssertLessThan(match.distanceKm, 10)
+    }
+
+    func testNonUSSpotResolvesToNoStationRatherThanADistantOne() {
+        // Ericeira, Portugal. The only stations on offer are in California; every
+        // one is thousands of km away and none of them describes this water.
+        let stations = [santaMonica, sanDiego, laJolla]
+        XCTAssertNil(
+            TideService.nearestStation(in: stations, latitude: 38.9631, longitude: -9.4186),
+            "a Portuguese spot adopted a Californian tide gauge"
+        )
+    }
+
+    func testStationBeyondTheDistanceCutIsRejected() {
+        // Just outside the cut in one direction, just inside in the other, so the
+        // boundary itself is exercised rather than a comfortable margin.
+        let far = TideService.Station(id: "9999999", name: "Far", latitude: 34.0, longitude: -120.0)
+        let justInside = 0.9 * TideService.maxStationDistanceKm
+        let insideLatitude = far.latitude + justInside / 111.0
+
+        XCTAssertNil(
+            TideService.nearestStation(in: [far], latitude: far.latitude + 3.0, longitude: far.longitude),
+            "accepted a station over \(TideService.maxStationDistanceKm) km away"
+        )
+        XCTAssertNotNil(
+            TideService.nearestStation(in: [far], latitude: insideLatitude, longitude: far.longitude),
+            "rejected a station comfortably inside the cut"
+        )
+    }
+
+    func testNearestStationHandlesEmptyAndCorruptInput() {
+        XCTAssertNil(TideService.nearestStation(in: [], latitude: 32.8, longitude: -117.2))
+        XCTAssertNil(TideService.nearestStation(in: [laJolla], latitude: .nan, longitude: -117.2))
+        XCTAssertNil(TideService.nearestStation(in: [laJolla], latitude: 32.8, longitude: .infinity))
+    }
+
+    func testDistanceWrapsAcrossTheAntimeridian() {
+        // -179.5 and +179.5 are 1 degree apart, not 359.
+        let wrapped = TideService.distanceKm(
+            fromLatitude: 0, longitude: -179.5, toLatitude: 0, longitude: 179.5)
+        XCTAssertLessThan(wrapped, 130, "antimeridian was not wrapped: \(wrapped) km")
+        XCTAssertGreaterThan(wrapped, 100)
+    }
+
+    // MARK: Parsing
+
+    func testParseStationsSkipsRowsWithoutUsableCoordinates() throws {
+        let json = """
+        {"count": 4, "stations": [
+          {"id": "9410230", "name": "La Jolla", "lat": 32.8669, "lng": -117.2571},
+          {"id": "9410170", "name": "San Diego", "lat": 32.7133, "lng": -117.1733},
+          {"id": "  ", "name": "Blank id", "lat": 1.0, "lng": 2.0},
+          {"id": "9999999", "name": "No coordinates"}
+        ]}
+        """
+        let stations = try TideService.parseStations(Data(json.utf8))
+        XCTAssertEqual(stations.map(\.id), ["9410230", "9410170"])
+        XCTAssertEqual(stations.first?.name, "La Jolla")
+        XCTAssertEqual(stations.first?.latitude ?? 0, 32.8669, accuracy: 0.0001)
+    }
+
+    func testParsePredictionsReadsHighsAndLowsInOrder() throws {
+        // NOAA sends heights as strings and marks each row H or L. Deliberately
+        // supplied out of order, with one unusable row.
+        let json = """
+        {"predictions": [
+          {"t": "2026-07-20 15:12", "v": "0.213", "type": "L"},
+          {"t": "2026-07-20 09:04", "v": "1.612", "type": "H"},
+          {"t": "2026-07-20 21:47", "v": "1.402", "type": "h"},
+          {"t": "2026-07-20 12:00", "v": "not-a-number", "type": "H"},
+          {"t": "garbage", "v": "1.0", "type": "L"},
+          {"t": "2026-07-20 18:30", "v": "0.9", "type": "X"}
+        ]}
+        """
+        let extremes = try TideService.parsePredictions(Data(json.utf8))
+
+        XCTAssertEqual(extremes.count, 3, "expected 3 usable rows, got \(extremes.map(\.heightMeters))")
+        XCTAssertTrue(extremes.map(\.date) == extremes.map(\.date).sorted(), "predictions were not sorted")
+        XCTAssertEqual(extremes[0].heightMeters, 1.612, accuracy: 0.0001)
+        XCTAssertTrue(extremes[0].isHigh)
+        XCTAssertFalse(extremes[1].isHigh)
+        // Lower-case "h" is still a high; an unknown marker like "X" is dropped.
+        XCTAssertTrue(extremes[2].isHigh)
+    }
+
+    func testParsingSurfacesNOAAErrorPayloads() {
+        let json = """
+        {"error": {"message": "No Predictions data was found."}}
+        """
+        XCTAssertThrowsError(try TideService.parsePredictions(Data(json.utf8))) { error in
+            guard case TideServiceError.remoteError(let reason) = error else {
+                return XCTFail("expected remoteError, got \(error)")
+            }
+            XCTAssertEqual(reason, "No Predictions data was found.")
+        }
+        XCTAssertThrowsError(try TideService.parseStations(Data(json.utf8)))
+        XCTAssertThrowsError(try TideService.parsePredictions(Data("not json".utf8)))
+    }
+
+    // MARK: URLs
+
+    func testPredictionsURLRequestsHiLoPredictionsInMetric() throws {
+        let start = Date(timeIntervalSince1970: 1_753_000_000)
+        let url = try TideService.makePredictionsURL(
+            stationId: "9410230", start: start, end: start.addingTimeInterval(86_400))
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        func value(_ name: String) -> String? { items.first { $0.name == name }?.value }
+
+        XCTAssertEqual(url.host, "api.tidesandcurrents.noaa.gov")
+        XCTAssertEqual(value("station"), "9410230")
+        XCTAssertEqual(value("interval"), "hilo")
+        XCTAssertEqual(value("units"), "metric")
+        XCTAssertEqual(value("time_zone"), "gmt")
+        XCTAssertEqual(value("datum"), "MLLW")
+        XCTAssertEqual(value("format"), "json")
+        // No API key, no account, and nothing identifying the user.
+        XCTAssertNil(value("token"))
+        XCTAssertNil(value("key"))
+    }
+
+    func testPredictionsURLOrdersReversedDatesRatherThanFailing() throws {
+        let start = Date(timeIntervalSince1970: 1_753_000_000)
+        let url = try TideService.makePredictionsURL(
+            stationId: "9410230", start: start.addingTimeInterval(86_400), end: start)
+        let items = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        let begin = items.first { $0.name == "begin_date" }?.value ?? ""
+        let end = items.first { $0.name == "end_date" }?.value ?? ""
+        XCTAssertLessThanOrEqual(begin, end, "begin_date \(begin) came after end_date \(end)")
+    }
+
+    func testBlankStationIdIsRejected() {
+        XCTAssertThrowsError(try TideService.makePredictionsURL(
+            stationId: "   ", start: Date(), end: Date()))
+    }
+
+    // MARK: Station caching
+
+    /// The whole point of caching the id on the Spot: resolving must not touch the
+    /// network when a station is already known. The mock session fails any request,
+    /// so a single call would fail this test.
+    func testCachedStationIdSkipsTheNetworkEntirely() async {
+        var requestCount = 0
+        MockURLProtocol.requestHandler = { _ in
+            requestCount += 1
+            throw URLError(.notConnectedToInternet)
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let resolved = await TideService.resolveStationId(
+            cached: "9410230", latitude: 32.8669, longitude: -117.2571, session: makeSession())
+
+        XCTAssertEqual(resolved, "9410230")
+        XCTAssertEqual(requestCount, 0, "a cached station id still hit the network \(requestCount) time(s)")
+    }
+
+    func testBlankCachedIdFallsThroughToLookup() async {
+        let json = """
+        {"count": 1, "stations": [{"id": "9410230", "name": "La Jolla", "lat": 32.8669, "lng": -117.2571}]}
+        """
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(json.utf8))
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let resolved = await TideService.resolveStationId(
+            cached: "   ", latitude: 32.8669, longitude: -117.2571, session: makeSession())
+        XCTAssertEqual(resolved, "9410230", "a whitespace-only cached id was treated as a real station")
+    }
+
+    /// A failing lookup is not an error the surfer should ever see; it just means
+    /// the Open-Meteo curve stays in charge.
+    func testLookupFailureResolvesToNilWithoutThrowing() async {
+        MockURLProtocol.requestHandler = { _ in throw URLError(.timedOut) }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let resolved = await TideService.resolveStationId(
+            cached: nil, latitude: 32.8669, longitude: -117.2571, session: makeSession())
+        XCTAssertNil(resolved)
+    }
+
+    func testNonUSLookupResolvesToNilAgainstARealStationList() async {
+        let json = """
+        {"count": 2, "stations": [
+          {"id": "9410230", "name": "La Jolla", "lat": 32.8669, "lng": -117.2571},
+          {"id": "9410170", "name": "San Diego", "lat": 32.7133, "lng": -117.1733}
+        ]}
+        """
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(json.utf8))
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        // Ericeira, Portugal.
+        let resolved = await TideService.resolveStationId(
+            cached: nil, latitude: 38.9631, longitude: -9.4186, session: makeSession())
+        XCTAssertNil(resolved, "resolved a Californian station for a Portuguese spot")
+        XCTAssertNotNil(lisbon)  // keeps the fixture referenced and the intent readable
+    }
+
+    func testEndToEndPredictionsFetchParsesRealShapedResponse() async throws {
+        let json = """
+        {"predictions": [
+          {"t": "2026-07-20 03:31", "v": "1.612", "type": "H"},
+          {"t": "2026-07-20 10:02", "v": "0.152", "type": "L"}
+        ]}
+        """
+        MockURLProtocol.requestHandler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(json.utf8))
+        }
+        defer { MockURLProtocol.requestHandler = nil }
+
+        let start = Date(timeIntervalSince1970: 1_753_000_000)
+        let extremes = try await TideService.predictions(
+            stationId: "9410230", start: start, end: start.addingTimeInterval(86_400), session: makeSession())
+
+        XCTAssertEqual(extremes.count, 2)
+        XCTAssertTrue(extremes[0].isHigh)
+        XCTAssertEqual(extremes[0].heightMeters, 1.612, accuracy: 0.0001)
+        XCTAssertLessThan(extremes[0].date, extremes[1].date)
+    }
+
+    private func makeSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+}
+
 private extension SurfConditionsServiceTests {
     func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
