@@ -189,6 +189,13 @@ final class ExportImportTests: XCTestCase {
             conditionsFetchedAt: nil,
             conditionsLatitude: nil,
             conditionsLongitude: nil,
+            waveCount: nil,
+            topSpeedKph: nil,
+            longestRideSeconds: nil,
+            longestRideMeters: nil,
+            paddleDistanceMeters: nil,
+            waveStatsSource: nil,
+            linkedWorkoutID: nil,
             notes: "",
             buddyIds: [],
             gearIds: ["missing-gear"],
@@ -388,5 +395,147 @@ final class ExportImportTests: XCTestCase {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return try ModelContainer(for: schema, configurations: [configuration])
+    }
+
+    // MARK: - Wave stats (3.0)
+
+    /// Wave stats must survive backup and restore.
+    ///
+    /// This is the failure mode that would matter most in practice: a user who
+    /// hand-corrects a season of wave counts, restores from backup, and silently
+    /// loses every one of them. The `.edited` marker is asserted too — without
+    /// it a restored session would look freshly derivable and a later workout
+    /// import could overwrite the corrections.
+    func testWaveStatsRoundTripThroughExportAndImport() throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 2, day: 10, hour: 6)
+        let sourceContext = ModelContext(try makeContainer())
+
+        let spot = Spot(name: "Trestles", createdAt: createdAt)
+        let session = SurfSession(
+            date: createdAt,
+            spot: spot,
+            rating: 5,
+            durationMinutes: 90,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        session.waveCount = 13
+        session.topSpeedKph = 27.5
+        session.longestRideSeconds = 19.5
+        session.longestRideMeters = 88.25
+        session.paddleDistanceMeters = 1_430.5
+        session.waveStats = .edited
+        session.linkedWorkoutID = "8B2A1C4D-0000-4000-8000-000000000000"
+        sourceContext.insert(spot)
+        sourceContext.insert(session)
+
+        let export = PeakExportManager.makeExport(
+            sessions: [session], spots: [spot], gear: [], buddies: [], now: createdAt
+        )
+        let decoded = try PeakExportManager.decodeJSON(PeakExportManager.jsonData(from: export))
+
+        let targetContext = ModelContext(try makeContainer())
+        try PeakExportManager.applyImport(decoded, mode: .merge, context: targetContext)
+
+        let sessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.count, 1)
+        let round = try XCTUnwrap(sessions.first)
+        XCTAssertEqual(round.waveCount, 13)
+        XCTAssertEqual(round.topSpeedKph ?? 0, 27.5, accuracy: 0.0001)
+        XCTAssertEqual(round.longestRideSeconds ?? 0, 19.5, accuracy: 0.0001)
+        XCTAssertEqual(round.longestRideMeters ?? 0, 88.25, accuracy: 0.0001)
+        XCTAssertEqual(round.paddleDistanceMeters ?? 0, 1_430.5, accuracy: 0.0001)
+        XCTAssertEqual(round.waveStats, .edited, "the human-owned marker must survive a restore")
+        XCTAssertEqual(round.linkedWorkoutID, "8B2A1C4D-0000-4000-8000-000000000000")
+    }
+
+    /// Sessions with no wave stats round-trip as nil, not as zero — a restore must
+    /// not invent "0 waves" for every session a user ever logged by hand.
+    func testSessionsWithoutWaveStatsRoundTripAsNil() throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 2, day: 10, hour: 6)
+        let sourceContext = ModelContext(try makeContainer())
+        let spot = Spot(name: "Trestles", createdAt: createdAt)
+        let session = SurfSession(date: createdAt, spot: spot, createdAt: createdAt, updatedAt: createdAt)
+        sourceContext.insert(spot)
+        sourceContext.insert(session)
+
+        let export = PeakExportManager.makeExport(
+            sessions: [session], spots: [spot], gear: [], buddies: [], now: createdAt
+        )
+        let decoded = try PeakExportManager.decodeJSON(PeakExportManager.jsonData(from: export))
+        let targetContext = ModelContext(try makeContainer())
+        try PeakExportManager.applyImport(decoded, mode: .merge, context: targetContext)
+
+        let round = try XCTUnwrap(try targetContext.fetch(FetchDescriptor<SurfSession>()).first)
+        XCTAssertNil(round.waveCount)
+        XCTAssertNil(round.waveStatsSource)
+        XCTAssertNil(round.linkedWorkoutID)
+        XCTAssertFalse(round.hasWaveStats)
+    }
+
+    /// A backup written before 3.0 has no wave-stat keys at all and must still
+    /// import, leaving the new columns nil rather than failing the whole restore.
+    func testPreWaveStatsBackupStillImports() throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 2, day: 1, hour: 6)
+        let createdString = ExportDateFormatter.string(from: createdAt)
+        let json = """
+        {
+          "schema_version": "\(PeakExportManager.schemaVersion)",
+          "exported_at": "\(createdString)",
+          "sessions": [{
+            "id": "\(createdString)",
+            "date": "\(createdString)",
+            "spot_name": "Legacy Point",
+            "rating": 3,
+            "notes": "",
+            "buddy_ids": [],
+            "gear_ids": [],
+            "created_at": "\(createdString)",
+            "updated_at": "\(createdString)"
+          }],
+          "spots": [], "gear": [], "buddies": []
+        }
+        """
+
+        let decoded = try PeakExportManager.decodeJSON(Data(json.utf8))
+        let context = ModelContext(try makeContainer())
+        try PeakExportManager.applyImport(decoded, mode: .merge, context: context)
+
+        let session = try XCTUnwrap(try context.fetch(FetchDescriptor<SurfSession>()).first)
+        XCTAssertEqual(session.rating, 3)
+        XCTAssertNil(session.waveCount)
+        XCTAssertNil(session.waveStatsSource)
+        XCTAssertFalse(session.hasWaveStats)
+    }
+
+    /// The CSV header and every row must stay the same width, or a spreadsheet
+    /// silently misaligns every column after the new ones.
+    func testCSVIncludesWaveStatColumnsAndStaysRectangular() throws {
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 2, day: 10, hour: 6)
+        let context = ModelContext(try makeContainer())
+        let spot = Spot(name: "Trestles", createdAt: createdAt)
+        let withStats = SurfSession(date: createdAt, spot: spot, rating: 5, createdAt: createdAt, updatedAt: createdAt)
+        withStats.waveCount = 7
+        withStats.topSpeedKph = 24
+        withStats.waveStats = .auto
+        let without = SurfSession(date: createdAt, spot: spot, rating: 2, createdAt: createdAt, updatedAt: createdAt)
+        context.insert(spot)
+        context.insert(withStats)
+        context.insert(without)
+
+        let csv = PeakExportManager.sessionsCSV(sessions: [withStats, without])
+        let lines = csv.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        XCTAssertEqual(lines.count, 3)
+        XCTAssertTrue(lines[0].contains("waveCount"))
+        XCTAssertTrue(lines[0].contains("waveStatsSource"))
+
+        let width = lines[0].split(separator: ",", omittingEmptySubsequences: false).count
+        for line in lines.dropFirst() {
+            XCTAssertEqual(
+                line.split(separator: ",", omittingEmptySubsequences: false).count,
+                width,
+                "row width diverged from the header: \(line)"
+            )
+        }
     }
 }

@@ -44,6 +44,13 @@ struct SessionExport: Codable {
     let conditionsFetchedAt: String?
     let conditionsLatitude: Double?
     let conditionsLongitude: Double?
+    let waveCount: Int?
+    let topSpeedKph: Double?
+    let longestRideSeconds: Double?
+    let longestRideMeters: Double?
+    let paddleDistanceMeters: Double?
+    let waveStatsSource: String?
+    let linkedWorkoutID: String?
     let notes: String
     let buddyIds: [String]
     let gearIds: [String]
@@ -75,6 +82,13 @@ struct SessionExport: Codable {
         case conditionsFetchedAt = "conditions_fetched_at"
         case conditionsLatitude = "conditions_latitude"
         case conditionsLongitude = "conditions_longitude"
+        case waveCount = "wave_count"
+        case topSpeedKph = "top_speed_kph"
+        case longestRideSeconds = "longest_ride_seconds"
+        case longestRideMeters = "longest_ride_meters"
+        case paddleDistanceMeters = "paddle_distance_meters"
+        case waveStatsSource = "wave_stats_source"
+        case linkedWorkoutID = "linked_workout_id"
         case notes
         case buddyIds = "buddy_ids"
         case gearIds = "gear_ids"
@@ -279,6 +293,13 @@ enum PeakExportManager {
                 conditionsFetchedAt: session.conditionsFetchedAt.map(ExportDateFormatter.string(from:)),
                 conditionsLatitude: session.conditionsLatitude,
                 conditionsLongitude: session.conditionsLongitude,
+                waveCount: session.waveCount,
+                topSpeedKph: session.topSpeedKph,
+                longestRideSeconds: session.longestRideSeconds,
+                longestRideMeters: session.longestRideMeters,
+                paddleDistanceMeters: session.paddleDistanceMeters,
+                waveStatsSource: session.waveStatsSource,
+                linkedWorkoutID: session.linkedWorkoutID,
                 notes: session.notes,
                 buddyIds: session.buddies.map(\.key),
                 gearIds: session.gear.map(\.key),
@@ -347,7 +368,7 @@ enum PeakExportManager {
 
     static func sessionsCSV(sessions: [SurfSession]) -> String {
         var rows = [
-            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
+            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude,waveCount,topSpeedKph,longestRideSeconds,longestRideMeters,paddleDistanceMeters,waveStatsSource"
         ]
         for session in sessions {
             let id = ExportDateFormatter.string(from: session.createdAt)
@@ -371,6 +392,12 @@ enum PeakExportManager {
             let seaSurfaceTemperatureC = session.seaSurfaceTemperatureC.map { String($0) } ?? ""
             let seaLevelHeightM = session.seaLevelHeightM.map { String($0) } ?? ""
             let tideTrend = session.tideTrend ?? ""
+            let waveCount = session.waveCount.map { String($0) } ?? ""
+            let topSpeedKph = session.topSpeedKph.map { String($0) } ?? ""
+            let longestRideSeconds = session.longestRideSeconds.map { String($0) } ?? ""
+            let longestRideMeters = session.longestRideMeters.map { String($0) } ?? ""
+            let paddleDistanceMeters = session.paddleDistanceMeters.map { String($0) } ?? ""
+            let waveStatsSource = session.waveStatsSource ?? ""
             let conditionsSource = session.conditionsSource ?? ""
             let conditionsFetchedAt = session.conditionsFetchedAt.map(ExportDateFormatter.string(from:)) ?? ""
             let conditionsLatitude = session.conditionsLatitude.map { String($0) } ?? ""
@@ -401,7 +428,13 @@ enum PeakExportManager {
                 conditionsSource,
                 conditionsFetchedAt,
                 conditionsLatitude,
-                conditionsLongitude
+                conditionsLongitude,
+                waveCount,
+                topSpeedKph,
+                longestRideSeconds,
+                longestRideMeters,
+                paddleDistanceMeters,
+                waveStatsSource
             ].map(csvEscape).joined(separator: ",")
             rows.append(row)
         }
@@ -410,7 +443,7 @@ enum PeakExportManager {
 
     nonisolated static func sessionsCSV(export: PeakExport) -> String {
         var rows = [
-            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude"
+            "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude,waveCount,topSpeedKph,longestRideSeconds,longestRideMeters,paddleDistanceMeters,waveStatsSource"
         ]
         let spotLookup = Dictionary(uniqueKeysWithValues: export.spots.map { ($0.id, $0.name) })
         let gearLookup = Dictionary(uniqueKeysWithValues: export.gear.map { ($0.id, $0) })
@@ -438,6 +471,12 @@ enum PeakExportManager {
             let seaSurfaceTemperatureC = session.seaSurfaceTemperatureC.map { String($0) } ?? ""
             let seaLevelHeightM = session.seaLevelHeightM.map { String($0) } ?? ""
             let tideTrend = session.tideTrend ?? ""
+            let waveCount = session.waveCount.map { String($0) } ?? ""
+            let topSpeedKph = session.topSpeedKph.map { String($0) } ?? ""
+            let longestRideSeconds = session.longestRideSeconds.map { String($0) } ?? ""
+            let longestRideMeters = session.longestRideMeters.map { String($0) } ?? ""
+            let paddleDistanceMeters = session.paddleDistanceMeters.map { String($0) } ?? ""
+            let waveStatsSource = session.waveStatsSource ?? ""
             let conditionsSource = session.conditionsSource ?? ""
             let conditionsFetchedAt = session.conditionsFetchedAt ?? ""
             let conditionsLatitude = session.conditionsLatitude.map { String($0) } ?? ""
@@ -468,7 +507,13 @@ enum PeakExportManager {
                 conditionsSource,
                 conditionsFetchedAt,
                 conditionsLatitude,
-                conditionsLongitude
+                conditionsLongitude,
+                waveCount,
+                topSpeedKph,
+                longestRideSeconds,
+                longestRideMeters,
+                paddleDistanceMeters,
+                waveStatsSource
             ].map(csvEscape).joined(separator: ",")
             rows.append(row)
         }
@@ -595,6 +640,13 @@ enum PeakExportManager {
             session.conditionsFetchedAt = sessionExport.conditionsFetchedAt.flatMap(ExportDateFormatter.date(from:))
             session.conditionsLatitude = sessionExport.conditionsLatitude
             session.conditionsLongitude = sessionExport.conditionsLongitude
+            session.waveCount = sessionExport.waveCount
+            session.topSpeedKph = sessionExport.topSpeedKph
+            session.longestRideSeconds = sessionExport.longestRideSeconds
+            session.longestRideMeters = sessionExport.longestRideMeters
+            session.paddleDistanceMeters = sessionExport.paddleDistanceMeters
+            session.waveStatsSource = sessionExport.waveStatsSource
+            session.linkedWorkoutID = sessionExport.linkedWorkoutID
             session.notes = sessionExport.notes
             session.createdAt = createdAt
             session.updatedAt = ExportDateFormatter.date(from: sessionExport.updatedAt) ?? createdAt

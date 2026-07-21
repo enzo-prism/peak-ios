@@ -72,6 +72,82 @@ no backend, and no network call you didn't ask for.
   unless you opt in. Ranking runs off the main actor (`@concurrent`), since it
   costs well over a frame on a deep logbook.
 
+## [Unreleased] — 3.0 "Wave Stats"
+
+Every Apple Watch surf workout already stores its GPS route in HealthKit. Peak
+now mines that route on-device to estimate how many waves you caught, how fast
+the fastest one was, how long the longest ride lasted, and how far you paddled —
+and then invites you to correct every one of those numbers. No watch app
+required, no account, nothing leaves the phone.
+
+### Added
+
+- **`WaveAnalyzer`.** A stateless, deterministic analyzer that turns a gappy,
+  noisy wrist-GPS track into wave count, top speed, ride lengths and paddle
+  distance. Accuracy-gated fixes, a least-squares speed fit de-biased for the
+  fixes' own noise floor, rolling-median spike rejection, hysteresis thresholds
+  with a sustained-evidence rule, distance integrated from speed rather than
+  summed from positions, and a distance-weighted heading-consistency test. It
+  is CoreLocation-free, so its whole suite runs on synthetic routes with no
+  device, no entitlement and no ocean. All 22 tuning constants live in one
+  struct for re-fitting against real recordings.
+  (`Peak/Supporting/WaveAnalyzer.swift`)
+- **HealthKit route access.** `HKSeriesType.workoutRoute()` joins the read set
+  and `HealthKitService` streams a workout's `CLLocation`s, mapped to the
+  analyzer's `RouteSample` at that boundary. Still behind the existing
+  `healthSyncEnabled` opt-in, and still a quiet no-op when it is off, denied, or
+  the workout simply has no route. (`Peak/Supporting/HealthKitService.swift`)
+- **Wave stats on every session, all of it editable.** A "Wave stats" group in
+  the editor's Details section: a stepper for wave count and fields for top
+  speed, ride duration, ride distance and paddle distance, in your locale's
+  units. Touching any of them marks the session as yours, after which no import
+  will ever overwrite it. Works with no workout at all, for the majority of
+  surfers who do not wear a watch. (`Peak/Views/Components/WaveStatsEditor.swift`)
+- **Wave-stat tags in the session hero**, beside duration, with the provenance
+  line right there next to them. (`Peak/Views/History/SessionDetailView.swift`)
+- **Import preview.** Health import shows what Peak would derive from each
+  workout's route before you commit to importing it.
+  (`Peak/Views/More/HealthImportView.swift`)
+- **Wave records on Stats.** Most waves in a session, fastest wave, longest
+  ride, plus a waves-per-session trend — each resolved independently and the
+  whole card suppressed when no session carries wave stats.
+  (`Peak/Supporting/WaveStatsCalculator.swift`,
+  `Peak/Views/Stats/WaveRecordsCard.swift`)
+- Wave count joins the widget's last-session snapshot and the session share card.
+
+### Changed
+
+- Schema **V10** (1.9.0): `SurfSession.waveCount`, `topSpeedKph`,
+  `longestRideSeconds`, `longestRideMeters`, `paddleDistanceMeters`,
+  `waveStatsSource`, `linkedWorkoutID`. Lightweight additive migration; V9 is
+  frozen as an inline snapshot in the same change, since SwiftData rejects two
+  versioned schemas that hash to the same shape.
+
+### Notes
+
+- **These are estimates and the app says so, everywhere.** Measured against
+  synthetic routes, wave count is exact about 85% of the time and within one
+  about 98.5% of the time when the watch reports a usable Doppler speed at 3 m
+  position noise; with no device speed at all that falls to roughly 44% exact.
+  That spread is precisely why every figure is presented as a correctable
+  estimate rather than a fact. The single largest source of one-star reviews for
+  competing surf apps is a confidently wrong wave count, and Peak's answer is to
+  never be confident and always be one tap from correct.
+- **A human's number outranks a GPS trace.** Once you edit or hand-enter a wave
+  stat the session is marked `edited` or `manual`, and re-importing the workout
+  will not touch it.
+- **Zero is data; absent is not.** A skunked session stores zero waves and says
+  so. A session that was never tracked stores nothing and shows nothing — no
+  empty rows, no "0 waves" for a session that had no route.
+- **Nothing runs on the main thread.** Route analysis walks tens of thousands of
+  fixes, so it is `@concurrent`; the project's `SWIFT_DEFAULT_ACTOR_ISOLATION =
+  MainActor` would otherwise pin it to the UI.
+- **No coordinates are persisted.** Only the workout UUID is stored; the route
+  is re-read from HealthKit on demand.
+- **Still to do:** the analyzer's constants are physically reasoned, not
+  ocean-validated. Real-device verification against hand-counted sessions is a
+  3.1 gate, and the session map replay was deliberately deferred with it.
+
 ## [Unreleased] — 2.9 "Quiver Analytics · Memory Layer · First-Run"
 
 Peak starts using the data it already has: what each board actually does for

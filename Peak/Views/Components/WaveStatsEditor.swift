@@ -86,15 +86,19 @@ struct WaveStatsEditor: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(draft.waveCount == nil ? Theme.textMuted : Theme.textPrimary)
                 .monospacedDigit()
+                .accessibilityIdentifier("session.editor.waveCount.value")
+            // The identifier goes on the Stepper itself, not on a wrapping
+            // container: a container id makes the control unreachable as
+            // `app.steppers[...]` in UI tests.
             Stepper("Waves", value: waveCountBinding, in: 0...Self.maxWaveCount)
                 .labelsHidden()
+                .accessibilityIdentifier("session.editor.waveCount")
+                .accessibilityLabel(Text("Waves"))
+                .accessibilityValue(Text(draft.waveCount.map { WaveStatsFormatter.waveCount($0) } ?? "Not set"))
         }
         .padding(12)
+        .frame(minHeight: 44)
         .glassInput()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("session.editor.waveCount")
-        .accessibilityLabel(Text("Waves"))
-        .accessibilityValue(Text(draft.waveCount.map { WaveStatsFormatter.waveCount($0) } ?? "Not set"))
     }
 
     private func numericRow(

@@ -160,6 +160,163 @@ final class PeakUISmokeTests: XCTestCase {
 
         assertConditionsNotice(contains: "Surf report data is unavailable")
     }
+
+    // MARK: - Wave stats (3.0)
+
+    /// Two things are worth protecting here, and they are the two the feature
+    /// lives or dies on: every derived number must be correctable by hand, and
+    /// the screen must never present those numbers as fact. The second is a
+    /// product requirement rather than a nicety — a confidently wrong wave count
+    /// is the single biggest source of one-star reviews in this category — so the
+    /// microcopy is asserted, not merely the control.
+    ///
+    /// This path involves no Apple Watch workout at all, which is the point:
+    /// manual entry has to work for the majority of users who never wear one.
+    func testWaveCountIsEditableAndReachesSessionDetail() {
+        tapTab(named: "Log")
+
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+
+        // Three increments from an unset field: 0 -> 1 -> 2 -> 3.
+        incrementWaveCount(times: 3, in: scrollView)
+
+        let value = app.staticTexts["session.editor.waveCount.value"]
+        assertExists(value)
+        XCTAssertEqual(value.label, "3", "the stepper did not write the wave count back to the draft")
+
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        assertExists(notes)
+        notes.tap()
+        notes.typeText(e2eSessionMarker)
+
+        saveSession()
+
+        tapTab(named: "History")
+        let row = latestHistoryRow(markerSessionNote: e2eSessionMarker)
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Expected the saved session in history.")
+        row.tap()
+
+        let waveTag = heroElement("session.detail.heroTag.waveCount")
+        XCTAssertTrue(waveTag.exists, "Wave count tag missing from the session hero.")
+        XCTAssertEqual(waveTag.label, "3 waves")
+
+        // The hero must say where the number came from, in the same glance.
+        let caption = heroElement("session.detail.waveStats.caption")
+        XCTAssertTrue(caption.exists, "no provenance line beside the wave stats")
+        XCTAssertTrue(
+            caption.label.localizedCaseInsensitiveContains("you"),
+            "a hand-entered count must be credited to the user, got: \(caption.label)"
+        )
+    }
+
+    /// The editor always states where the numbers come from, and the copy changes
+    /// the moment a human touches one — which is exactly the promise that a later
+    /// workout import will not overwrite them.
+    func testEditorExplainsWhereWaveStatsComeFrom() {
+        tapTab(named: "Log")
+
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+
+        dismissKeyboard()
+
+        let caption = app.staticTexts["session.editor.waveStats.caption"]
+        assertExists(caption)
+        scrollToVisible(caption, in: scrollView)
+        let initialCopy = caption.label
+        XCTAssertFalse(initialCopy.isEmpty, "wave stats must always carry a provenance line")
+        XCTAssertTrue(
+            initialCopy.localizedCaseInsensitiveContains("estimat")
+                || initialCopy.localizedCaseInsensitiveContains("enter"),
+            "the copy must frame these as estimates or as your own entry, got: \(initialCopy)"
+        )
+
+        incrementWaveCount(times: 1, in: scrollView)
+
+        let updated = app.staticTexts["session.editor.waveStats.caption"]
+        assertExists(updated)
+        XCTAssertTrue(
+            updated.label.localizedCaseInsensitiveContains("you"),
+            "after an edit the copy must credit the user, got: \(updated.label)"
+        )
+    }
+
+    /// Sessions with no wave stats are completely unaffected: no tag, no caption,
+    /// no empty row. Most Peak users will never record a wave stat, and their
+    /// session detail must look exactly as it did before 3.0.
+    func testSessionsWithoutWaveStatsShowNoWaveChrome() {
+        tapTab(named: "History")
+
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        XCTAssertTrue(
+            heroElement("session.detail.heroTag.duration").exists,
+            "the hero should still render normally"
+        )
+        XCTAssertFalse(heroElement("session.detail.heroTag.waveCount", timeout: 0).exists)
+        XCTAssertFalse(heroElement("session.detail.waveStats.caption", timeout: 0).exists)
+    }
+
+    /// Drives the wave-count stepper.
+    ///
+    /// Two hazards are handled here. The spot field leaves the keyboard up, which
+    /// can park the stepper underneath it — so the keyboard is waited out, not
+    /// merely dismissed. And `isHittable` is a snapshot: checking it and then
+    /// tapping loses the race against the keyboard's dismissal animation, which
+    /// is exactly how this test failed first time round. A coordinate tap does
+    /// not re-check hittability, so it cannot lose that race.
+    private func incrementWaveCount(times: Int, in scrollView: XCUIElement) {
+        dismissKeyboard()
+        _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
+
+        let stepper = app.steppers["session.editor.waveCount"]
+        assertExists(stepper)
+        scrollToVisible(stepper, in: scrollView)
+
+        let increment = stepper.buttons.element(boundBy: 1)
+        assertExists(increment)
+        scrollToVisible(increment, in: scrollView)
+
+        for _ in 0..<times {
+            increment.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+    }
+
+    /// Hero tags collapse their children for VoiceOver, so SwiftUI is free to
+    /// expose them as a static text or as a generic element depending on the
+    /// build. Resolve across both rather than pinning a type. `timeout` of 0
+    /// makes this a pure negative check with no waiting.
+    private func heroElement(_ identifier: String, timeout: TimeInterval = 5) -> XCUIElement {
+        let queries: [XCUIElementQuery] = [app.staticTexts, app.otherElements, app.buttons]
+        for query in queries where query[identifier].exists {
+            return query[identifier]
+        }
+        guard timeout > 0 else { return app.staticTexts[identifier] }
+
+        // Poll each type in turn so a slow first paint does not spend the whole
+        // budget waiting on the wrong query.
+        let slice = max(0.5, timeout / Double(queries.count))
+        for query in queries where query[identifier].waitForExistence(timeout: slice) {
+            return query[identifier]
+        }
+        return app.staticTexts[identifier]
+    }
 }
 
 /// Best Window Today.
