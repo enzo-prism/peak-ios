@@ -8,6 +8,8 @@ struct StatsView: View {
     @Query(sort: \Gear.name) private var gear: [Gear]
     @Query(sort: \Buddy.name) private var buddies: [Buddy]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(MonthlyGoalCalculator.metricKey) private var goalMetricRaw = MonthlyGoalMetric.sessions.rawValue
+    @AppStorage(MonthlyGoalCalculator.targetKey) private var goalTarget = MonthlyGoalCalculator.defaultTarget
     @State private var showContent = false
     @State private var cachedSummary = StatsSummary(
         totalSessions: 0,
@@ -34,6 +36,14 @@ struct StatsView: View {
     @State private var cachedWaveSamples: [WaveRatingSample] = []
     @State private var cachedConditions: ConditionsInsight?
     @State private var cachedMonthlySurfDays: [MonthlyCount] = []
+    @State private var cachedGearReports: [GearReport] = []
+    @State private var cachedGoal = MonthlyGoalProgress(
+        metric: .sessions,
+        target: MonthlyGoalCalculator.defaultTarget,
+        achieved: 0,
+        fraction: 0,
+        isMet: false
+    )
 
     var body: some View {
         NavigationStack {
@@ -55,6 +65,11 @@ struct StatsView: View {
                                 longestStreak: cachedLongestStreak
                             )
 
+                            // Goal above the heatmap: the goal is the thing the
+                            // surfer can act on this month, the heatmap is the
+                            // record of what already happened.
+                            MonthlyGoalCard(progress: cachedGoal, monthName: currentMonthName)
+
                             if !cachedHeatmap.isEmpty {
                                 ConsistencyHeatmapCard(cells: cachedHeatmap)
                             }
@@ -71,6 +86,8 @@ struct StatsView: View {
                                 samples: cachedWaveSamples,
                                 insight: cachedConditions
                             )
+
+                            GearInsightsCard(reports: cachedGearReports)
 
                             StatListSection(
                                 title: "Top spots",
@@ -113,6 +130,20 @@ struct StatsView: View {
         .onChange(of: sessions) { _, _ in
             refreshSummaries()
         }
+        .onChange(of: goalMetricRaw) { _, _ in
+            refreshGoal()
+        }
+        .onChange(of: goalTarget) { _, _ in
+            refreshGoal()
+        }
+    }
+
+    private var currentMonthName: String {
+        Date().formatted(.dateTime.month(.wide))
+    }
+
+    private var goalMetric: MonthlyGoalMetric {
+        MonthlyGoalMetric(rawValue: goalMetricRaw) ?? .sessions
     }
 
     private var summary: StatsSummary {
@@ -145,6 +176,21 @@ struct StatsView: View {
         cachedWaveSamples = StatsCalculator.waveHeightRatingSamples(sessions: sessions)
         cachedConditions = StatsCalculator.bestConditions(sessions: sessions)
         cachedMonthlySurfDays = StatsCalculator.monthlySurfDays(sessions: sessions)
+        // Boards only: a wetsuit's rating average says more about the season
+        // than about the wetsuit.
+        cachedGearReports = GearInsightsCalculator.reports(
+            for: gear.filter { $0.kind == .board },
+            sessions: sessions
+        )
+        refreshGoal()
+    }
+
+    private func refreshGoal() {
+        cachedGoal = MonthlyGoalCalculator.progress(
+            sessions: sessions,
+            metric: goalMetric,
+            target: goalTarget
+        )
     }
 }
 

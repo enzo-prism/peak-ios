@@ -14,6 +14,8 @@ struct SettingsView: View {
     @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
+    @AppStorage(MonthlyGoalCalculator.metricKey) private var goalMetricRaw = MonthlyGoalMetric.sessions.rawValue
+    @AppStorage(MonthlyGoalCalculator.targetKey) private var goalTarget = MonthlyGoalCalculator.defaultTarget
     @State private var shareItems: [Any] = []
     @State private var showShareSheet = false
     @State private var alertMessage: AlertMessage?
@@ -25,6 +27,35 @@ struct SettingsView: View {
             Theme.background.ignoresSafeArea()
 
             List {
+                Section {
+                    Picker("Goal", selection: $goalMetricRaw) {
+                        ForEach(MonthlyGoalMetric.allCases) { metric in
+                            Text(metric.label).tag(metric.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+
+                    Stepper(value: $goalTarget, in: 0...MonthlyGoalCalculator.maximumTarget) {
+                        Text(goalTarget == 0
+                             ? "No goal"
+                             : "\(goalTarget) \(goalMetric.unitLabel) per month")
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    .padding(12)
+                    .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
+                    .listRowBackground(Color.clear)
+                    .accessibilityIdentifier("settings.monthlyGoal.stepper")
+
+                    Text("A monthly target you can miss a week of and still hit. Set it to zero to hide the goal ring.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                        .padding(.horizontal, 4)
+                        .listRowBackground(Color.clear)
+                } header: {
+                    sectionHeader("Monthly Goal")
+                }
+
                 Section {
                     SettingsRow(title: "Export JSON", systemImage: "square.and.arrow.up", isDisabled: isWorking) {
                         exportJSON()
@@ -233,6 +264,10 @@ struct SettingsView: View {
         Text(title.uppercased())
             .font(.caption.weight(.semibold))
             .foregroundStyle(Theme.textMuted)
+    }
+
+    private var goalMetric: MonthlyGoalMetric {
+        MonthlyGoalMetric(rawValue: goalMetricRaw) ?? .sessions
     }
 
     private var appVersion: String {

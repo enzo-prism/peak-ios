@@ -21,6 +21,7 @@ struct GearDetailView: View {
     )
     @State private var cachedPolicy = GearUsagePolicy(canDelete: false, canArchive: false)
     @State private var cachedRelatedSessions: [SurfSession] = []
+    @State private var cachedReport: GearReport?
 
     var body: some View {
         ZStack {
@@ -31,6 +32,10 @@ struct GearDetailView: View {
                     headerCard
 
                     usageSummarySection(summary: cachedSummary)
+
+                    if let cachedReport {
+                        BoardReportCard(report: cachedReport)
+                    }
 
                     UsageChartCard(
                         title: "Usage over time",
@@ -271,6 +276,11 @@ struct GearDetailView: View {
         }
         cachedSummary = GearUsageCalculator.summary(for: gear, sessions: sessions)
         cachedPolicy = GearUsageCalculator.policy(for: gear, sessions: sessions)
+        // Conditions-bucketed ratings only make sense for the thing you choose
+        // per swell; a leash doesn't have a favourite period.
+        cachedReport = gear.kind == .board
+            ? GearInsightsCalculator.report(for: gear, sessions: sessions)
+            : nil
     }
 }
 
