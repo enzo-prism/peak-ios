@@ -20,6 +20,11 @@ final class SurfSession {
     var windWavePeriodSeconds: Double?
     var windWaveDirectionDegrees: Double?
     var seaSurfaceTemperatureC: Double?
+    /// Tide height relative to mean sea level, in metres. Legitimately negative
+    /// below MSL, so it is never sanity-checked for sign.
+    var seaLevelHeightM: Double?
+    /// `TideTrend.rawValue`. Stored as a string — see `TideTrend` for why.
+    var tideTrend: String?
     var conditionsSource: String?
     var conditionsFetchedAt: Date?
     var conditionsLatitude: Double?
@@ -50,6 +55,8 @@ final class SurfSession {
         windWavePeriodSeconds: Double? = nil,
         windWaveDirectionDegrees: Double? = nil,
         seaSurfaceTemperatureC: Double? = nil,
+        seaLevelHeightM: Double? = nil,
+        tideTrend: String? = nil,
         conditionsSource: String? = nil,
         conditionsFetchedAt: Date? = nil,
         conditionsLatitude: Double? = nil,
@@ -77,6 +84,8 @@ final class SurfSession {
         self.windWavePeriodSeconds = windWavePeriodSeconds
         self.windWaveDirectionDegrees = windWaveDirectionDegrees
         self.seaSurfaceTemperatureC = seaSurfaceTemperatureC
+        self.seaLevelHeightM = seaLevelHeightM
+        self.tideTrend = tideTrend
         self.conditionsSource = conditionsSource
         self.conditionsFetchedAt = conditionsFetchedAt
         self.conditionsLatitude = conditionsLatitude
@@ -111,7 +120,16 @@ final class SurfSession {
         windWavePeriodSeconds != nil ||
         windWaveDirectionDegrees != nil ||
         seaSurfaceTemperatureC != nil ||
+        seaLevelHeightM != nil ||
+        tideTrend != nil ||
         conditionsSource != nil ||
         conditionsFetchedAt != nil
+    }
+
+    /// Typed view of the stored raw value. An unrecognised string reads as `nil`
+    /// rather than throwing, so a row written by a newer build stays readable.
+    var tide: TideTrend? {
+        get { tideTrend.flatMap(TideTrend.init(rawValue:)) }
+        set { tideTrend = newValue?.rawValue }
     }
 }
