@@ -1,3 +1,4 @@
+import CoreLocation
 import XCTest
 @testable import Peak
 
@@ -76,7 +77,7 @@ private func assertInvariants(
 
 /// A representative three-wave session used by several tests.
 /// Offshore paddling heads 270°, rides head 90° toward the beach.
-private let threeWaveScript: [RoutePhase] = [
+let threeWaveScript: [RoutePhase] = [
     .sit(seconds: 25),
     .paddle(seconds: 45, speedMetersPerSecond: 1.4, headingDegrees: 270),
     .sit(seconds: 35),
@@ -1125,3 +1126,185 @@ final class InvariantTests: XCTestCase {
         XCTAssertEqual(WaveAnalyzer.bearingDegrees(lat1: 0, lon1: 0, lat2: 0, lon2: 0), 0, accuracy: 0.01)
     }
 }
+
+// MARK: - Group 10: app integration
+
+/// Feeds `WaveStatsDeriver` from synthetic routes through a mock provider.
+///
+/// This is the whole reason `WorkoutRouteProviding` exists: CI runs on a
+/// simulator with no HealthKit entitlement and no Health database, so a test
+/// that reached `HKHealthStore` would return nothing and assert nothing.
+private struct MockRouteProvider: WorkoutRouteProviding {
+    let routes: [UUID: [RouteSample]]
+
+    func routeSamples(forWorkoutID id: UUID) async -> [RouteSample] {
+        routes[id] ?? []
+    }
+}
+
+final class WaveStatsDeriverTests: XCTestCase {
+
+    func testDeriverAnalyzesAKnownRoute() async {
+        let id = UUID()
+        let provider = MockRouteProvider(routes: [id: RouteGenerator.generate(phases: threeWaveScript)])
+
+        let stats = await WaveStatsDeriver.stats(forWorkoutID: id, provider: provider)
+        let unwrapped = try? XCTUnwrap(stats)
+        XCTAssertNotNil(unwrapped)
+        XCTAssertEqual(stats?.waveCount, 3)
+    }
+
+    /// "No route" and "a route with no waves" are different answers and the UI
+    /// treats them differently: nothing shown, versus an honest zero.
+    func testWorkoutWithNoRouteYieldsNilRatherThanZero() async {
+        let stats = await WaveStatsDeriver.stats(
+            forWorkoutID: UUID(),
+            provider: MockRouteProvider(routes: [:])
+        )
+        XCTAssertNil(stats)
+    }
+
+    /// A handful of stray fixes is not a tracked session; reporting "0 waves" off
+    /// three points would be an authoritative-looking lie.
+    func testTooFewFixesYieldNilRatherThanZero() async {
+        let id = UUID()
+        let samples = Array(RouteGenerator.generate(phases: threeWaveScript).prefix(3))
+        let stats = await WaveStatsDeriver.stats(
+            forWorkoutID: id,
+            provider: MockRouteProvider(routes: [id: samples])
+        )
+        XCTAssertNil(stats)
+    }
+
+    /// A genuinely skunked session returns zero waves — data, not absence.
+    func testPaddleOnlyRouteYieldsZeroWavesNotNil() async {
+        let id = UUID()
+        let samples = RouteGenerator.generate(phases: [
+            .paddle(seconds: 300, speedMetersPerSecond: 1.5, headingDegrees: 270)
+        ])
+        let stats = await WaveStatsDeriver.stats(
+            forWorkoutID: id,
+            provider: MockRouteProvider(routes: [id: samples])
+        )
+        XCTAssertEqual(stats?.waveCount, 0)
+        XCTAssertGreaterThan(stats?.paddleDistanceMeters ?? 0, 0)
+    }
+
+    func testDeriverHonoursCustomTuning() async {
+        let id = UUID()
+        let provider = MockRouteProvider(routes: [id: RouteGenerator.generate(phases: threeWaveScript)])
+
+        var strict = WaveAnalyzer.Tuning()
+        strict.waveEnterSpeedMetersPerSecond = 12
+        let stats = await WaveStatsDeriver.stats(forWorkoutID: id, provider: provider, tuning: strict)
+        XCTAssertEqual(stats?.waveCount, 0)
+    }
+
+    /// The off-main entry point must agree exactly with the synchronous one — it
+    /// exists to move the work off the main actor, not to change the answer.
+    func testOffMainAnalysisMatchesSynchronousAnalysis() async {
+        var options = GeneratorOptions()
+        options.positionNoiseSigmaMeters = 4
+        options.seed = 31337
+        let samples = RouteGenerator.generate(phases: threeWaveScript, options: options)
+
+        let synchronous = WaveAnalyzer.analyze(samples: samples)
+        let offMain = await WaveAnalyzer.analyzeOffMain(samples: samples)
+        XCTAssertEqual(synchronous, offMain)
+    }
+}
+
+/// The CoreLocation boundary. `WaveAnalyzer` never imports CoreLocation, so this
+/// mapping is the single point where the two meet — and the place CoreLocation's
+/// `-1` "unknown" sentinels have to survive intact.
+final class RouteSampleCoreLocationTests: XCTestCase {
+
+    func testMapsEveryFieldFromCLLocation() {
+        let timestamp = Date(timeIntervalSinceReferenceDate: 700_000_100)
+        let location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 21.2761, longitude: -157.8267),
+            altitude: 0,
+            horizontalAccuracy: 6.5,
+            verticalAccuracy: 3,
+            course: 95,
+            speed: 5.5,
+            timestamp: timestamp
+        )
+        let sample = RouteSample(location: location)
+
+        XCTAssertEqual(sample.timestamp, timestamp)
+        XCTAssertEqual(sample.latitude, 21.2761, accuracy: 1e-9)
+        XCTAssertEqual(sample.longitude, -157.8267, accuracy: 1e-9)
+        XCTAssertEqual(sample.speedMetersPerSecond ?? -1, 5.5, accuracy: 1e-9)
+        XCTAssertEqual(sample.horizontalAccuracyMeters, 6.5, accuracy: 1e-9)
+        XCTAssertEqual(sample.courseDegrees ?? -1, 95, accuracy: 1e-9)
+    }
+
+    /// CoreLocation reports -1 for unknown speed and course. Those are passed
+    /// through untouched — `RouteSample` documents them as part of its contract
+    /// and the analyzer discards them internally, so pre-cleaning here would only
+    /// create a second place for the convention to drift.
+    func testUnknownSpeedAndCourseSentinelsSurviveMappingAndAreIgnored() {
+        let location = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 21.2761, longitude: -157.8267),
+            altitude: 0,
+            horizontalAccuracy: 8,
+            verticalAccuracy: -1,
+            course: -1,
+            speed: -1,
+            timestamp: Date(timeIntervalSinceReferenceDate: 700_000_000)
+        )
+        let sample = RouteSample(location: location)
+
+        XCTAssertEqual(sample.speedMetersPerSecond ?? 0, -1, accuracy: 1e-9)
+        XCTAssertEqual(sample.courseDegrees ?? 0, -1, accuracy: 1e-9)
+
+        // The analyzer must derive speed from the geometry rather than believe
+        // -1. Accuracy is a tight 2 m here on purpose: the noise de-biasing scales
+        // with reported accuracy, and at the 5 m a watch typically claims it
+        // (correctly) refuses to distinguish a 1.4 m/s paddle from measurement
+        // error, which would make "distance > 0" a false expectation.
+        let samples = (0..<40).map { index in
+            RouteSample(
+                timestamp: Date(timeIntervalSinceReferenceDate: 700_000_000 + Double(index)),
+                latitude: 21.2761 + Double(index) * 1.4 / 111_320.0,
+                longitude: -157.8267,
+                speedMetersPerSecond: -1,
+                horizontalAccuracyMeters: 2,
+                courseDegrees: -1
+            )
+        }
+        let stats = WaveAnalyzer.analyze(samples: samples)
+        XCTAssertEqual(stats.waveCount, 0, "a -1 sentinel must not be read as a speed")
+        XCTAssertGreaterThan(stats.totalDistanceMeters, 0, "geometry-derived speed was discarded")
+        XCTAssertLessThan(stats.topSpeedKph, 12)
+
+        // And at a watch's real accuracy the same paddle is honestly reported as
+        // unresolvable rather than invented — never as the sentinel's own value.
+        let noisier = samples.map { sample -> RouteSample in
+            var copy = sample
+            copy.horizontalAccuracyMeters = 5
+            return copy
+        }
+        let conservative = WaveAnalyzer.analyze(samples: noisier)
+        XCTAssertEqual(conservative.waveCount, 0)
+        XCTAssertGreaterThanOrEqual(conservative.topSpeedKph, 0)
+    }
+
+    /// An invalid fix (negative horizontal accuracy) maps through and is then
+    /// dropped by the analyzer's quality gate.
+    func testInvalidFixesMapThroughAndAreDropped() {
+        let samples = (0..<40).map { index in
+            RouteSample(
+                timestamp: Date(timeIntervalSinceReferenceDate: 700_000_000 + Double(index)),
+                latitude: 21.2761,
+                longitude: -157.8267,
+                speedMetersPerSecond: 6,
+                horizontalAccuracyMeters: -1,
+                courseDegrees: 90
+            )
+        }
+        XCTAssertEqual(WaveAnalyzer.analyze(samples: samples), .zero)
+    }
+}
+

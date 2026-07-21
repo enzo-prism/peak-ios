@@ -133,4 +133,150 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertEqual(summary.durationMinutes, 90)
         XCTAssertEqual(summary.interval, DateInterval(start: epoch(0), end: epoch(90 * 60)))
     }
+
+    // MARK: - Wave stats (3.0)
+
+    /// Derived stats land on a session that has none, and stamp `.auto` so the
+    /// UI knows to caveat them.
+    func testApplyDerivedWaveStatsWritesAutoSource() {
+        let session = TestFixture.session()
+        let stats = WaveStats(
+            waveCount: 9,
+            topSpeedKph: 26.4,
+            longestRideSeconds: 17.5,
+            longestRideMeters: 82,
+            paddleDistanceMeters: 1_320,
+            totalDistanceMeters: 1_800,
+            waves: []
+        )
+
+        XCTAssertTrue(session.applyDerivedWaveStats(stats, workoutID: "workout-1"))
+        XCTAssertEqual(session.waveCount, 9)
+        XCTAssertEqual(session.topSpeedKph ?? 0, 26.4, accuracy: 0.0001)
+        XCTAssertEqual(session.longestRideSeconds ?? 0, 17.5, accuracy: 0.0001)
+        XCTAssertEqual(session.longestRideMeters ?? 0, 82, accuracy: 0.0001)
+        XCTAssertEqual(session.paddleDistanceMeters ?? 0, 1_320, accuracy: 0.0001)
+        XCTAssertEqual(session.waveStats, .auto)
+        XCTAssertEqual(session.linkedWorkoutID, "workout-1")
+        XCTAssertTrue(session.hasWaveStats)
+    }
+
+    /// A skunked session is a real result: zero waves is stored, but the derived
+    /// zeros for speed and ride length are stored as nil so the UI can omit those
+    /// rows instead of printing an authoritative "0 km/h".
+    func testApplyDerivedWaveStatsStoresZeroWavesButNilsEmptyMeasurements() {
+        let session = TestFixture.session()
+        session.applyDerivedWaveStats(.zero, workoutID: nil)
+
+        XCTAssertEqual(session.waveCount, 0)
+        XCTAssertNil(session.topSpeedKph)
+        XCTAssertNil(session.longestRideSeconds)
+        XCTAssertNil(session.longestRideMeters)
+        XCTAssertNil(session.paddleDistanceMeters)
+        XCTAssertTrue(session.hasWaveStats, "a zero-wave session still has wave stats")
+    }
+
+    /// The rule the whole feature rests on: once a human has vouched for the
+    /// numbers, a re-import must not touch them.
+    func testApplyDerivedWaveStatsRefusesToOverwriteEditedOrManualStats() {
+        for source in [WaveStatsSource.edited, .manual] {
+            let session = TestFixture.session()
+            session.waveCount = 4
+            session.waveStats = source
+
+            let stats = WaveStats(
+                waveCount: 11, topSpeedKph: 30, longestRideSeconds: 20,
+                longestRideMeters: 100, paddleDistanceMeters: 900,
+                totalDistanceMeters: 1_400, waves: []
+            )
+            XCTAssertFalse(
+                session.applyDerivedWaveStats(stats, workoutID: "workout-2"),
+                "\(source.rawValue) stats were overwritten"
+            )
+            XCTAssertEqual(session.waveCount, 4)
+            XCTAssertEqual(session.waveStats, source)
+        }
+    }
+
+    /// `force` exists for a deliberate user-initiated re-derive.
+    func testApplyDerivedWaveStatsCanBeForcedOverEditedStats() {
+        let session = TestFixture.session()
+        session.waveCount = 4
+        session.waveStats = .edited
+
+        let stats = WaveStats(
+            waveCount: 11, topSpeedKph: 30, longestRideSeconds: 20,
+            longestRideMeters: 100, paddleDistanceMeters: 900,
+            totalDistanceMeters: 1_400, waves: []
+        )
+        XCTAssertTrue(session.applyDerivedWaveStats(stats, workoutID: nil, force: true))
+        XCTAssertEqual(session.waveCount, 11)
+        XCTAssertEqual(session.waveStats, .auto)
+    }
+
+    /// Correcting a derived number makes it `edited`; typing one in from scratch
+    /// with no workout behind it makes it `manual`.
+    func testMarkWaveStatsEditedChoosesEditedOrManualByProvenance() {
+        let derived = TestFixture.session()
+        derived.waveStats = .auto
+        derived.linkedWorkoutID = "workout-3"
+        derived.markWaveStatsEdited()
+        XCTAssertEqual(derived.waveStats, .edited)
+
+        let fromScratch = TestFixture.session()
+        fromScratch.markWaveStatsEdited()
+        XCTAssertEqual(fromScratch.waveStats, .manual)
+
+        // A session linked to a workout but with no derived stats yet still reads
+        // as a correction of the route, not a from-scratch entry.
+        let linkedButEmpty = TestFixture.session()
+        linkedButEmpty.linkedWorkoutID = "workout-4"
+        linkedButEmpty.markWaveStatsEdited()
+        XCTAssertEqual(linkedButEmpty.waveStats, .edited)
+
+        // Editing stays sticky.
+        derived.markWaveStatsEdited()
+        XCTAssertEqual(derived.waveStats, .edited)
+        fromScratch.markWaveStatsEdited()
+        XCTAssertEqual(fromScratch.waveStats, .manual)
+    }
+
+    func testClearWaveStatsRemovesEverything() {
+        let session = TestFixture.session()
+        session.applyDerivedWaveStats(
+            WaveStats(
+                waveCount: 6, topSpeedKph: 22, longestRideSeconds: 12,
+                longestRideMeters: 60, paddleDistanceMeters: 800,
+                totalDistanceMeters: 1_000, waves: []
+            ),
+            workoutID: "workout-5"
+        )
+        session.clearWaveStats()
+
+        XCTAssertFalse(session.hasWaveStats)
+        XCTAssertNil(session.waveStatsSource)
+        XCTAssertNil(session.waveStats)
+        XCTAssertNil(session.linkedWorkoutID)
+    }
+
+    /// A raw value from a future build must read as nil, not crash or corrupt.
+    func testUnknownWaveStatsSourceReadsAsNil() {
+        let session = TestFixture.session()
+        session.waveStatsSource = "quantum-telemetry"
+        XCTAssertNil(session.waveStats)
+    }
+
+    /// Wave stats are independent of the 2.8 conditions block; neither may leak
+    /// into the other's "do I have anything to show" check.
+    func testWaveStatsAndSurfConditionsAreIndependent() {
+        let session = TestFixture.session()
+        session.waveCount = 3
+        XCTAssertTrue(session.hasWaveStats)
+        XCTAssertFalse(session.hasSurfConditions)
+
+        let other = TestFixture.session()
+        other.seaLevelHeightM = 0.4
+        XCTAssertTrue(other.hasSurfConditions)
+        XCTAssertFalse(other.hasWaveStats)
+    }
 }

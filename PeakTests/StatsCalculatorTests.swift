@@ -402,3 +402,299 @@ final class MonthlyGoalCalculatorTests: XCTestCase {
         XCTAssertEqual(progress.fraction, 0)
     }
 }
+
+// MARK: - Wave stats (3.0)
+
+/// `WaveStatsCalculator` has to be correct in the presence of a logbook where
+/// most sessions carry no wave data at all — the common case for a user who
+/// logs by hand and only sometimes wears a watch.
+final class WaveStatsCalculatorTests: XCTestCase {
+
+    private func session(
+        day: Int,
+        spot: String = "Trestles",
+        waves: Int? = nil,
+        topSpeedKph: Double? = nil,
+        longestRideSeconds: Double? = nil,
+        source: WaveStatsSource? = nil,
+        month: Int = 3
+    ) -> SurfSession {
+        let session = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: month, day: day, hour: 7),
+            spot: TestFixture.spot(name: spot)
+        )
+        session.waveCount = waves
+        session.topSpeedKph = topSpeedKph
+        session.longestRideSeconds = longestRideSeconds
+        session.waveStats = source
+        return session
+    }
+
+    // MARK: Records
+
+    /// The headline guarantee: a logbook with no wave data anywhere produces no
+    /// records at all, so the Stats card can suppress itself entirely rather than
+    /// showing three dashes.
+    func testNoWaveStatsProducesNoRecords() {
+        let records = WaveStatsCalculator.records(sessions: [
+            session(day: 1), session(day: 2), session(day: 3)
+        ])
+        XCTAssertTrue(records.isEmpty)
+        XCTAssertNil(records.mostWaves)
+        XCTAssertNil(records.fastestWave)
+        XCTAssertNil(records.longestRide)
+    }
+
+    func testEmptyLogbookProducesNoRecords() {
+        XCTAssertTrue(WaveStatsCalculator.records(sessions: []).isEmpty)
+    }
+
+    func testRecordsPickTheBestSessionPerStatistic() {
+        let sessions = [
+            session(day: 1, spot: "Malibu", waves: 4, topSpeedKph: 30.0, longestRideSeconds: 8),
+            session(day: 2, spot: "Trestles", waves: 14, topSpeedKph: 21.0, longestRideSeconds: 11),
+            session(day: 3, spot: "Pipeline", waves: 7, topSpeedKph: 25.0, longestRideSeconds: 26)
+        ]
+        let records = WaveStatsCalculator.records(sessions: sessions)
+
+        XCTAssertEqual(records.mostWaves?.spotName, "Trestles")
+        XCTAssertEqual(records.fastestWave?.spotName, "Malibu")
+        XCTAssertEqual(records.longestRide?.spotName, "Pipeline")
+        XCTAssertFalse(records.isEmpty)
+    }
+
+    /// Each statistic is resolved independently: a logbook where only top speed
+    /// was ever recorded gets exactly one record, not three.
+    func testRecordsAreResolvedIndependently() {
+        let records = WaveStatsCalculator.records(sessions: [
+            session(day: 1, topSpeedKph: 24.0),
+            session(day: 2)
+        ])
+        XCTAssertNil(records.mostWaves)
+        XCTAssertNotNil(records.fastestWave)
+        XCTAssertNil(records.longestRide)
+        XCTAssertFalse(records.isEmpty)
+    }
+
+    /// Zero is stored for a skunked session but is not a personal record — "your
+    /// best day: 0 waves" is a bug, not a stat.
+    func testZeroWaveSessionsDoNotSetRecords() {
+        let records = WaveStatsCalculator.records(sessions: [
+            session(day: 1, waves: 0), session(day: 2, waves: 0)
+        ])
+        XCTAssertNil(records.mostWaves)
+    }
+
+    /// Ties resolve to the more recent session, so the record keeps moving as the
+    /// user keeps surfing.
+    func testTiedRecordsPreferTheMoreRecentSession() {
+        let records = WaveStatsCalculator.records(sessions: [
+            session(day: 1, spot: "Old Break", waves: 9),
+            session(day: 20, spot: "New Break", waves: 9)
+        ])
+        XCTAssertEqual(records.mostWaves?.spotName, "New Break")
+    }
+
+    /// A record built on an unreviewed estimate is flagged, so the card can say
+    /// so rather than presenting a guess as an achievement.
+    func testRecordCarriesEstimateFlagFromItsSession() {
+        let auto = WaveStatsCalculator.records(sessions: [
+            session(day: 1, waves: 9, source: .auto)
+        ])
+        XCTAssertEqual(auto.mostWaves?.isEstimate, true)
+
+        for source in [WaveStatsSource.edited, .manual] {
+            let records = WaveStatsCalculator.records(sessions: [
+                session(day: 1, waves: 9, source: source)
+            ])
+            XCTAssertEqual(records.mostWaves?.isEstimate, false, "\(source.rawValue) flagged as estimate")
+        }
+    }
+
+    func testRecordIdentityIsStableAcrossRecomputes() {
+        let sessions = [session(day: 1, waves: 9)]
+        XCTAssertEqual(
+            WaveStatsCalculator.records(sessions: sessions).mostWaves?.id,
+            WaveStatsCalculator.records(sessions: sessions).mostWaves?.id
+        )
+    }
+
+    // MARK: Waves-per-session trend
+
+    func testWavesPerSessionAveragesWithinEachMonth() {
+        let trend = WaveStatsCalculator.wavesPerSession(
+            sessions: [
+                session(day: 2, waves: 4, month: 3),
+                session(day: 20, waves: 8, month: 3),
+                session(day: 5, waves: 10, month: 4)
+            ],
+            calendar: TestCalendar.gmt
+        )
+
+        XCTAssertEqual(trend.count, 2)
+        XCTAssertEqual(trend[0].averageWaves, 6, accuracy: 0.0001)
+        XCTAssertEqual(trend[0].sessionCount, 2)
+        XCTAssertEqual(trend[1].averageWaves, 10, accuracy: 0.0001)
+        XCTAssertEqual(trend[1].sessionCount, 1)
+    }
+
+    func testWavesPerSessionIsOldestFirst() {
+        let trend = WaveStatsCalculator.wavesPerSession(
+            sessions: [
+                session(day: 1, waves: 5, month: 6),
+                session(day: 1, waves: 5, month: 2),
+                session(day: 1, waves: 5, month: 4)
+            ],
+            calendar: TestCalendar.gmt
+        )
+        XCTAssertEqual(trend.count, 3)
+        for (previous, next) in zip(trend, trend.dropFirst()) {
+            XCTAssertLessThan(previous.month, next.month)
+        }
+    }
+
+    /// Months where nobody recorded a wave count are absent, not zero: plotting a
+    /// flat zero line across a year before the user owned a watch would read as
+    /// "you caught nothing", which is false rather than merely unknown.
+    func testMonthsWithoutWaveCountsAreOmittedRatherThanZeroed() {
+        let trend = WaveStatsCalculator.wavesPerSession(
+            sessions: [
+                session(day: 1, month: 1),
+                session(day: 1, month: 2),
+                session(day: 1, waves: 6, month: 3)
+            ],
+            calendar: TestCalendar.gmt
+        )
+        XCTAssertEqual(trend.count, 1)
+        XCTAssertEqual(trend[0].averageWaves, 6, accuracy: 0.0001)
+    }
+
+    /// A skunked month IS data and must appear at zero — distinct from a month
+    /// with no data at all, which must not.
+    func testSkunkedMonthAppearsAtZero() {
+        let trend = WaveStatsCalculator.wavesPerSession(
+            sessions: [session(day: 1, waves: 0, month: 3)],
+            calendar: TestCalendar.gmt
+        )
+        XCTAssertEqual(trend.count, 1)
+        XCTAssertEqual(trend[0].averageWaves, 0, accuracy: 0.0001)
+        XCTAssertEqual(trend[0].sessionCount, 1)
+    }
+
+    func testEmptySessionsProduceEmptyTrend() {
+        XCTAssertTrue(WaveStatsCalculator.wavesPerSession(sessions: [], calendar: TestCalendar.gmt).isEmpty)
+    }
+
+    // MARK: Totals
+
+    func testTotalWavesSumsOnlySessionsThatHaveThem() {
+        let total = WaveStatsCalculator.totalWaves(sessions: [
+            session(day: 1, waves: 4),
+            session(day: 2),
+            session(day: 3, waves: 7),
+            session(day: 4, waves: 0)
+        ])
+        XCTAssertEqual(total, 11)
+    }
+
+    func testSessionsWithWaveStatsCountsAnyStatistic() {
+        XCTAssertEqual(
+            WaveStatsCalculator.sessionsWithWaveStats([
+                session(day: 1, waves: 4),
+                session(day: 2),
+                session(day: 3, topSpeedKph: 20),
+                session(day: 4, longestRideSeconds: 12)
+            ]),
+            3
+        )
+    }
+}
+
+// MARK: - Wave stats formatting
+
+final class WaveStatsFormatterTests: XCTestCase {
+    // NOTE: en_GB is deliberately NOT used as the metric locale. Foundation
+    // reports its measurement system as `.uk`, not `.metric`, so it takes the
+    // same feet branch as the US — which matches how British surfers actually
+    // talk about wave height, and matches `SurfConditionsFormatter`.
+    private let metric = Locale(identifier: "fr_FR")
+    private let imperial = Locale(identifier: "en_US")
+
+    func testWaveCountPluralizes() {
+        XCTAssertEqual(WaveStatsFormatter.waveCount(0), "0 waves")
+        XCTAssertEqual(WaveStatsFormatter.waveCount(1), "1 wave")
+        XCTAssertEqual(WaveStatsFormatter.waveCount(12), "12 waves")
+    }
+
+    func testRideDurationFormatsSecondsAndMinutes() {
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(0), "0s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(9), "9s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(59), "59s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(64), "1m 04s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(120), "2m 00s")
+    }
+
+    /// A NaN must never reach a label. The analyzer promises finite output, but
+    /// stored values come back through SwiftData and the editor too.
+    func testRideDurationRejectsNonFiniteInput() {
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(.nan), "0s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(.infinity), "0s")
+        XCTAssertEqual(WaveStatsFormatter.rideDuration(-5), "0s")
+        XCTAssertEqual(WaveStatsFormatter.spokenRideDuration(.nan), "0 seconds")
+    }
+
+    func testSpokenRideDurationIsPronounceable() {
+        XCTAssertEqual(WaveStatsFormatter.spokenRideDuration(1), "1 second")
+        XCTAssertEqual(WaveStatsFormatter.spokenRideDuration(18), "18 seconds")
+        XCTAssertEqual(WaveStatsFormatter.spokenRideDuration(64), "1 minute 4 seconds")
+        XCTAssertEqual(WaveStatsFormatter.spokenRideDuration(120), "2 minutes")
+    }
+
+    /// Values are stored metric and converted at the display boundary, so a US
+    /// surfer must not be shown metres.
+    func testDistanceConvertsForImperialLocales() {
+        let metres = WaveStatsFormatter.distance(100, locale: metric)
+        XCTAssertTrue(metres.contains("100"), "expected 100 m, got \(metres)")
+        let feet = WaveStatsFormatter.distance(100, locale: imperial)
+        XCTAssertTrue(feet.contains("328") || feet.contains("329"), "expected ~328 ft, got \(feet)")
+    }
+
+    /// Foundation classifies the UK as `.uk` rather than `.metric`, so it takes
+    /// the imperial branch. Pinned because it looks like a bug at a glance and is
+    /// in fact the same behaviour the 2.8 conditions formatter already ships.
+    func testUnitedKingdomUsesFeetLikeTheConditionsFormatter() {
+        let uk = Locale(identifier: "en_GB")
+        XCTAssertNotEqual(uk.measurementSystem, .metric)
+        let value = WaveStatsFormatter.distance(100, locale: uk)
+        XCTAssertTrue(value.contains("328") || value.contains("329"), "expected feet, got \(value)")
+    }
+
+    func testSummaryOmitsMissingParts() {
+        XCTAssertNil(WaveStatsFormatter.summary(waveCount: nil, topSpeedKph: nil, longestRideSeconds: nil))
+        XCTAssertEqual(
+            WaveStatsFormatter.summary(waveCount: 5, topSpeedKph: nil, longestRideSeconds: nil, locale: metric),
+            "5 waves"
+        )
+        // A stored zero for speed or ride length means "no ride", not "0 km/h".
+        XCTAssertEqual(
+            WaveStatsFormatter.summary(waveCount: 0, topSpeedKph: 0, longestRideSeconds: 0, locale: metric),
+            "0 waves"
+        )
+        XCTAssertTrue(
+            WaveStatsFormatter.summary(waveCount: 5, topSpeedKph: 24, longestRideSeconds: 18, locale: metric)?
+                .contains("longest 18s") ?? false
+        )
+    }
+
+    /// The estimate microcopy is a product requirement, not decoration: it must
+    /// name the source and offer the correction.
+    func testEstimateCaptionStatesUncertaintyAndTheFix() {
+        let caption = WaveStatsFormatter.estimateCaption
+        XCTAssertTrue(caption.localizedCaseInsensitiveContains("estimat"))
+        XCTAssertTrue(caption.localizedCaseInsensitiveContains("correct"))
+        XCTAssertEqual(WaveStatsSource.auto.caption, caption)
+        XCTAssertTrue(WaveStatsSource.auto.isEstimate)
+        XCTAssertFalse(WaveStatsSource.edited.isEstimate)
+        XCTAssertFalse(WaveStatsSource.manual.isEstimate)
+    }
+}
