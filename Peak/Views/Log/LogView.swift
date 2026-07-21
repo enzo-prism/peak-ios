@@ -4,6 +4,10 @@ import SwiftData
 struct LogView: View {
     @Query(SurfSession.sortedByDateDescending(limit: 3, prefetch: [\.spot, \.gear, \.buddies, \.media]))
     private var sessions: [SurfSession]
+    /// The memory layer needs the whole history — an anniversary lives years
+    /// back, well outside the three-session recents window above.
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.media]))
+    private var allSessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var showNewSession = false
@@ -11,6 +15,8 @@ struct LogView: View {
     /// Mirrors the App-Group record so the hero can swap between "start" and a
     /// live timer. Re-read on appear and whenever the surfer starts/ends.
     @State private var activeSession: ActiveSessionState?
+    @State private var cachedMemory: OnThisDayMemory?
+    @State private var cachedRecapYear: Int?
 
     var body: some View {
         NavigationStack {
@@ -20,6 +26,26 @@ struct LogView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         heroCard
+
+                        if let cachedMemory {
+                            NavigationLink {
+                                SessionDetailView(session: cachedMemory.session)
+                            } label: {
+                                OnThisDayCard(memory: cachedMemory)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .padding(.horizontal)
+                        }
+
+                        if let cachedRecapYear {
+                            NavigationLink {
+                                YearInReviewView(initialYear: cachedRecapYear)
+                            } label: {
+                                YearInReviewPromptCard(year: cachedRecapYear)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .padding(.horizontal)
+                        }
 
                         if sessions.isEmpty {
                             EmptyStateView(
@@ -77,6 +103,27 @@ struct LogView: View {
         .onAppear {
             showContent = true
             activeSession = ActiveSessionStore.loadActive()
+            refreshMemories()
+        }
+        .onChange(of: allSessions) { _, _ in
+            refreshMemories()
+        }
+    }
+
+    /// December only: the recap is a year-end ritual, and a "your 2026 in
+    /// review" card in March would be reviewing a year that isn't over.
+    private func refreshMemories() {
+        cachedMemory = OnThisDayProvider.memories(sessions: allSessions, limit: 1).first
+
+        let now = Date()
+        let calendar = Calendar.current
+        if calendar.component(.month, from: now) == 12 {
+            let year = calendar.component(.year, from: now)
+            cachedRecapYear = YearInReviewCalculator.availableYears(sessions: allSessions).contains(year)
+                ? year
+                : nil
+        } else {
+            cachedRecapYear = nil
         }
     }
 

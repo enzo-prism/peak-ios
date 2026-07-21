@@ -22,6 +22,17 @@ struct MoreView: View {
                             .buttonStyle(PressFeedbackButtonStyle())
 
                             NavigationLink {
+                                YearInReviewView()
+                            } label: {
+                                Label("Year in Review", systemImage: "sparkles")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+                                    .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+
+                            NavigationLink {
                                 SpotLibraryView()
                             } label: {
                                 Label("Spots", systemImage: "mappin.and.ellipse")
