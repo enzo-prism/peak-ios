@@ -35,6 +35,18 @@ enum ConditionsBackfill {
     /// conclude their history is unrecoverable.
     static let consecutiveFailureLimit = 3
 
+    /// UTC, matching `SurfConditionsService.validateRange`.
+    ///
+    /// The archive horizon is the provider's, and the provider counts days in
+    /// UTC. Measuring eligibility in the surfer's local calendar would let a
+    /// session on the boundary pass here and fail there, which reads as a random
+    /// failure rather than as an old session.
+    static let horizonCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        return calendar
+    }()
+
     /// Whether this session can be filled in, and is worth trying.
     ///
     /// The `hasSurfConditions` check is the load-bearing one: it is what
@@ -47,7 +59,7 @@ enum ConditionsBackfill {
         _ session: SurfSession,
         at spot: Spot,
         now: Date = Date(),
-        calendar: Calendar = SurfConditionsService.utcCalendar
+        calendar: Calendar = horizonCalendar
     ) -> Bool {
         guard session.spot?.persistentModelID == spot.persistentModelID else { return false }
         guard !session.hasSurfConditions else { return false }
@@ -67,7 +79,7 @@ enum ConditionsBackfill {
         from sessions: [SurfSession],
         at spot: Spot,
         now: Date = Date(),
-        calendar: Calendar = SurfConditionsService.utcCalendar
+        calendar: Calendar = horizonCalendar
     ) -> [SurfSession] {
         sessions
             .filter { isEligible($0, at: spot, now: now, calendar: calendar) }

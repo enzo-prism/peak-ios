@@ -22,11 +22,20 @@ enum PreviewData {
             latitude: 33.3842,
             longitude: -117.592
         )
+        // Two of the seeded spots are deliberately left with no coordinates.
+        // That is the realistic shape of a spot created by CSV/JSON import or
+        // typed by name (`ModelContext.upsertSpot(named:)` never sets one), and
+        // it is what the Best Window card's "add a location" state exists for.
+        // Neither name is an exact hit in the bundled break catalog, so the
+        // automatic resolution cannot quietly repair them and the state stays
+        // reachable.
         let oceanBeach = Spot(name: "Ocean Beach")
         let mexPoint = Spot(name: "Point Break")
         let longSpot = Spot(
             name: "San Onofre State Beach - Old Man's",
-            locationName: "San Clemente, California, United States"
+            locationName: "San Clemente, California, United States",
+            latitude: 33.3806,
+            longitude: -117.5656
         )
 
         let board = Gear(name: "6'2\" Fish", kind: .board)
@@ -133,6 +142,20 @@ enum PreviewData {
         if TestingDefaults.windowScenario?.lowercased() == "confident" {
             for session in windowHistory(at: trestles, baseDate: baseDate) {
                 context.insert(session)
+            }
+        }
+
+        // A real logbook at a break the app cannot place, which is what an
+        // imported or typed-by-name spot looks like. Enough sessions that it
+        // outranks the located spots and the card opens straight into the
+        // "add a location" state.
+        if TestingDefaults.windowScenario?.lowercased() == "unlocated" {
+            for index in 0..<12 {
+                context.insert(SurfSession(
+                    date: Calendar.current.date(byAdding: .day, value: -(index + 1), to: baseDate) ?? baseDate,
+                    spot: oceanBeach,
+                    rating: index % 5
+                ))
             }
         }
     }

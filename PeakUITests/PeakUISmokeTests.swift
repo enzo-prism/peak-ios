@@ -440,13 +440,88 @@ final class PeakWindowCardUITests: XCTestCase {
         let lowConfidence = app.staticTexts["window.card.lowConfidence"]
         XCTAssertTrue(lowConfidence.waitForExistence(timeout: 10),
                       "a thin logbook did not produce the low-confidence state")
-        XCTAssertTrue(lowConfidence.label.contains("log a few more") || lowConfidence.label.contains("Log a few more"),
-                      "unexpected low-confidence copy: \(lowConfidence.label)")
+        // The copy has to describe what is actually missing. It used to say "log a
+        // few more rated sessions", which was false: plain sessions were discarded
+        // outright, so following it changed nothing.
+        let copy = lowConfidence.label.lowercased()
+        XCTAssertTrue(copy.contains("conditions"),
+                      "low-confidence copy does not mention the thing that is missing: \(lowConfidence.label)")
+        XCTAssertFalse(copy.contains("log a few more"),
+                       "still telling the surfer to do the thing that does not help")
 
         XCTAssertFalse(app.staticTexts["window.card.time"].exists,
                        "invented a window from a logbook too thin to support one")
         XCTAssertFalse(matchElement.exists,
                        "cited a past session while claiming there was not enough history")
+    }
+
+    /// A card that cannot recommend anything is still allowed to be useful. The
+    /// forecast is true even when the surfer's history cannot interpret it, so the
+    /// day's real conditions are shown — clearly labelled as conditions, never as
+    /// a recommendation.
+    func testLowConfidenceStateStillShowsTheRealConditions() {
+        launch(windowScenario: "thin")
+
+        XCTAssertTrue(checkButton.waitForExistence(timeout: 5))
+        checkButton.tap()
+
+        let conditions = app.staticTexts["window.card.conditions"]
+        XCTAssertTrue(conditions.waitForExistence(timeout: 10),
+                      "the low-confidence card showed no conditions at all")
+        XCTAssertFalse(conditions.label.isEmpty, "conditions row was empty")
+        // Labelled honestly: this is a report, not advice.
+        XCTAssertTrue(app.staticTexts["Forecast conditions, not a recommendation."].exists,
+                      "conditions were shown without saying they are not a recommendation")
+        XCTAssertFalse(app.staticTexts["window.card.time"].exists,
+                       "a window appeared alongside the low-confidence state")
+    }
+
+    /// A spot with no coordinates cannot be forecast, but that is a fixable
+    /// problem. The card used to render literally nothing for these — no card, no
+    /// explanation — which is how the whole feature stayed invisible for anyone
+    /// whose home break came from an import.
+    func testUnlocatedSpotExplainsItselfAndOffersToFixIt() {
+        launch(windowScenario: "unlocated")
+
+        let explanation = app.staticTexts["window.card.needsLocation"]
+        XCTAssertTrue(explanation.waitForExistence(timeout: 5),
+                      "the card rendered nothing for a spot with no coordinates")
+        XCTAssertTrue(explanation.label.contains("Ocean Beach"),
+                      "the explanation did not name the spot: \(explanation.label)")
+
+        // And the fix is one tap away, not buried in another tab.
+        let addLocation = app.buttons["Add location"]
+        XCTAssertTrue(addLocation.waitForExistence(timeout: 3), "no way to add the missing location")
+        addLocation.tap()
+        XCTAssertTrue(app.textFields["spot.editor.name"].waitForExistence(timeout: 5),
+                      "Add location did not open the spot editor")
+    }
+
+    /// The action that actually bootstraps personalisation. Explicit tap only, and
+    /// the summary has to be honest about how many sessions it managed.
+    func testFillingInPastConditionsReportsWhatItManaged() {
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        // Deliberately no fixed seed date: eligibility is measured against the
+        // provider's ~92-day archive horizon and the real clock, so the seeded
+        // sessions have to be genuinely recent to be fillable.
+        app.launchEnvironment["UITESTS_SURF_CONDITIONS_SCENARIO"] = "success"
+        app.launch()
+        tapLogTab()
+
+        let fill = app.buttons["Fill in past conditions"]
+        XCTAssertTrue(fill.waitForExistence(timeout: 5),
+                      "no way to fill in conditions for sessions logged without them")
+        fill.tap()
+
+        let summary = app.staticTexts["window.card.backfillSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 30), "the backfill never reported a result")
+        XCTAssertTrue(summary.label.contains("Filled in"),
+                      "backfill did not fill anything in: \(summary.label)")
+        // Having filled everything it could, the offer goes away rather than
+        // inviting a pointless second run.
+        XCTAssertFalse(fill.exists, "still offering to fill in conditions with nothing left to fill")
     }
 
     func testForecastFailureIsReportedWithoutClaimingAWindow() {

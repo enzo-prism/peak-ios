@@ -443,18 +443,22 @@ struct BestWindowTodayCard: View {
                 // the resulting value comes back here.
                 let outlook = try await TodayWindowService.outlook(
                     history: history,
+                    spotID: requestedSpotID,
                     latitude: latitude,
                     longitude: longitude
                 )
+                // The result carries the spot it was computed for, so staleness is
+                // a property of the answer rather than of whatever the view
+                // happened to remember.
+                guard TodayWindowService.accepts(outlook, for: selectedSpot) else { return }
                 result = .loaded(outlook)
             } catch {
                 result = .failed(errorMessage(for: error))
             }
 
-            // Every result is tagged with the spot it was asked for. One that no
-            // longer matches is dropped rather than rendered under another break's
-            // name — and dropped *before* clearing `refreshTask`, which by now may
-            // belong to a newer fetch.
+            // A failure is stale in exactly the same way a success is. Dropped
+            // *before* clearing `refreshTask`, which by now may belong to a newer
+            // fetch.
             guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
             refreshTask = nil
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {

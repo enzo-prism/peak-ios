@@ -150,11 +150,21 @@ enum TodayWindowService {
         /// Measured from the top of the current hour because that is where the
         /// provider's series starts, and clamped to the service's own cap.
         func hoursToRequest(from now: Date) -> Int {
-            let first = SurfConditionsService.floorToHour(now)
-            let span = until.timeIntervalSince(first) / 3600
+            let span = until.timeIntervalSince(TodayWindowService.floorToHour(now)) / 3600
             guard span.isFinite else { return maxForecastHours }
             return max(1, min(maxForecastHours, Int(span.rounded(.up))))
         }
+    }
+
+    /// Top of the hour containing `date`.
+    ///
+    /// Mirrors `SurfConditionsService`'s own hour flooring, which is where the
+    /// provider's series starts, so the hour count asked for really does reach
+    /// the end of the planned day. Duplicated rather than shared because the
+    /// service's copy is fileprivate and this is two lines of arithmetic.
+    static func floorToHour(_ date: Date) -> Date {
+        Date(timeIntervalSinceReferenceDate:
+                (date.timeIntervalSinceReferenceDate / 3600).rounded(.down) * 3600)
     }
 
     /// Picks the day to answer for. See `minRemainingHoursToday`.
@@ -292,10 +302,29 @@ enum TodayWindowService {
     /// `conditions` is present whenever the provider returned anything at all, so
     /// the card has something true to show either way.
     struct Outlook: Sendable, Hashable {
+        /// The spot this answer was computed for.
+        ///
+        /// Carried on the value itself, not tracked beside it in view state, so
+        /// that a result which arrives after the surfer has switched spots can be
+        /// recognised as stale by looking at the result. Switching spots used to
+        /// leave the in-flight fetch running and its answer was rendered — cited
+        /// session and all — under whichever break happened to be selected when it
+        /// landed.
+        var spotID: PersistentIdentifier?
         var recommendation: Recommendation?
         var conditions: Conditions?
         /// The day that was scored: 0 = today, 1 = tomorrow.
         var dayOffset: Int
+    }
+
+    /// Whether an outlook may be shown for `spot`.
+    ///
+    /// The whole race fix, in one place so it can be tested rather than only
+    /// inspected: an answer is displayable only against the spot it was asked
+    /// about, and never when nothing is selected.
+    static func accepts(_ outlook: Outlook, for spot: Spot?) -> Bool {
+        guard let spot, let spotID = outlook.spotID else { return false }
+        return spotID == spot.persistentModelID
     }
 
     /// Fetches and ranks the remainder of the planned day.
@@ -308,6 +337,7 @@ enum TodayWindowService {
     /// former still carries the day's conditions.
     static func outlook(
         history: [RatedSession],
+        spotID: PersistentIdentifier?,
         latitude: Double,
         longitude: Double,
         now: Date = Date(),
@@ -333,6 +363,7 @@ enum TodayWindowService {
         let conditions = (hours.first ?? forecast.first).map(Conditions.init(hour:))
 
         return Outlook(
+            spotID: spotID,
             recommendation: windows.first.map { Recommendation(window: $0, dayOffset: plan.dayOffset) },
             conditions: conditions.flatMap { $0.hasAnyReading ? $0 : nil },
             dayOffset: plan.dayOffset
