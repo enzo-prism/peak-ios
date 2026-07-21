@@ -135,6 +135,32 @@ final class PeakUILayoutTests: XCTestCase {
         attachScreenshot(name: "Quiver")
     }
 
+    /// The board report renders inside gear detail, and with the seeded library
+    /// no conditions bucket clears the three-session floor — so the card must
+    /// show the honest "not enough data yet" state rather than an average built
+    /// from one session.
+    func testQuiverBoardReportRenders() {
+        tapTab(named: "Quiver")
+
+        let boardRow = app.buttons.matching(identifier: "quiver.row")
+            .containing(NSPredicate(format: "label CONTAINS[c] %@", "Fish"))
+            .firstMatch
+        assertExists(boardRow)
+        tapElement(boardRow)
+
+        let scrollView = app.scrollViews.firstMatch
+        let reportTitle = app.staticTexts["Board Report"]
+        scrollToVisible(reportTitle, in: scrollView)
+        assertExists(reportTitle)
+        assertFits(reportTitle)
+
+        let honestEmptyState = app.staticTexts["Not enough data yet"].firstMatch
+        assertExists(honestEmptyState)
+        assertFits(honestEmptyState)
+
+        attachScreenshot(name: "Board Report")
+    }
+
     func testQuiverRowHitAreaFullWidth() {
         tapTab(named: "Quiver")
 

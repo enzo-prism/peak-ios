@@ -87,7 +87,6 @@ struct YearInReviewView: View {
             }
         }
         .pickerStyle(.segmented)
-        .accessibilityIdentifier("recap.yearPicker")
     }
 
     private func headlineCard(_ review: YearInReview) -> some View {
@@ -99,7 +98,6 @@ struct YearInReviewView: View {
                 .font(.title2.weight(.bold))
                 .foregroundStyle(Theme.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("recap.headline")
             if let spot = review.topSpot {
                 Text("Most days at \(spot.name) (\(spot.count))")
                     .font(.subheadline)

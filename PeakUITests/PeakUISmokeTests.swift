@@ -451,3 +451,85 @@ final class MarketingScreenshotCapture: XCTestCase {
         add(attachment)
     }
 }
+
+/// First-run welcome. Every other UI test launches with the welcome suppressed
+/// (that is what keeps the pre-2.9 baselines valid), so this suite forces it on
+/// with `UITESTS_SHOW_WELCOME` and also proves the suppression still holds.
+final class PeakWelcomeUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
+    }
+
+    override func tearDown() {
+        app = nil
+        super.tearDown()
+    }
+
+    func testWelcomeWalkthroughEndsInTheEditor() {
+        app.launchEnvironment["UITESTS_SHOW_WELCOME"] = "1"
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Your surf logbook"].waitForExistence(timeout: 10),
+            "Expected the first welcome screen"
+        )
+
+        let firstNext = app.buttons["welcome.next"]
+        XCTAssertTrue(firstNext.waitForExistence(timeout: 3))
+        firstNext.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Stays on your phone"].waitForExistence(timeout: 3),
+            "Expected the privacy promise screen"
+        )
+
+        let secondNext = app.buttons["welcome.next"]
+        XCTAssertTrue(secondNext.waitForExistence(timeout: 3))
+        secondNext.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Log your first session"].waitForExistence(timeout: 3),
+            "Expected the CTA screen"
+        )
+
+        let cta = app.buttons["welcome.cta"]
+        XCTAssertTrue(cta.waitForExistence(timeout: 3))
+        cta.tap()
+
+        // The CTA dismisses the welcome and opens the new-session editor.
+        XCTAssertTrue(
+            app.textFields["session.editor.spot"].waitForExistence(timeout: 10),
+            "Expected the session editor to open from the welcome CTA"
+        )
+    }
+
+    func testWelcomeSkipReturnsToTheLogTab() {
+        app.launchEnvironment["UITESTS_SHOW_WELCOME"] = "1"
+        app.launch()
+
+        let skip = app.buttons["welcome.skip"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 10))
+        skip.tap()
+
+        XCTAssertTrue(app.buttons["log.hero.cta"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["welcome.cta"].exists)
+    }
+
+    func testWelcomeIsSuppressedOnAPlainUITestLaunch() {
+        app.launch()
+
+        XCTAssertTrue(
+            app.buttons["log.hero.cta"].waitForExistence(timeout: 10),
+            "A plain UI-test launch must land on the Log tab, not the welcome"
+        )
+        XCTAssertFalse(app.buttons["welcome.next"].exists)
+        XCTAssertFalse(app.buttons["welcome.cta"].exists)
+    }
+}

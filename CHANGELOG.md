@@ -10,6 +10,68 @@ Status at a glance:
 - **App Store (live):** `2.0`
 - **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
 
+## [Unreleased] — 2.9 "Quiver Analytics · Memory Layer · First-Run"
+
+Peak starts using the data it already has: what each board actually does for
+you, what you were surfing a year ago today, and where your month stands. Plus
+the thing cold start was missing — an explanation of what Peak is. No schema
+change, no network, no accounts.
+
+### Added
+
+- **Board Report.** Per-board rating averages bucketed by wave height and by
+  swell period (short under 10 s / mid 10–13 s / long 13 s+), with a
+  plain-language headline: "6'2" Fish averages 4.2★ in short-period waist-high".
+  A bucket with fewer than three rated sessions shows "not enough data yet"
+  instead of a number — one good session is not a pattern. Surfaces as a card on
+  Stats (boards only) and a full breakdown in gear detail.
+  (`Peak/Supporting/GearInsightsCalculator.swift`,
+  `Peak/Views/Stats/GearInsightsCard.swift`,
+  `Peak/Views/Components/BoardReportCard.swift`)
+- **On this day.** A card on the Log tab resurfacing a session from a previous
+  year within ±3 days of today — photo, spot, rating — that taps through to the
+  session. The window walks backwards a year at a time, so New Year's week and
+  Feb 29 behave. (`Peak/Supporting/OnThisDayProvider.swift`,
+  `Peak/Views/Log/OnThisDayCard.swift`)
+- **Year in Review.** On-demand from More (and from a Log-tab card during
+  December): sessions, surf days, hours in water, top spot, best month, longest
+  week streak, wave-height distribution, and a highlights grid. Exports as a
+  branded image via `RecapShareCard`, using the same off-main decode +
+  `ImageRenderer` pipeline as the session share card. Renders sensibly on a
+  one-session library. (`Peak/Supporting/YearInReviewCalculator.swift`,
+  `Peak/Views/More/YearInReviewView.swift`, `Peak/Views/More/RecapShareCard.swift`)
+- **Flexible monthly goals.** A monthly target in sessions *or* hours with a
+  progress ring on Stats, above the consistency heatmap. Goals get top billing
+  and streaks stay secondary on purpose: surfing is condition-gated, and a rigid
+  streak turns a flat week into a failure you couldn't have prevented. Set the
+  metric and target in Settings; zero hides the ring. Stored in `@AppStorage`.
+  (`Peak/Supporting/MonthlyGoalCalculator.swift`,
+  `Peak/Views/Stats/MonthlyGoalCard.swift`)
+- **First-run welcome.** Three screens behind `@AppStorage("hasSeenWelcome")` —
+  what Peak is, the privacy promise (on-device, no account, no tracking), and a
+  "Log your first session" CTA that opens the editor. Skipped under UI-test, ad
+  capture, and screenshot modes so existing baselines are untouched.
+  (`Peak/Views/Onboarding/WelcomeView.swift`)
+- **TipKit tips** (deferred from 2.6): one on the Log CTA until you've logged
+  something, one on Auto-fill Conditions that appears after your first manual
+  save. Hard-disabled under every automation mode.
+  (`Peak/Supporting/PeakTips.swift`)
+
+### Changed
+
+- Settings gained a **Monthly Goal** section (metric picker + target stepper).
+- More gained a **Year in Review** entry.
+- The Log tab now also queries the full session history (the recents list stays
+  limited to three) so the memory layer can reach back years.
+
+### Notes
+
+- No SwiftData schema change: everything here is derived from existing session
+  fields or stored in `@AppStorage`.
+- The board report's period bands (10 s / 13 s) are deliberately coarser than the
+  Best-Conditions card's (8 s / 11 s): board choice and session quality don't
+  split at the same thresholds.
+
 ## [Unreleased] — 2.7 "Ecosystem Unlock"
 
 Peak leaves the app icon: Home and Lock Screen widgets, real App Intents

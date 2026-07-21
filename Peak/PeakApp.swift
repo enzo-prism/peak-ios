@@ -53,14 +53,17 @@ private struct RootView: View {
     @State private var didEvaluateOutcome = false
     @State private var isRecoveryAlertPresented = false
     @State private var isWelcomePresented = false
+    @State private var wantsFirstSession = false
 
     var body: some View {
         ContentView()
-            .fullScreenCover(isPresented: $isWelcomePresented) {
+            // The editor request waits for `onDismiss`: asking for a sheet in the
+            // same turn the cover starts dismissing loses the presentation.
+            .fullScreenCover(isPresented: $isWelcomePresented, onDismiss: openEditorIfRequested) {
                 WelcomeView(
                     onLogFirstSession: {
+                        wantsFirstSession = true
                         finishWelcome()
-                        QuickLogCoordinator.shared.requestNewSession()
                     },
                     onFinish: finishWelcome
                 )
@@ -83,6 +86,12 @@ private struct RootView: View {
     private func finishWelcome() {
         hasSeenWelcome = true
         isWelcomePresented = false
+    }
+
+    private func openEditorIfRequested() {
+        guard wantsFirstSession else { return }
+        wantsFirstSession = false
+        QuickLogCoordinator.shared.requestNewSession()
     }
 
     private var recoveryTitle: String {
