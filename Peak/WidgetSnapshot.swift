@@ -15,6 +15,10 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
     var lastSessionSpotKey: String?
     var lastSessionDate: Date?
     var lastSessionRating: Int?
+    /// Waves logged on the last session, when it has any. Optional because most
+    /// sessions carry no wave stats at all, and a widget must never print "0
+    /// waves" for a session that simply was not tracked.
+    var lastSessionWaveCount: Int?
     var daysSinceLastSession: Int?
     var generatedAt: Date
 
@@ -26,6 +30,7 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         lastSessionSpotKey: String? = nil,
         lastSessionDate: Date? = nil,
         lastSessionRating: Int? = nil,
+        lastSessionWaveCount: Int? = nil,
         daysSinceLastSession: Int? = nil,
         generatedAt: Date
     ) {
@@ -36,6 +41,7 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         self.lastSessionSpotKey = lastSessionSpotKey
         self.lastSessionDate = lastSessionDate
         self.lastSessionRating = lastSessionRating
+        self.lastSessionWaveCount = lastSessionWaveCount
         self.daysSinceLastSession = daysSinceLastSession
         self.generatedAt = generatedAt
     }

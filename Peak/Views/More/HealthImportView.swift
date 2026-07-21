@@ -20,6 +20,10 @@ struct HealthImportView: View {
     @State private var state: LoadState = .loading
     @State private var importedWorkoutIDs: Set<UUID> = []
     @State private var importFeedback = 0
+    /// Derived wave stats per workout, filled in lazily as rows appear. Absent
+    /// means "not looked at yet"; a present-but-nil value means "looked, and this
+    /// workout has no usable route" — the row then simply shows no estimate.
+    @State private var routePreviews: [UUID: WaveStats?] = [:]
 
     var body: some View {
         ZStack {
@@ -101,6 +105,8 @@ struct HealthImportView: View {
                 .labelStyle(.titleAndIcon)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+
+                waveStatsPreview(for: workout)
             }
 
             Spacer(minLength: 8)
@@ -128,6 +134,52 @@ struct HealthImportView: View {
         .opacity(isImported ? 0.6 : 1)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("health.import.row")
+        .task(id: workout.id) {
+            await loadRoutePreview(for: workout)
+        }
+    }
+
+    /// Shows what Peak would derive from this workout's route *before* the user
+    /// commits to importing it, so the decision is informed rather than a
+    /// surprise. Silent when the workout has no route: most surf workouts
+    /// recorded indoors or with GPS off simply have nothing to show, and an
+    /// error there would be noise about a non-problem.
+    @ViewBuilder
+    private func waveStatsPreview(for workout: HealthKitLogic.WorkoutSummary) -> some View {
+        if let stats = routePreviews[workout.id] ?? nil,
+           let summary = WaveStatsFormatter.summary(
+               waveCount: stats.waveCount,
+               topSpeedKph: stats.topSpeedKph,
+               longestRideSeconds: stats.longestRideSeconds
+           ) {
+            VStack(alignment: .leading, spacing: 2) {
+                Label(summary, systemImage: "water.waves")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textSecondary)
+                    .labelStyle(.titleAndIcon)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(WaveStatsFormatter.estimatePreviewCaption)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 2)
+            .accessibilityIdentifier("health.import.waveStats")
+        }
+    }
+
+    private func loadRoutePreview(for workout: HealthKitLogic.WorkoutSummary) async {
+        // Route mining walks thousands of GPS fixes per workout. UI tests never
+        // have a Health database to read, so skip the work entirely rather than
+        // let every row spin up an analysis that can only return nothing.
+        guard !TestingDefaults.isUITest else { return }
+        guard routePreviews[workout.id] == nil else { return }
+        let stats = await WaveStatsDeriver.stats(
+            forWorkoutID: workout.id,
+            provider: HealthKitService.shared
+        )
+        routePreviews[workout.id] = stats
     }
 
     private func timeRange(for workout: HealthKitLogic.WorkoutSummary) -> String {
@@ -146,6 +198,13 @@ struct HealthImportView: View {
             durationMinutes: draft.durationMinutes,
             notes: "Imported from Apple Health"
         )
+        // Carry the derived estimate across with the session, plus the workout id
+        // so the route can be re-read later without ever persisting coordinates.
+        if let stats = routePreviews[workout.id] ?? nil {
+            session.applyDerivedWaveStats(stats, workoutID: workout.id.uuidString)
+        } else {
+            session.linkedWorkoutID = workout.id.uuidString
+        }
         modelContext.insert(session)
         importedWorkoutIDs.insert(workout.id)
         importFeedback += 1

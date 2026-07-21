@@ -33,6 +33,7 @@ enum WidgetSnapshotWriter {
             lastSessionSpotKey: last?.spot?.key,
             lastSessionDate: last?.date,
             lastSessionRating: last.map { $0.rating },
+            lastSessionWaveCount: last?.waveCount,
             daysSinceLastSession: daysSinceLast,
             generatedAt: now
         )

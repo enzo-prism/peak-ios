@@ -37,6 +37,8 @@ struct StatsView: View {
     @State private var cachedConditions: ConditionsInsight?
     @State private var cachedMonthlySurfDays: [MonthlyCount] = []
     @State private var cachedGearReports: [GearReport] = []
+    @State private var cachedWaveRecords = WaveRecords()
+    @State private var cachedWavesPerSession: [WavesPerMonth] = []
     @State private var cachedGoal = MonthlyGoalProgress(
         metric: .sessions,
         target: MonthlyGoalCalculator.defaultTarget,
@@ -88,6 +90,13 @@ struct StatsView: View {
                             )
 
                             GearInsightsCard(reports: cachedGearReports)
+
+                            // Suppressed entirely when no session carries wave
+                            // stats — see WaveRecordsCard for why.
+                            WaveRecordsCard(
+                                records: cachedWaveRecords,
+                                trend: cachedWavesPerSession
+                            )
 
                             StatListSection(
                                 title: "Top spots",
@@ -182,6 +191,8 @@ struct StatsView: View {
             for: gear.filter { $0.kind == .board },
             sessions: sessions
         )
+        cachedWaveRecords = WaveStatsCalculator.records(sessions: sessions)
+        cachedWavesPerSession = WaveStatsCalculator.wavesPerSession(sessions: sessions)
         refreshGoal()
     }
 

@@ -197,6 +197,12 @@ struct SessionShareCard: View {
         } else if let windSpeed = session.windSpeedKph {
             chips.append(ConditionChip(icon: "wind", title: "Wind", value: SurfConditionsFormatter.speed(windSpeed)))
         }
+        // Waves rank above water temperature: it is the number the surfer is
+        // actually sharing. Estimated or not, it is their own logged figure by
+        // the time a card is generated.
+        if let waves = session.waveCount {
+            chips.append(ConditionChip(icon: "water.waves", title: "Waves", value: "\(waves)"))
+        }
         if let temp = session.seaSurfaceTemperatureC {
             chips.append(ConditionChip(icon: "thermometer.medium", title: "Water", value: SurfConditionsFormatter.temperature(temp)))
         }
