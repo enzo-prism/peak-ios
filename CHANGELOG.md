@@ -11,6 +11,152 @@ Status at a glance:
 - **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
 - **TestFlight / ship binary:** `2.6` build **2** (privacy policy + CI host-store hardening; product features same as build 1)
 
+## [Unreleased] — Best Window Today, repaired
+
+Best Window Today shipped in 2.8 and was, for most real logbooks, dead. Not
+degraded — dead: for a great many surfers the card did not render at all, and for
+most of the rest it could only ever say it did not have enough history. Every
+defect below was measured against a real store, not inferred.
+
+### Fixed
+
+- **The card was invisible for spots with no coordinates.** `favouriteSpots`
+  required latitude and longitude, so a surfer whose home break was created by
+  CSV/JSON import or typed by name — `ModelContext.upsertSpot(named:)` never sets
+  a coordinate — had zero favourite spots and the card rendered an empty view
+  with no explanation. Measured: 80 fully auto-filled sessions at a name-only
+  spot produced nothing on screen. The card now appears for the most-logged spot
+  whether or not the app can place it.
+  (`Peak/Supporting/TodayWindowService.swift`)
+- **The editor's Wind and Wave pickers counted for nothing.** `SurfSession`
+  stores `windCondition` / `waveHeight` as enums entirely separate from the
+  numeric `windSpeedKph` / `waveHeightMeters`, and only the numeric pair ever
+  reached the scorer. A surfer who filled in both pickers on every session had a
+  logbook the model discarded wholesale — `CleanSession.init?` rejects anything
+  with fewer than two observed features. Measured on 30 rated picker-only
+  sessions against the reference forecast day: **max confidence 0.0000 before,
+  0.1927 after**, and the predicted rating went from flat on the 2.5 neutral
+  prior (spread 0.00) to a 2.36-star spread across the day. That is a usable
+  model where there was none; it is still below the 0.25 recommendation gate, so
+  such a logbook now gets the conditions readout rather than a fabricated window.
+  Each picker band supplies a representative number **only where the numeric
+  field is nil** — never overwriting a real reading.
+  (`Peak/Supporting/ManualConditionEstimate.swift`)
+- **"Best window today" could be tomorrow.** The card scored a rolling 24 hours
+  from now and printed a bare time range, so at 6 pm it rendered tomorrow's dawn
+  as "5:00 AM - 10:00 AM" under the heading "Best window today". Scoring is now
+  restricted to the remainder of the local calendar day; when too little of today
+  is left to be worth planning, it plans tomorrow and says so, in both the
+  heading ("Best window tomorrow") and the label ("Tomorrow 5:00 - 10:00 AM").
+- **Switching spots mid-fetch showed the wrong break's answer.** The in-flight
+  task wrote its result unconditionally, so a slow fetch landed under whichever
+  spot was selected when it finished — cited session and all. Results now carry
+  the spot they were computed for and are rejected if it no longer matches; the
+  task is cancelled on switch, and the concurrency guard no longer depends on
+  view state that the switch itself resets.
+- **The card could confidently recommend the middle of the night.** Once the
+  evening fallback started planning tomorrow, tomorrow's 00:00-04:00 became
+  ordinary candidates — and a glassy, windless 3 am with a nice tide scores
+  *extremely* well, because the scorer has no concept of darkness. A card whose
+  entire job is to be trustworthy was one dawn-planning session away from telling
+  a surfer to paddle out at 2 am. Windows are now restricted to daylight, taken
+  from `daily=sunrise,sunset` on the Open-Meteo forecast request the wind
+  readings already use — no second service and no extra round trip. Not a
+  hardcoded clock range: "the middle of the night" means something different in
+  Bali in March and in Scotland in December. Not a hard sunrise/sunset cut
+  either, because surfers legitimately surf outside it — the margin is **sunrise
+  − 45 min to sunset + 30 min**, deliberately asymmetric because dawn light is
+  arriving (an early start is a plan) while dusk light is leaving (a late start
+  is how you get caught out). Both constants and the full reasoning live in one
+  place, `TodayWindowService.preSunriseMargin`. If sunrise and sunset are
+  unavailable for any reason — an older response shape, a wind request that
+  failed while marine succeeded, a polar day the provider cannot compute — the
+  day is scored unfiltered exactly as before, because showing nothing is worse
+  than showing an unfiltered day.
+  (`Peak/Supporting/TodayWindowService.swift`,
+  `Peak/Supporting/SurfConditionsService.swift`)
+- **At dusk the card now answers with tomorrow instead of with nothing.** A
+  consequence of the above: at 9 pm there is technically time left in the day and
+  none of it is surfable, which used to leave the card blaming the surfer's
+  logbook for the sun having set. The forecast request already reaches into the
+  following day, so the answer rolls forward and the heading and label both say
+  "tomorrow".
+- **Every request that reached outside today was failing at the provider.**
+  Open-Meteo rejects `past_days` and `forecast_days` outright when a request also
+  carries an explicit range — "Parameter 'forecast_days' is mutually exclusive
+  with 'start_date' and 'end_date'", HTTP 400, no data — and Peak's
+  `start_hour`/`end_hour` count as one. Peak sent both together. That meant
+  auto-filling conditions for any session **not logged the same day** failed, the
+  new "Fill in past conditions" action would have failed on every single session,
+  and the Best Window fetch — a span from now that always crosses midnight —
+  failed every single time. The hours already bound the range on their own, and
+  on their own they serve the provider's full archive and forecast horizon, so
+  the day counts are gone. (`Peak/Supporting/SurfConditionsService.swift`)
+- **A stale fetch could strand the card on its loading spinner.** The favourite
+  spots are derived from the logbook, so deleting the last session at the
+  selected break re-picks the selection *without* going through the spot-switch
+  path that cancels in flight work. The task then returned early without handing
+  back its slot, leaving `state` on `.loading` and the only button disabled —
+  permanently, for the rest of the session. The same shape in the backfill
+  abandoned the run between a write and its save. Both now release the slot on
+  every path except cancellation, which is the one case where it belongs to
+  somebody else.
+- **The empty-state copy was actively misleading.** "Log a few more rated
+  sessions and Peak will learn what works here" was false: plain sessions
+  contributed nothing at all, so following it changed nothing. The copy now names
+  what is actually missing — conditions, or rating spread — and points at the
+  control that supplies it.
+
+### Added
+
+- **Automatic coordinates from the bundled break catalog.** A saved spot with no
+  coordinate is matched by exact normalised name against the 257 breaks in
+  `SurfBreaks.json` and repaired permanently, which also makes session auto-fill
+  start working for it. Only on an unambiguous single match — a near miss, a
+  substring, or two catalog breaks sharing a name all decline, because writing a
+  coordinate decides which patch of ocean gets reported on. A spot that already
+  carries *either* half of a coordinate is never touched: `restore` copies
+  latitude and longitude across independently, so a truncated import can leave
+  one set, and overwriting a real latitude because its longitude went missing
+  would silently move a break the surfer supplied.
+  (`Peak/Supporting/SpotCoordinateResolver.swift`)
+- **An actionable state for spots that still cannot be placed.** Explains the
+  problem, names the spot, and opens the spot editor. Never an empty view.
+- **Today's conditions when confidence is too low to recommend.** A card that
+  cannot honestly call a window now shows what the forecast actually says —
+  size, period, wind, tide — explicitly labelled "Forecast conditions, not a
+  recommendation". Useful on day one instead of a permanent apology.
+- **"Fill in past conditions".** An explicit, user-initiated action that fetches
+  and stores conditions for existing sessions at a located spot inside
+  Open-Meteo's ~92-day archive. This is what actually bootstraps
+  personalisation. Sequential with per-session progress, gives up after three
+  consecutive failures rather than hammering a dead network, and reports honestly
+  how many it managed. It never touches a session that already has conditions,
+  and never overwrites the coarse Wind/Wave pickers — those are the surfer's own
+  words. (`Peak/Supporting/ConditionsBackfill.swift`)
+
+### Notes
+
+- **The confidence model was not touched.** No threshold was lowered and no
+  tuning constant changed. The gate exists so the app never fabricates advice,
+  and it still rejects a logbook with no conditions in it and a logbook where
+  every session got the same rating — both are pinned by new tests. What changed
+  is the *inputs* (many more sessions now qualify as data) and the *UX* (the card
+  is useful, and honest about which day it is talking about).
+- **Why picker-derived readings carry no extra penalty.** They are coarser than a
+  measured reading — a `.breezy` session is somewhere in 5-15 km/h against a
+  wind-speed scale of 8 km/h — but the scorer already discounts exactly this
+  sparsity twice: the overlap-ratio reliability term (0.215^0.6 = 0.41) and the
+  imputed distance floor for the eight unobserved features (kernel 0.14 against
+  1.0). Net, such a session enters at roughly 6% of the pull of a fully
+  auto-filled one, which is already a heavier penalty than the quantisation error
+  justifies. A third discount would be double counting. The estimates are the
+  exact inverse of `SurfConditionsMapping`, the app's own definition of each
+  band, and a test pins the round trip.
+- **Still no passive networking.** Both network actions are taps. The
+  `autoRefresh` opt-in still ships off.
+- No schema change: every field involved already existed.
+
 ## [Unreleased] — 3.2 "On-device AI insights"
 
 Peak can now write about your surfing, on your phone, without your logbook going

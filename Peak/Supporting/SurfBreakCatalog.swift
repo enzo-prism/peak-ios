@@ -64,6 +64,19 @@ nonisolated final class SurfBreakCatalog {
         return Array((prefix + contains).prefix(limit))
     }
 
+    /// Every catalog break whose name normalises to the same key as `name`.
+    ///
+    /// Uses `Spot.makeKey`'s own normalisation, so a saved spot and a catalog
+    /// break agree on identity exactly where the store would consider them the
+    /// same spot. Returns *all* matches rather than the first: two breaks sharing
+    /// a name (there are none in the shipped 257, but nothing prevents it) make
+    /// the match ambiguous, and the caller must be able to see that and decline.
+    func exactMatches(name: String) -> [SurfBreak] {
+        let key = name.normalizedKey
+        guard !key.isEmpty else { return [] }
+        return index.filter { $0.key == key }.map(\.value)
+    }
+
     private static func loadBundled() -> [SurfBreak] {
         let url = Bundle.main.url(forResource: "SurfBreaks", withExtension: "json", subdirectory: "Resources")
             ?? Bundle.main.url(forResource: "SurfBreaks", withExtension: "json")

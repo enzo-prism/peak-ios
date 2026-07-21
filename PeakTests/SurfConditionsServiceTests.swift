@@ -237,7 +237,18 @@ final class SurfConditionsServiceTests: XCTestCase {
         }
     }
 
-    func testFetchIncludesPastAndForecastQueryItems() async throws {
+    /// Inverted from `testFetchIncludesPastAndForecastQueryItems`, and the
+    /// inversion is the fix rather than a weakened assertion.
+    ///
+    /// Open-Meteo rejects `past_days` / `forecast_days` outright when the request
+    /// also carries an explicit range, and `start_hour` / `end_hour` count as
+    /// one: "Parameter 'forecast_days' is mutually exclusive with 'start_date'
+    /// and 'end_date'", HTTP 400, no data. Peak sent both together on every
+    /// request that reached outside today, which meant auto-fill failed for any
+    /// session not logged the same day and the Best Window fetch — a 24-hour span
+    /// from now, so always across midnight — failed every single time. The range
+    /// is fully specified by the hours, so the day counts must not be sent.
+    func testFetchDoesNotSendDayCountsAlongsideAnExplicitHourRange() async throws {
         let start = Date().addingTimeInterval(-2 * 24 * 60 * 60)
         let durationMinutes = 60 * 24 * 5
 
@@ -303,10 +314,21 @@ final class SurfConditionsServiceTests: XCTestCase {
         let marineItems = marineURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
         let windItems = windURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
 
-        XCTAssertNotNil(marineItems.first { $0.name == "past_days" })
-        XCTAssertNotNil(marineItems.first { $0.name == "forecast_days" })
-        XCTAssertNotNil(windItems.first { $0.name == "past_days" })
-        XCTAssertNotNil(windItems.first { $0.name == "forecast_days" })
+        for (label, items) in [("marine", marineItems), ("wind", windItems)] {
+            XCTAssertNil(items.first { $0.name == "past_days" },
+                         "\(label) request still sends past_days, which the provider rejects")
+            XCTAssertNil(items.first { $0.name == "forecast_days" },
+                         "\(label) request still sends forecast_days, which the provider rejects")
+            // The range still has to be pinned — dropping the day counts must not
+            // turn into dropping the bounds.
+            XCTAssertNotNil(items.first { $0.name == "start_hour" }, "\(label) request lost its start_hour")
+            XCTAssertNotNil(items.first { $0.name == "end_hour" }, "\(label) request lost its end_hour")
+        }
+
+        // A session snapshot is about an hour that has already happened, so it has
+        // no business asking for sunrise and sunset.
+        XCTAssertNil(windItems.first { $0.name == "daily" },
+                     "the session-snapshot request asked for daily data it does not use")
     }
 
     func testFetchReturnsPartialWhenMarineFails() async throws {

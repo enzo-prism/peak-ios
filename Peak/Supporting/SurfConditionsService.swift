@@ -249,6 +249,31 @@ enum SurfConditionsService {
 
 // MARK: - Hourly day forecast (Best Window Today)
 
+/// One stretch of daylight: a sunrise and the sunset that follows it.
+///
+/// Absolute instants, not clock times, so comparing a forecast hour against one
+/// needs no timezone reasoning at all.
+nonisolated struct DaylightInterval: Sendable, Hashable {
+    let sunrise: Date
+    let sunset: Date
+}
+
+/// A day's hourly forecast plus the daylight it falls in.
+///
+/// `daylight` is empty when the provider did not give usable sunrise/sunset —
+/// an older response shape, a failed wind request, a polar day. Callers must
+/// treat empty as "unknown" and carry on unfiltered, never as "no daylight":
+/// showing the surfer nothing is worse than showing them an unfiltered day.
+nonisolated struct DayForecast: Sendable, Hashable {
+    var hours: [ForecastHour]
+    var daylight: [DaylightInterval]
+
+    init(hours: [ForecastHour], daylight: [DaylightInterval] = []) {
+        self.hours = hours
+        self.daylight = daylight
+    }
+}
+
 // Lives in this file rather than alongside the card because it reuses this
 // file's URL building, time parsing and error mapping wholesale. Same provider,
 // same shapes — the only difference is that nothing is averaged: the scorer wants
@@ -267,7 +292,7 @@ extension SurfConditionsService {
         start: Date = Date(),
         hours: Int = 24,
         session: URLSession = .shared
-    ) async throws -> [ForecastHour] {
+    ) async throws -> DayForecast {
         if TestingDefaults.isUITest, let scenario = TestingDefaults.windowScenario {
             return try mockDayForecast(for: scenario, start: start, hours: hours)
         }
@@ -282,7 +307,7 @@ extension SurfConditionsService {
             start: first, end: last, latitude: latitude, longitude: longitude, session: session)
 
         var marine: [Date: MarineSample] = [:]
-        var wind: [Date: WindSample] = [:]
+        var wind = WindSeries()
         var errors: [Error] = []
 
         do { marine = try await marineResult } catch { errors.append(error) }
@@ -291,17 +316,17 @@ extension SurfConditionsService {
         // Wind alone cannot rank a surf day and marine alone is missing the single
         // most common ruiner of good swell, but either is better than nothing and
         // WindowScorer imputes what is absent rather than guessing at it.
-        guard !marine.isEmpty || !wind.isEmpty else {
+        guard !marine.isEmpty || !wind.samples.isEmpty else {
             throw mostInformativeError(from: errors)
         }
 
-        let stamps = Set(marine.keys).union(wind.keys)
+        let stamps = Set(marine.keys).union(wind.samples.keys)
             .filter { $0 >= first && $0 <= last }
             .sorted()
 
-        return stamps.map { stamp in
+        let hourly: [ForecastHour] = stamps.map { stamp in
             let m = marine[stamp]
-            let w = wind[stamp]
+            let w = wind.samples[stamp]
             return ForecastHour(
                 date: stamp,
                 conditions: ConditionsSample(
@@ -318,6 +343,8 @@ extension SurfConditionsService {
                 )
             )
         }
+
+        return DayForecast(hours: hourly, daylight: wind.daylight)
     }
 
     struct MarineSample: Sendable {
@@ -334,6 +361,18 @@ extension SurfConditionsService {
     struct WindSample: Sendable {
         let windSpeedKph: Double?
         let windDirectionDegrees: Double?
+    }
+
+    /// What one forecast-endpoint call yields for the day card: the hourly wind
+    /// samples, and — because sunrise/sunset ride along on the same request —
+    /// the daylight the day falls in.
+    /// `nonisolated` for the same reason `SurfBreakCatalog` is: under
+    /// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` even a plain value type's
+    /// memberwise init is main-actor isolated, and this one is built inside the
+    /// `@concurrent` fetch.
+    nonisolated struct WindSeries: Sendable {
+        var samples: [Date: WindSample] = [:]
+        var daylight: [DaylightInterval] = []
     }
 
     @concurrent
@@ -377,8 +416,9 @@ extension SurfConditionsService {
         latitude: Double,
         longitude: Double,
         session: URLSession
-    ) async throws -> [Date: WindSample] {
-        let url = try makeWindURL(start: start, end: end, latitude: latitude, longitude: longitude)
+    ) async throws -> WindSeries {
+        let url = try makeWindURL(
+            start: start, end: end, latitude: latitude, longitude: longitude, includeDaylight: true)
         let response: OpenMeteoWeatherResponse = try await fetchJSON(url: url, session: session)
         let times = parseTimes(response.hourly.time)
         guard !times.isEmpty else { throw SurfConditionsError.noMatchingHours }
@@ -390,7 +430,41 @@ extension SurfConditionsService {
                 windDirectionDegrees: value(response.hourly.wind_direction_10m, at: index)
             )
         }
-        return out
+        return WindSeries(
+            samples: out,
+            daylight: daylightIntervals(
+                sunrise: response.daily?.sunrise ?? [], sunset: response.daily?.sunset ?? [])
+        )
+    }
+
+    /// Pairs sunrises with the sunsets that follow them.
+    ///
+    /// Deliberately *not* index-paired. The provider buckets these by the day of
+    /// the requested timezone, and Peak asks in GMT, so at a longitude far from
+    /// Greenwich the sunrise and sunset in one bucket can belong to different
+    /// local days and even come back out of order — for a break in Bali, GMT-day
+    /// row `i` holds a sunset that happens *before* its sunrise. Merging the two
+    /// lists by instant and walking them in order is immune to that, and to
+    /// missing or null entries on either side.
+    ///
+    /// Rows the provider could not compute (polar day, polar night) parse to
+    /// nothing and simply contribute no interval; a range with no intervals at
+    /// all is reported as unknown, never as "dark all day".
+    nonisolated static func daylightIntervals(sunrise: [String?], sunset: [String?]) -> [DaylightInterval] {
+        let sunrises = sunrise.compactMap { $0.flatMap(parseTime) }.sorted()
+        let sunsets = sunset.compactMap { $0.flatMap(parseTime) }.sorted()
+        guard !sunrises.isEmpty, !sunsets.isEmpty else { return [] }
+
+        var intervals: [DaylightInterval] = []
+        var nextSunset = sunsets.startIndex
+        for rise in sunrises {
+            while nextSunset < sunsets.endIndex && sunsets[nextSunset] <= rise {
+                nextSunset += 1
+            }
+            guard nextSunset < sunsets.endIndex else { break }
+            intervals.append(DaylightInterval(sunrise: rise, sunset: sunsets[nextSunset]))
+        }
+        return intervals
     }
 
     nonisolated static func value(_ values: [Double?]?, at index: Int) -> Double? {
@@ -410,14 +484,27 @@ extension SurfConditionsService {
         for scenario: String,
         start: Date,
         hours: Int
-    ) throws -> [ForecastHour] {
+    ) throws -> DayForecast {
         switch scenario.lowercased() {
         case "error", "remote_error":
             throw SurfConditionsError.remoteError("Mock window service error")
         case "no_data", "nodata":
             throw SurfConditionsError.noDataAvailable
         default:
-            return mockForecastHours(start: start, hours: max(1, hours))
+            let count = max(1, hours)
+            // Daylight covering the whole mocked span. The UI tests run at
+            // whatever hour CI happens to reach them, and a mock that made half
+            // the fixture "night" would make those tests pass or fail on the
+            // wall clock. The daylight *filter* is pinned by unit tests, which
+            // can control the clock; what these need is a deterministic day.
+            let first = floorToHour(start)
+            return DayForecast(
+                hours: mockForecastHours(start: start, hours: count),
+                daylight: [DaylightInterval(
+                    sunrise: first.addingTimeInterval(-3600),
+                    sunset: first.addingTimeInterval(Double(count + 1) * 3600)
+                )]
+            )
         }
     }
 
@@ -609,7 +696,7 @@ private extension SurfConditionsService {
             URLQueryItem(name: "timezone", value: "GMT"),
             URLQueryItem(name: "length_unit", value: "metric"),
             URLQueryItem(name: "cell_selection", value: "sea")
-        ] + pastFutureQueryItems(start: paddedStart, end: paddedEnd, maxPastDays: 92, maxForecastDays: 8)
+        ]
 
         components.queryItems = queryItems
         guard let url = components.url else {
@@ -618,11 +705,18 @@ private extension SurfConditionsService {
         return url
     }
 
+    /// - Parameter includeDaylight: also asks for `daily=sunrise,sunset` over the
+    ///   same span. Only the day-forecast path wants it — a session snapshot is
+    ///   about one hour that has already happened, and daylight cannot change
+    ///   what was measured then. Requesting `daily` obliges us to send
+    ///   `start_date`/`end_date` as well, because a bare `daily` alongside
+    ///   `start_hour`/`end_hour` comes back with empty arrays.
     nonisolated static func makeWindURL(
         start: Date,
         end: Date,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        includeDaylight: Bool = false
     ) throws -> URL {
         var components = URLComponents()
         components.scheme = "https"
@@ -631,7 +725,7 @@ private extension SurfConditionsService {
 
         let startHour = floorToHour(start)
         let endHour = ceilToHour(end)
-        let queryItems: [URLQueryItem] = [
+        var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "hourly", value: "wind_speed_10m,wind_direction_10m"),
@@ -640,7 +734,21 @@ private extension SurfConditionsService {
             URLQueryItem(name: "timeformat", value: "iso8601"),
             URLQueryItem(name: "timezone", value: "GMT"),
             URLQueryItem(name: "wind_speed_unit", value: "kmh")
-        ] + pastFutureQueryItems(start: start, end: end, maxPastDays: 92, maxForecastDays: 16)
+        ]
+
+        if includeDaylight {
+            // A day either side of the scored span, so there is always a sunrise
+            // and a sunset bracketing every hour being classified. Without the
+            // padding, an hour before the range's first sunrise has no event in
+            // front of it and cannot be judged either way.
+            queryItems += [
+                URLQueryItem(name: "daily", value: "sunrise,sunset"),
+                URLQueryItem(name: "start_date",
+                             value: dayFormatter.string(from: startHour.addingTimeInterval(-86_400))),
+                URLQueryItem(name: "end_date",
+                             value: dayFormatter.string(from: endHour.addingTimeInterval(86_400)))
+            ]
+        }
 
         components.queryItems = queryItems
         guard let url = components.url else {
@@ -669,31 +777,21 @@ private extension SurfConditionsService {
         }
     }
 
-    nonisolated static func pastFutureQueryItems(
-        start: Date,
-        end: Date,
-        maxPastDays: Int,
-        maxForecastDays: Int
-    ) -> [URLQueryItem] {
-        let calendar = utcCalendar
-        let startDay = calendar.startOfDay(for: start)
-        let endDay = calendar.startOfDay(for: end)
-        let today = calendar.startOfDay(for: Date())
-
-        var items: [URLQueryItem] = []
-
-        if startDay < today {
-            let pastDays = min(maxPastDays, max(1, calendar.dateComponents([.day], from: startDay, to: today).day ?? 0))
-            items.append(URLQueryItem(name: "past_days", value: "\(pastDays)"))
-        }
-
-        if endDay > today {
-            let forecastDays = min(maxForecastDays, max(1, calendar.dateComponents([.day], from: today, to: endDay).day ?? 0))
-            items.append(URLQueryItem(name: "forecast_days", value: "\(forecastDays)"))
-        }
-
-        return items
-    }
+    // `past_days` / `forecast_days` used to be appended to both URLs whenever the
+    // requested span reached outside today. They are gone, and their absence is
+    // load-bearing rather than a tidy-up.
+    //
+    // Open-Meteo rejects them outright when the request also carries an explicit
+    // range — "Parameter 'forecast_days' is mutually exclusive with 'start_date'
+    // and 'end_date'", 400, no data — and `start_hour`/`end_hour` count as an
+    // explicit range. Every request Peak made that reached past midnight or into
+    // a previous day therefore failed at the provider: auto-filling any session
+    // not logged the same day, the entire backfill, and every single Best Window
+    // fetch (a 24-hour span from now always crosses midnight). `start_hour` /
+    // `end_hour` already bound the range on their own, and on their own they
+    // serve the full archive and forecast horizon, so nothing is lost by
+    // dropping the day counts. `validateRange` still keeps callers inside the
+    // horizon those counts used to cap.
 
     nonisolated static func parseTimes(_ values: [String]) -> [Date] {
         values.compactMap { parseTime($0) }
@@ -803,6 +901,19 @@ private extension SurfConditionsService {
         return formatter
     }()
 
+    /// Calendar days for `start_date` / `end_date`. GMT, matching `timezone=GMT`
+    /// on every request.
+    ///
+    /// Plain `nonisolated`, unlike its neighbours: those predate `DateFormatter`
+    /// being `Sendable` and marking a new one `nonisolated(unsafe)` now warns.
+    nonisolated static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
     // See `hourFormatter` for why `nonisolated(unsafe)` is safe here.
     nonisolated(unsafe) static let timeParsers: [DateFormatter] = {
         let formats = [
@@ -874,7 +985,12 @@ private extension SurfConditionsService {
     }
 }
 
-private enum SurfConditionsMapping {
+/// Bands a numeric reading into the editor's coarse pickers.
+///
+/// Internal rather than private because `ManualConditionEstimate` is its exact
+/// inverse and the two are only correct *together* — a test pins the round trip,
+/// which it cannot do if this is unreachable.
+enum SurfConditionsMapping {
     static func windCondition(for speedKph: Double?) -> WindCondition? {
         guard let speedKph else { return nil }
         switch speedKph {
@@ -956,11 +1072,21 @@ private nonisolated struct OpenMeteoMarineResponse: Decodable, Sendable {
 
 private nonisolated struct OpenMeteoWeatherResponse: Decodable, Sendable {
     let hourly: Hourly
+    /// Absent on every request that does not ask for `daily`, and on any older
+    /// response shape, hence optional all the way down.
+    let daily: Daily?
 
     struct Hourly: Decodable, Sendable {
         let time: [String]
         let wind_speed_10m: [Double?]?
         let wind_direction_10m: [Double?]?
+    }
+
+    struct Daily: Decodable, Sendable {
+        /// Null for days the provider cannot compute a sunrise or sunset for —
+        /// polar summer and polar winter — so the elements are optional too.
+        let sunrise: [String?]?
+        let sunset: [String?]?
     }
 }
 
