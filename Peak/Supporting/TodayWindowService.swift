@@ -360,12 +360,17 @@ enum TodayWindowService {
             .sorted { $0.date < $1.date }
 
         let windows = await WindowScorer.rankOffMain(forecast: hours, history: history)
-        let conditions = (hours.first ?? forecast.first).map(Conditions.init(hour:))
+
+        // The readout shows the hour the surfer is standing in, not the first hour
+        // that survived the day filter — at 09:30 the 09:00 hour is what "now"
+        // means, and it is dropped from scoring because it is half over. When the
+        // plan is a future day, this lands on that day's first hour instead.
+        let readout = forecast.last { $0.date <= plan.from } ?? hours.first ?? forecast.first
 
         return Outlook(
             spotID: spotID,
             recommendation: windows.first.map { Recommendation(window: $0, dayOffset: plan.dayOffset) },
-            conditions: conditions.flatMap { $0.hasAnyReading ? $0 : nil },
+            conditions: readout.map(Conditions.init(hour:)).flatMap { $0.hasAnyReading ? $0 : nil },
             dayOffset: plan.dayOffset
         )
     }

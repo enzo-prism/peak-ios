@@ -233,7 +233,7 @@ struct BestWindowTodayCard: View {
         VStack(alignment: .leading, spacing: 10) {
             if let conditions = outlook.conditions {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(conditionsHeading(dayOffset: outlook.dayOffset, spot: spot))
+                    Text(conditionsHeading(for: conditions, dayOffset: outlook.dayOffset, spot: spot))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textMuted)
                         .textCase(.uppercase)
@@ -252,8 +252,17 @@ struct BestWindowTodayCard: View {
         }
     }
 
-    private func conditionsHeading(dayOffset: Int, spot: Spot) -> String {
-        dayOffset == 0 ? "Conditions at \(spot.name) now" : "Tomorrow morning at \(spot.name)"
+    /// Names the hour the readout actually describes. For a future day that has to
+    /// be the timestamp, not a vague "tomorrow": the reading is one hour of the
+    /// forecast, and calling midnight's numbers "tomorrow" would overstate them.
+    private func conditionsHeading(
+        for conditions: TodayWindowService.Conditions,
+        dayOffset: Int,
+        spot: Spot
+    ) -> String {
+        guard dayOffset != 0 else { return "Conditions at \(spot.name) now" }
+        let when = conditions.date.formatted(.dateTime.weekday(.abbreviated).hour())
+        return "\(spot.name), \(when)"
     }
 
     /// What the surfer actually has to do, which is not what this used to say.
@@ -515,10 +524,14 @@ struct BestWindowTodayCard: View {
                 backfill = .running(completed: summary.attempted, total: candidates.count)
             }
 
-            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
+            // Saved before the staleness check, not after: the conditions were
+            // genuinely written to those sessions, and whether the surfer has since
+            // switched spots has no bearing on whether that work should survive.
             if summary.filled > 0 {
                 try? modelContext.save()
             }
+
+            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
             backfillTask = nil
             backfill = .finished(summary.message)
             // The history just changed, so any answer on screen was computed from
