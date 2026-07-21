@@ -2294,6 +2294,53 @@ final class TodayWindowServiceInputTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(plan.hoursToRequest(from: now), 23)
     }
 
+    /// A DST day is 23 or 25 hours long and the plan has to measure it rather
+    /// than assume 86,400 seconds. Getting this wrong would cut an hour off the
+    /// end of the spring-forward day, or leave the last hour of the fall-back day
+    /// unfetched — on the two days a year when a surfer is most likely to be
+    /// confused about the time already.
+    func testDaylightSavingDaysAreMeasuredNotAssumed() {
+        let calendar = self.calendar()
+
+        // Spring forward: 2026-03-08 in America/Los_Angeles is 23 hours long.
+        let spring = date("2026-03-08 00:20", in: calendar)
+        let springPlan = TodayWindowService.dayPlan(now: spring, calendar: calendar)
+        XCTAssertEqual(springPlan.until, date("2026-03-09 00:00", in: calendar))
+        XCTAssertEqual(
+            springPlan.until.timeIntervalSince(date("2026-03-08 00:00", in: calendar)) / 3600, 23,
+            accuracy: 0.001, "the spring-forward day was treated as 24 hours")
+        XCTAssertGreaterThanOrEqual(
+            TodayWindowService.floorToHour(spring)
+                .addingTimeInterval(Double(springPlan.hoursToRequest(from: spring)) * 3600),
+            springPlan.until,
+            "the request stops short of the end of a 23-hour day")
+
+        // Fall back: 2026-11-01 is 25 hours long.
+        let autumn = date("2026-11-01 00:20", in: calendar)
+        let autumnPlan = TodayWindowService.dayPlan(now: autumn, calendar: calendar)
+        XCTAssertEqual(
+            autumnPlan.until.timeIntervalSince(date("2026-11-01 00:00", in: calendar)) / 3600, 25,
+            accuracy: 0.001, "the fall-back day was treated as 24 hours")
+        XCTAssertGreaterThanOrEqual(
+            TodayWindowService.floorToHour(autumn)
+                .addingTimeInterval(Double(autumnPlan.hoursToRequest(from: autumn)) * 3600),
+            autumnPlan.until,
+            "the request stops short of the end of a 25-hour day")
+    }
+
+    /// The plan reads its calendar, so a spot's day is whatever the surfer's
+    /// device says the day is — not GMT, and not the machine running the tests.
+    func testTheDayBoundaryFollowsTheSuppliedCalendar() {
+        let tokyo = calendar("Asia/Tokyo")
+        let losAngeles = calendar("America/Los_Angeles")
+        // One instant, two calendars, two different local days.
+        let instant = date("2026-07-21 20:00", in: losAngeles)
+        XCTAssertNotEqual(
+            TodayWindowService.dayPlan(now: instant, calendar: tokyo).until,
+            TodayWindowService.dayPlan(now: instant, calendar: losAngeles).until,
+            "the day boundary ignored the calendar it was handed")
+    }
+
     func testHoursRequestedStayWithinTheProvidersCap() {
         let calendar = self.calendar()
         for hour in 0..<24 {
