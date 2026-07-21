@@ -274,6 +274,8 @@ struct SessionDetailView: View {
 
             heroTags
 
+            waveStatsCaptionView
+
             if conditionsSummaryCount > 0 {
                 heroTag("\(conditionsSummaryCount) condition details", icon: "chart.bar.fill")
             }
@@ -287,6 +289,23 @@ struct SessionDetailView: View {
         }
         .padding(16)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+    }
+
+    /// The uncertainty disclaimer that must ride along with any derived wave
+    /// figure. It is deliberately in the hero, next to the numbers themselves,
+    /// rather than buried in a footer: a surfer who disagrees with the count has
+    /// to see the invitation to fix it at the same moment they see the count.
+    /// Sessions whose numbers the user typed or corrected say so instead — that
+    /// is a statement of provenance, not a hedge.
+    @ViewBuilder
+    private var waveStatsCaptionView: some View {
+        if session.hasWaveStats, let source = session.waveStats {
+            Text(source.caption)
+                .font(.caption2)
+                .foregroundStyle(Theme.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("session.detail.waveStats.caption")
+        }
     }
 
     /// Wave height resolved for the glanceable hero block: (primary, optional secondary).
@@ -442,6 +461,29 @@ struct SessionDetailView: View {
             icon: "clock",
             accessibilityIdentifier: "session.detail.heroTag.time"
         )
+        // Wave stats sit immediately beside duration: "how long was I out" and
+        // "how many did I get" are the same question to a surfer.
+        if let waveCount = session.waveCount {
+            heroTag(
+                WaveStatsFormatter.waveCount(waveCount),
+                icon: "water.waves",
+                accessibilityIdentifier: "session.detail.heroTag.waveCount"
+            )
+        }
+        if let topSpeed = session.topSpeedKph, topSpeed > 0 {
+            heroTag(
+                WaveStatsFormatter.speed(topSpeed),
+                icon: "speedometer",
+                accessibilityIdentifier: "session.detail.heroTag.topSpeed"
+            )
+        }
+        if let longestRide = session.longestRideSeconds, longestRide > 0 {
+            heroTag(
+                WaveStatsFormatter.rideDuration(longestRide),
+                icon: "stopwatch",
+                accessibilityIdentifier: "session.detail.heroTag.longestRide"
+            )
+        }
         if !session.gear.isEmpty {
             heroTag(
                 "\(session.gear.count) gear",

@@ -28,6 +28,13 @@ struct SessionDraft {
     var conditionsFetchedAt: Date?
     var conditionsLatitude: Double?
     var conditionsLongitude: Double?
+    var waveCount: Int?
+    var topSpeedKph: Double?
+    var longestRideSeconds: Double?
+    var longestRideMeters: Double?
+    var paddleDistanceMeters: Double?
+    var waveStatsSource: WaveStatsSource?
+    var linkedWorkoutID: String?
     var notes: String = ""
     var mediaItems: [SessionMediaDraftItem] = []
 
@@ -59,6 +66,13 @@ struct SessionDraft {
         conditionsFetchedAt = session.conditionsFetchedAt
         conditionsLatitude = session.conditionsLatitude
         conditionsLongitude = session.conditionsLongitude
+        waveCount = session.waveCount
+        topSpeedKph = session.topSpeedKph
+        longestRideSeconds = session.longestRideSeconds
+        longestRideMeters = session.longestRideMeters
+        paddleDistanceMeters = session.paddleDistanceMeters
+        waveStatsSource = session.waveStats
+        linkedWorkoutID = session.linkedWorkoutID
         notes = session.notes
         mediaItems = session.media
             .sorted { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }
@@ -116,6 +130,38 @@ struct SessionDraft {
         tideTrend != nil ||
         conditionsSource != nil ||
         conditionsFetchedAt != nil
+    }
+
+    var hasWaveStats: Bool {
+        waveCount != nil ||
+        topSpeedKph != nil ||
+        longestRideSeconds != nil ||
+        longestRideMeters != nil ||
+        paddleDistanceMeters != nil
+    }
+
+    /// Flips the source the moment the surfer touches any wave figure.
+    ///
+    /// Every wave-stat control in the editor routes its write through here, which
+    /// is what guarantees a later workout import can never quietly overwrite a
+    /// number a person put there by hand — `SurfSession.applyDerivedWaveStats`
+    /// refuses to touch anything that is not `auto`.
+    mutating func markWaveStatsEdited() {
+        switch waveStatsSource {
+        case .auto, .edited: waveStatsSource = .edited
+        case .manual, .none: waveStatsSource = linkedWorkoutID == nil ? .manual : .edited
+        }
+    }
+
+    mutating func clearWaveStats() {
+        waveCount = nil
+        topSpeedKph = nil
+        longestRideSeconds = nil
+        longestRideMeters = nil
+        paddleDistanceMeters = nil
+        waveStatsSource = nil
+        // The workout link survives a stats clear on purpose: the route is still
+        // the route, and the user may well want the estimate back.
     }
 
     mutating func applySurfConditions(_ snapshot: SurfConditionsSnapshot) {

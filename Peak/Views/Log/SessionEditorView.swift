@@ -559,6 +559,15 @@ struct SessionEditorView: View {
             }
             .padding(12)
             .glassInput()
+
+            // Wave stats last in Details: they are the most optional thing on the
+            // screen (most sessions have none) and the block is tall.
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Wave stats")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                WaveStatsEditor(draft: $draft)
+            }
         }
     }
 
@@ -947,6 +956,13 @@ struct SessionEditorView: View {
                 conditionsFetchedAt: draft.conditionsFetchedAt,
                 conditionsLatitude: draft.conditionsLatitude,
                 conditionsLongitude: draft.conditionsLongitude,
+                waveCount: draft.waveCount,
+                topSpeedKph: draft.topSpeedKph,
+                longestRideSeconds: draft.longestRideSeconds,
+                longestRideMeters: draft.longestRideMeters,
+                paddleDistanceMeters: draft.paddleDistanceMeters,
+                waveStatsSource: draft.waveStatsSource?.rawValue,
+                linkedWorkoutID: draft.linkedWorkoutID,
                 notes: draft.notes,
                 createdAt: Date(),
                 updatedAt: Date()
@@ -979,6 +995,13 @@ struct SessionEditorView: View {
             session.conditionsFetchedAt = draft.conditionsFetchedAt
             session.conditionsLatitude = draft.conditionsLatitude
             session.conditionsLongitude = draft.conditionsLongitude
+            session.waveCount = draft.waveCount
+            session.topSpeedKph = draft.topSpeedKph
+            session.longestRideSeconds = draft.longestRideSeconds
+            session.longestRideMeters = draft.longestRideMeters
+            session.paddleDistanceMeters = draft.paddleDistanceMeters
+            session.waveStats = draft.waveStatsSource
+            session.linkedWorkoutID = draft.linkedWorkoutID
             session.notes = draft.notes
             session.updatedAt = Date()
             mediaFailures = applyMedia(to: session)
