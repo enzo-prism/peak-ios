@@ -20,6 +20,9 @@ struct YearInReviewView: View {
     /// same facts, flatter prose — which is what every device without Apple
     /// Intelligence sees.
     @State private var narrative: String?
+    /// Which recap `narrative` belongs to, so switching years clears it and
+    /// re-opening the screen does not re-run inference for a paragraph we have.
+    @State private var narrativeReview: YearInReview?
 
     var body: some View {
         ZStack {
@@ -274,13 +277,22 @@ struct YearInReviewView: View {
     /// Same contract as the Stats card: silent on every failure, and the
     /// paragraph on screen is already correct before this runs.
     private func refreshNarrative() async {
+        guard let review, !review.isEmpty else {
+            narrative = nil
+            narrativeReview = nil
+            return
+        }
+        if narrativeReview == review, narrative != nil { return }
+
         narrative = nil
-        guard let review, !review.isEmpty else { return }
         guard let generator = InsightsModel.makeGenerator() else { return }
         let facts = InsightsEngine.yearFacts(review: review)
         let result = await InsightsEngine.yearNarrative(facts: facts, generator: generator)
         guard !Task.isCancelled, self.review == review else { return }
         narrative = result
+        // Recorded only on success: a draft that failed screening should get
+        // another chance next time rather than being cached as "no paragraph".
+        narrativeReview = result == nil ? nil : review
     }
 
     private func prepareShareContent() async {

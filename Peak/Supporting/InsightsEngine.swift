@@ -889,8 +889,9 @@ enum InsightsEngine {
         )
     }
 
-    /// The most recent earlier month this one beat, or `nil` when it did not beat
-    /// them all. Requires a strict win: tying your own record is not news.
+    /// The best earlier month this one beat, or `nil` when it did not beat them
+    /// all. Requires a strict win — tying your own record is not news — and a
+    /// record book of at least `minimumComparisonMonths` to beat.
     private static func previousBestMonthName(
         sessions: [SurfSession],
         monthStart: Date,

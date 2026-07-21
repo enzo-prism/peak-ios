@@ -40,7 +40,7 @@ struct StatsView: View {
     @State private var cachedWaveRecords = WaveRecords()
     @State private var cachedWavesPerSession: [WavesPerMonth] = []
     /// Plain figures the moment the tab appears; upgraded in place with the
-    /// model's prose by `insightsTask` when the device can run one.
+    /// model's prose by `refreshInsight` when the device can run one.
     @State private var cachedRecap: MonthlyRecap?
     @State private var cachedGoal = MonthlyGoalProgress(
         metric: .sessions,
@@ -226,6 +226,10 @@ struct StatsView: View {
     /// only thing at stake is whether it also gets a sentence.
     private func refreshInsight() async {
         guard let facts = cachedRecap?.facts, !facts.isEmpty else { return }
+        // Already written for these exact facts. `.task` restarts on every
+        // appearance, and re-inferring the same sentence each time the surfer
+        // opens the tab would spend Neural Engine time and battery for nothing.
+        guard cachedRecap?.narrative == nil else { return }
         guard let generator = InsightsModel.makeGenerator() else { return }
         let result = await InsightsEngine.recap(facts: facts, generator: generator)
         guard !Task.isCancelled, result.facts == cachedRecap?.facts else { return }
