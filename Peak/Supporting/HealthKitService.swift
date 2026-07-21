@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import HealthKit
 import SwiftData
@@ -100,6 +101,44 @@ struct SessionHealthStats: Equatable {
     }
 }
 
+// MARK: - Route access boundary
+
+/// The one thing `WaveAnalyzer` surfacing needs from HealthKit: the GPS route of
+/// a workout, already mapped to the analyzer's CoreLocation-free `RouteSample`.
+///
+/// It is a protocol purely so tests can drive the whole import/preview path from
+/// synthetic fixtures. CI runs on a simulator with no entitlements and no Health
+/// database, so anything that reached `HKHealthStore` in a unit test would either
+/// hang or silently return nothing — neither of which is a test.
+nonisolated protocol WorkoutRouteProviding: Sendable {
+    /// Route fixes for a workout, in HealthKit's order. Returns an empty array —
+    /// never an error — when the feature is off, unauthorized, or the workout
+    /// simply has no route (an indoor session, or a watch that lost GPS).
+    func routeSamples(forWorkoutID id: UUID) async -> [RouteSample]
+}
+
+/// Derives wave statistics for a workout. Kept separate from `HealthKitService`
+/// so the analysis path is exercised in tests through a mock provider.
+nonisolated enum WaveStatsDeriver {
+    /// Fetches the route and analyzes it off the main thread.
+    ///
+    /// `nil` means "no usable route", which is deliberately distinct from
+    /// `WaveStats.zero` ("a route, but the surfer caught nothing"). The UI shows
+    /// nothing at all in the first case and an honest zero in the second.
+    static func stats(
+        forWorkoutID id: UUID,
+        provider: any WorkoutRouteProviding,
+        tuning: WaveAnalyzer.Tuning = WaveAnalyzer.Tuning()
+    ) async -> WaveStats? {
+        let samples = await provider.routeSamples(forWorkoutID: id)
+        // Two fixes cannot describe a session; the analyzer would return `.zero`
+        // and we would present an authoritative-looking "0 waves" for a workout
+        // that was never actually tracked.
+        guard samples.count >= WaveAnalyzer.Tuning().minWaveSampleCount else { return nil }
+        return await WaveAnalyzer.analyzeOffMain(samples: samples, tuning: tuning)
+    }
+}
+
 enum HealthKitServiceError: LocalizedError {
     case healthDataUnavailable
 
@@ -167,7 +206,12 @@ final class HealthKitService {
         let read: Set<HKObjectType> = [
             HKObjectType.workoutType(),
             HKQuantityType(.heartRate),
-            HKQuantityType(.activeEnergyBurned)
+            HKQuantityType(.activeEnergyBurned),
+            // 3.0: the GPS route behind a surf workout, which is what
+            // `WaveAnalyzer` mines for wave count / top speed / ride length.
+            // Route access is its own authorization type — asking for the workout
+            // alone returns workouts with no locations attached.
+            HKSeriesType.workoutRoute()
         ]
         try await healthStore.requestAuthorization(toShare: share, read: read)
     }
@@ -329,6 +373,73 @@ final class HealthKitService {
         return HealthKitLogic.unloggedWorkouts(from: summaries, sessionWindows: windows)
     }
 
+    // MARK: Route reads (3.0)
+
+    /// Route fixes for one workout, mapped to `RouteSample`.
+    ///
+    /// Quiet by the same rule as `fetchStats`: disabled, unauthorized, no route,
+    /// and "HealthKit threw" are all reported as an empty array. The caller shows
+    /// no wave stats in every one of those cases, so distinguishing them would
+    /// only produce an error message the user cannot act on.
+    func routeSamples(forWorkoutID id: UUID) async -> [RouteSample] {
+        guard canRead else { return [] }
+        do {
+            guard let workout = try await workout(withID: id) else { return [] }
+            var samples: [RouteSample] = []
+            // A workout can carry more than one route series (the watch restarts
+            // one after a long GPS outage). They are concatenated; the analyzer
+            // sorts by timestamp and treats the seam as an untrusted link anyway.
+            for route in try await routeSeries(for: workout) {
+                for location in try await locations(in: route) {
+                    samples.append(RouteSample(location: location))
+                }
+            }
+            return samples
+        } catch {
+            return []
+        }
+    }
+
+    private func workout(withID id: UUID) async throws -> HKWorkout? {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workout(HKQuery.predicateForObject(with: id))],
+            sortDescriptors: [],
+            limit: 1
+        )
+        return try await descriptor.result(for: healthStore).first
+    }
+
+    private func routeSeries(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.workoutRoute(HKQuery.predicateForObjects(from: workout))],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)]
+        )
+        return try await descriptor.result(for: healthStore)
+    }
+
+    /// Bridges `HKWorkoutRouteQuery`, which is still a multi-callback API with no
+    /// async form, into a single awaited array.
+    ///
+    /// The handler fires repeatedly with batches until `done`, so the accumulator
+    /// has to survive between calls and the continuation must be resumed exactly
+    /// once — resuming twice is a hard crash, not a warning.
+    private func locations(in route: HKWorkoutRoute) async throws -> [CLLocation] {
+        let accumulator = RouteAccumulator()
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
+                if let error {
+                    if accumulator.finish() { continuation.resume(throwing: error) }
+                    return
+                }
+                accumulator.append(locations ?? [])
+                if done, accumulator.finish() {
+                    continuation.resume(returning: accumulator.collected)
+                }
+            }
+            healthStore.execute(query)
+        }
+    }
+
     // MARK: Internals
 
     /// Write inputs for a session; nil when the session has no logged duration
@@ -376,5 +487,59 @@ final class HealthKitService {
         let workouts = try await descriptor.result(for: healthStore)
         guard !workouts.isEmpty else { return }
         try await healthStore.delete(workouts)
+    }
+}
+
+extension HealthKitService: WorkoutRouteProviding {}
+
+/// Mutable state shared across `HKWorkoutRouteQuery`'s repeated callbacks.
+///
+/// `@unchecked Sendable` with an explicit lock rather than an actor: the handler
+/// is not async, so it cannot await an actor, and HealthKit gives no ordering
+/// guarantee strong enough to rely on without one.
+private final class RouteAccumulator: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [CLLocation] = []
+    private var isFinished = false
+
+    var collected: [CLLocation] {
+        lock.lock(); defer { lock.unlock() }
+        return storage
+    }
+
+    func append(_ locations: [CLLocation]) {
+        lock.lock(); defer { lock.unlock() }
+        storage.append(contentsOf: locations)
+    }
+
+    /// Claims the right to resume the continuation. True exactly once.
+    func finish() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !isFinished else { return false }
+        isFinished = true
+        return true
+    }
+}
+
+// MARK: - CoreLocation boundary
+
+extension RouteSample {
+    /// One-to-one mapping from CoreLocation.
+    ///
+    /// This is the *only* place CoreLocation meets the analyzer: `WaveAnalyzer`
+    /// stays CoreLocation-free so its 60-plus tests run against synthetic fixtures
+    /// with no simulator location, no entitlements, and no device. CoreLocation's
+    /// `-1` "unknown" sentinels for speed and course are passed straight through —
+    /// `RouteSample` documents them as its own contract and handles them
+    /// internally, so nothing here needs to pre-clean them.
+    init(location: CLLocation) {
+        self.init(
+            timestamp: location.timestamp,
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            speedMetersPerSecond: location.speed,
+            horizontalAccuracyMeters: location.horizontalAccuracy,
+            courseDegrees: location.course
+        )
     }
 }

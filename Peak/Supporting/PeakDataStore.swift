@@ -27,7 +27,7 @@ enum PeakDataStore {
     private static let storeFileName = "default.store"
 
     static func load(isUITest: Bool) -> StoreLoadResult {
-        let schema = Schema(versionedSchema: PeakSchemaV9.self)
+        let schema = Schema(versionedSchema: PeakSchemaV10.self)
 
         // UI tests always run against a fresh in-memory store (seeded by PeakApp).
         if isUITest {

@@ -1783,7 +1783,7 @@ final class WindowScorerRobustnessTests: XCTestCase {
 final class TodayWindowServiceTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(versionedSchema: PeakSchemaV9.self)
+        let schema = Schema(versionedSchema: PeakSchemaV10.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
     }
