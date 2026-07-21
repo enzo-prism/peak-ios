@@ -10,6 +10,65 @@ Status at a glance:
 - **App Store (live):** `2.0`
 - **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (Apple-grounded UX/design + platform polish, below); `2.5` build 1 previously in beta
 
+## [Unreleased] — 2.7 "Ecosystem Unlock"
+
+Peak leaves the app icon: Home and Lock Screen widgets, real App Intents
+entities for Siri/Spotlight/Shortcuts, a Control Center button, and a Live
+Activity that counts a session while you're in the water. Everything renders
+local data only — no accounts, no backend, no network.
+
+### Added
+
+- **Widgets (Home + Lock Screen).** *Surf Streak* (week streak, sessions this
+  month, days since last surf) and *Last Session* (spot, rating, how long ago),
+  in small/medium plus the accessory families. Both deep-link into a new session.
+  The widget never opens the SwiftData store: the app derives a small
+  `PeakWidgetSnapshot` and publishes it to a shared App Group container, so
+  there's no store migration and no risk to your library.
+  (`PeakWidgets/`, `Peak/WidgetSnapshot.swift`, `Peak/Supporting/WidgetSnapshotWriter.swift`)
+- **Session in progress + Live Activity.** Start a session from the Log hero,
+  Siri, the Action button, or Control Center; the elapsed timer appears on the
+  Lock Screen and in the Dynamic Island (and, on a paired Apple Watch, the Smart
+  Stack). Ending it opens the log prefilled with your start time, a duration
+  rounded to the nearest 5 minutes, and the spot — you just add rating and notes.
+  The timer is drawn with `Text(timerInterval:)`, so Peak sends no push updates
+  and holds no push token.
+  (`Peak/ActiveSession.swift`, `Peak/SessionActivityController.swift`, `PeakWidgets/SessionLiveActivity.swift`)
+- **App Intents, properly.** `SurfSessionEntity` and `SpotEntity` with stable
+  identifiers and display representations put your logbook into the Spotlight
+  semantic index and make it addressable from Shortcuts. Five intents ship with
+  natural Siri phrases: Log Session, Start Session, End Session, Last Session
+  ("when did I last surf?"), and Sessions This Month.
+  (`Peak/Supporting/AppIntentsEntities.swift`, `AppIntents+Peak.swift`, `SessionIntentQueries.swift`)
+- **Control Center button** (iOS 18+) that starts a session without launching
+  Peak. (`PeakWidgets/StartSessionControl.swift`)
+
+### Changed
+
+- The Log hero gained a **Start Session** control beside Log Session, and shows a
+  running timer with an End Session button while a session is in progress.
+- `SessionEditorView(mode:.new)` accepts an optional prefilled draft.
+- The widget snapshot is refreshed on launch, on every session save/delete or
+  backup restore, and each time Peak returns to the foreground.
+
+### Fixed
+
+- The widget extension was signed with the wrong development team (a stale
+  `SQ949Q468V`, which fails as "No Account for Team") and carried a stale
+  marketing version. Both now track the app target.
+- "Sessions this month" counted the first instant of the following month, because
+  `DateInterval.contains` is inclusive of its end.
+
+### Notes
+
+- The in-progress session lives in App-Group `UserDefaults`, **not** SwiftData —
+  2.7 ships no schema change.
+- ActivityKit is disabled under UI tests so the automated suite never depends on
+  Live Activity chrome.
+- **Manual step before release:** the App Group `group.com.designprism.peak` must
+  be registered in the Developer portal and associated with both bundle IDs. The
+  App Store Connect API can enable the capability but cannot create the group.
+
 ## [2.6] — 2026-07-13 — TestFlight (build 1, beta)
 
 An Apple-best-practices polish pass driven by a full audit against the current

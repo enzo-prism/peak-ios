@@ -47,6 +47,21 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
     )
 }
 
+/// The URL scheme the widgets and Live Activity use to hand the surfer back to
+/// the app. Shared so the writer of the link and the reader of the link can
+/// never drift apart.
+nonisolated enum PeakDeepLink {
+    /// Opens Peak straight into the new-session sheet.
+    static let newSession = URL(string: "peak://new-session")!
+
+    static func isNewSession(_ url: URL) -> Bool {
+        guard url.scheme == newSession.scheme else { return false }
+        // Widgets hand back `peak://new-session` (host), but a link built with a
+        // trailing slash lands the same word in `path` — accept both.
+        return url.host == "new-session" || url.path == "/new-session"
+    }
+}
+
 /// Shared read/write for the widget snapshot, backed by a JSON file in the App
 /// Group container. Safe to call from either the app or the widget extension.
 nonisolated enum PeakWidgetStore {

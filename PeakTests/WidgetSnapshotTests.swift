@@ -117,6 +117,22 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.lastSessionSpot)
     }
 
+    // MARK: - Deep link
+
+    /// The widgets and the app agree on one URL constant; this pins the shape
+    /// so a widget tap can't start pointing somewhere the app ignores.
+    func testWidgetDeepLinkIsRecognised() {
+        XCTAssertTrue(PeakDeepLink.isNewSession(PeakDeepLink.newSession))
+        XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak://new-session")!))
+        XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak:///new-session")!))
+    }
+
+    func testUnrelatedURLsAreIgnored() {
+        XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "peak://stats")!))
+        XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "https://new-session")!))
+        XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "peak://")!))
+    }
+
     func testSnapshotRoundTripsThroughJSON() throws {
         let original = PeakWidgetSnapshot(
             currentStreakWeeks: 4,

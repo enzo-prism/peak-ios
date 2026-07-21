@@ -15,6 +15,7 @@
 		2B0E228F75563157A8E2986C /* SurfSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880A21955950230F25AF5567 /* SurfSessionTests.swift */; };
 		2C139D21F17FD9095012B448 /* LastSessionWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A999BE0B50E1870F1BF2380 /* LastSessionWidget.swift */; };
 		358868331853B18B51C837FB /* SessionMediaStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F29C53E1AD98A9FC900B62A /* SessionMediaStoreTests.swift */; };
+		392275ADFFFF4D911F2D62EB /* PeakEcosystemUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 796514DED282F04D9F568734 /* PeakEcosystemUITests.swift */; };
 		3984E272CD71BC04F61C54E9 /* TestCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4FCF17EAA8377C0E9036E02 /* TestCalendar.swift */; };
 		4260220E92BED021416B7C1A /* StartSessionControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBF36EEAF289C74551BF3BC /* StartSessionControl.swift */; };
 		482E4CCCD0030352220D6C8C /* SurfConditionsFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4ECE0B09D95BE82074F1B00 /* SurfConditionsFormatterTests.swift */; };
@@ -105,6 +106,7 @@
 		74D501A791D6CF37DED6AF29 /* PeakUILayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeakUILayoutTests.swift; sourceTree = "<group>"; };
 		78F6F799E313965C2DD76083 /* StatsCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsCalculatorTests.swift; sourceTree = "<group>"; };
 		791FD3575E08D2622D768678 /* ModelContainerFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support/ModelContainerFactory.swift; sourceTree = "<group>"; };
+		796514DED282F04D9F568734 /* PeakEcosystemUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PeakEcosystemUITests.swift; sourceTree = "<group>"; };
 		880A21955950230F25AF5567 /* SurfSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfSessionTests.swift; sourceTree = "<group>"; };
 		9495C57AF8346FB7C641B5BA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		9F477A4A48D8B74FD308BFDC /* WidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotTests.swift; sourceTree = "<group>"; };
@@ -250,6 +252,7 @@
 			children = (
 				74D501A791D6CF37DED6AF29 /* PeakUILayoutTests.swift */,
 				38BAA22A80CFE37C18E3E7FE /* PeakUISmokeTests.swift */,
+				796514DED282F04D9F568734 /* PeakEcosystemUITests.swift */,
 			);
 			path = PeakUITests;
 			sourceTree = "<group>";
@@ -485,6 +488,7 @@
 			files = (
 				0F474B03CE0B08253DBFD97E /* PeakUILayoutTests.swift in Sources */,
 				AA9D6DEF88A0C5D2BF4ECBDD /* PeakUISmokeTests.swift in Sources */,
+				392275ADFFFF4D911F2D62EB /* PeakEcosystemUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

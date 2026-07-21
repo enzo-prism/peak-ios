@@ -59,6 +59,11 @@ struct ContentView: View {
         // return to the foreground so "days since" doesn't go stale on the
         // Home Screen.
         .task {
+            // The UI suite can't make the system deliver a widget tap, so it
+            // injects the URL and it takes the same route a real tap does.
+            if let url = TestingDefaults.launchDeepLinkURL {
+                handleDeepLink(url)
+            }
             quickLog.drainPendingLogFromStore()
             WidgetSnapshotWriter.update(from: sessions)
         }
@@ -71,10 +76,13 @@ struct ContentView: View {
             WidgetSnapshotWriter.update(from: sessions)
         }
         .onOpenURL { url in
-            if url.host == "new-session" || url.path == "/new-session" {
-                quickLog.requestNewSession()
-            }
+            handleDeepLink(url)
         }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard PeakDeepLink.isNewSession(url) else { return }
+        quickLog.requestNewSession()
     }
 
     /// A session ended outside the editor opens it prefilled; everything else

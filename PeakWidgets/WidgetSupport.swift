@@ -45,7 +45,7 @@ extension PeakWidgetSnapshot {
 }
 
 /// Deep link that opens the app straight into the new-session sheet.
-let peakLogSessionURL = URL(string: "peak://new-session")!
+let peakLogSessionURL = PeakDeepLink.newSession
 
 enum PeakWidgetStyle {
     static let ink = Color.primary

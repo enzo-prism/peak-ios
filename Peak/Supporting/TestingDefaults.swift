@@ -16,6 +16,18 @@ nonisolated enum TestingDefaults {
         ProcessInfo.processInfo.environment["PEAK_SCREENSHOTS"] == "1"
     }
 
+    /// A deep link handed to the app at launch. The UI suite can't ask the
+    /// system to deliver a real widget tap, so it injects the same URL here and
+    /// the app routes it through the identical `onOpenURL` handler.
+    static var launchDeepLinkURL: URL? {
+        guard let value = ProcessInfo.processInfo.environment["UITESTS_OPEN_URL"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return nil
+        }
+        return URL(string: value)
+    }
+
     static var surfConditionsScenario: String? {
         guard let value = ProcessInfo.processInfo.environment["UITESTS_SURF_CONDITIONS_SCENARIO"]?
             .trimmingCharacters(in: .whitespacesAndNewlines),
