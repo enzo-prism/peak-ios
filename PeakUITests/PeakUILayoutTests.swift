@@ -42,7 +42,14 @@ final class PeakUILayoutTests: XCTestCase {
         // into view before asserting: the check is that content is not clipped or
         // overflowing horizontally, which still has to hold — not that everything
         // fits on one screenful.
-        let row = app.staticTexts["Trestles"]
+        //
+        // Addressed through `firstHistoryRow()` rather than by the spot's name:
+        // since unlocated spots became Best Window favourites, the card's spot
+        // picker is visible on the default seed and a name like "Trestles" now
+        // matches both a picker chip and a recents row. The row identifier is
+        // unambiguous, and checking the whole row is a stronger check than
+        // checking one label inside it.
+        let row = firstHistoryRow()
         if row.waitForExistence(timeout: 2) {
             scrollToVisible(row, in: app.scrollViews.firstMatch)
             assertFits(row)
