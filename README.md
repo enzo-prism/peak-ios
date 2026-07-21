@@ -2,32 +2,84 @@
 
 Peak is a fast, private surf-session logbook. Track when you surfed, where you paddled out, what gear you rode, who you surfed with, and the conditions, then look back anytime.
 
+## Current state
+
+- **App Store (live):** `2.0`
+- **TestFlight (beta):** `2.6` (build 1, uploaded 2026-07-13)
+- **On `main`, not yet cut to a build:** `2.7` (ecosystem), `2.8` (tide + Best Window
+  Today), `2.9` (quiver analytics, memory layer, first run), `3.0` (wave stats),
+  `3.2` (on-device insights). `MARKETING_VERSION` in the project is still `2.6` —
+  none of these have been archived. `CHANGELOG.md` has the per-release detail.
+- **Not merged, not shipped:** the `3.1` watchOS companion lives on
+  `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
+  it has never recorded a real surf; it stays off `main` until it passes real-device
+  ocean testing.
+- **Release blocker:** the App Group `group.com.designprism.peak` is still
+  unregistered in the Developer portal, which blocks any device build or archive of
+  the widget/Live Activity targets. See `RELEASE_PLAYBOOK.md`.
+
 ## Product scope
 - Offline-first, on-device storage only
-- No accounts or social features
+- No accounts, social features, or analytics
 - Quick session logging (date + spot required)
-- Optional wind and wave height conditions
+- Optional wind, wave height, and tide conditions
 - Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
 - Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
 - Photo and video attachments per session
-- History timeline with filters (spot, gear, buddy)
-- Basic stats (totals, top spots, most-used gear)
+- History timeline with filters (spot, gear, buddy) and search
+- Stats: totals, top spots, most-used gear, streaks, consistency heatmap, personal records
 - Spot library with optional pinned locations (a pin unlocks maps + conditions auto-fill; name-only spots are fine)
-- JSON + CSV export, JSON import (merge or replace)
+- Home/Lock Screen widgets, Siri/Shortcuts intents, Control Center control, and a Live Activity session timer
+- Wave stats (count, top speed, longest ride, paddle distance) estimated from Apple Watch workout routes — always editable
+- Board Report, On This Day, Year in Review, and opt-in monthly goals
+- Optional on-device narrative insights (Apple Intelligence devices only), where every figure is still computed by Peak
+- JSON + CSV export, JSON import (merge or replace), full `.peakbackup` archive including media
 
 ## Surf conditions auto-fill
 - Requires a session start time, duration, and a surf break with a pinned location.
 - Pulls marine + wind data from Open-Meteo, averages across the session window, and stores the source + fetch time.
+- Also records tide: `sea_level_height_msl` relative to mean sea level plus a rising / high / falling / low trend, read from the hourly curve either side of the session.
+- For US spots with a NOAA gauge nearby, `TideService` adds station-accurate CO-OPS high/low predictions (free, no key). Spots outside US coverage silently keep the Open-Meteo curve — that is not an error.
 - Never runs automatically; it only fires when the user taps **Auto-fill Conditions**.
+
+## Best Window Today
+- A card at the top of the Log tab for the user's most-logged located spots: the best few hours today, with the rated session it resembles.
+- `WindowScorer` ranks each forecast hour by similarity to that surfer's own rated sessions at that spot — rating-weighted kernel regression, no coastline orientation or break physics modelled.
+- Gated on **confidence**, not on the predicted rating: below the threshold the card asks for more rated sessions rather than inventing a window.
+- Idle until you tap **Check conditions**, unless you opt in to Settings → "Refresh automatically when I open Peak" (**off by default**).
+
+## Wave stats
+- Peak reads the GPS route Apple Watch already stores with a surf workout and derives wave count, top speed, longest ride (duration + distance), and paddle distance on-device.
+- `WaveAnalyzer` is CoreLocation-free and deterministic, so its whole suite runs on synthetic routes — no device, no entitlement, no ocean.
+- **Everything is an editable estimate.** Editing a value marks the session `edited`/`manual`, after which no import overwrites it. Manual entry works with no workout at all.
+- Only the workout UUID is persisted; the route is re-read from HealthKit on demand. Route reads stay behind the existing `healthSyncEnabled` opt-in.
+- Personal records (most waves, fastest wave, longest ride) surface on Stats and are suppressed entirely when no session carries wave stats.
+
+## On-device insights (optional)
+- `InsightsEngine` turns pre-aggregated calculator output into a small facts value, and Apple's on-device model supplies **connective language only**.
+- Three independent guarantees that no figure is model-generated: the prompt contains no numerals, the `@Generable` schema has no numeric field, and `InsightsSanitizer` discards any generated text containing a digit, number word, or unknown capitalised word.
+- Availability-gated and silent: on a device that cannot run the model (pre-iOS 26, ineligible hardware, Apple Intelligence off) the same surfaces render the identical facts as plain stats.
+- No network call was added. Inference is on-device.
+
+## Widgets, Siri & Live Activity
+- **Widgets**: *Surf Streak* and *Last Session*, small/medium plus accessory families, both deep-linking to a new session via `peak://new-session`.
+- Widgets never open the SwiftData store. The app derives a small `PeakWidgetSnapshot` and publishes it to the shared App Group container.
+- **App Intents**: `SurfSessionEntity` and `SpotEntity` put the logbook in the Spotlight semantic index; Log / Start / End / Last Session / Sessions This Month ship with Siri phrases.
+- **Live Activity**: a session timer on the Lock Screen and in the Dynamic Island, drawn with `Text(timerInterval:)` so Peak sends no push updates and holds no push token.
+- The in-progress session lives in App-Group `UserDefaults`, **not** SwiftData.
 
 ## Architecture overview
 - **UI**: SwiftUI tabs (`Log`, `History`, `Stats`, `Quiver`, `More`) with shared glass styling in `Peak/Supporting/Theme.swift`.
-- **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage.
+- **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage, currently at schema **V10**.
 - **Editing**: `SessionDraft` stages changes before saving to a `SurfSession`.
 - **Media**: Photos stored inline; videos stored in `Application Support/SessionMedia` and referenced by filename.
-- **Conditions**: `SurfConditionsService` calls Open-Meteo marine + weather endpoints when auto-fill is tapped.
-- **Stats**: `StatsCalculator` + `UsageMetricsCalculator` compute totals, streaks, and top items.
-- **Export/Import**: `PeakExportManager` handles JSON/CSV export and JSON restore.
+- **Conditions**: `SurfConditionsService` calls Open-Meteo marine + weather endpoints when auto-fill is tapped; `TideService` adds optional NOAA CO-OPS precision for US spots.
+- **Today**: `WindowScorer` + `TodayWindowService` back the Best Window Today card.
+- **Wave stats**: `WaveAnalyzer` derives estimates from HealthKit workout routes; `WaveStatsCalculator` computes records.
+- **Insights**: `InsightsEngine` (pure Foundation, iOS 17) with `FoundationModelsInsights` behind an availability gate.
+- **Stats**: `StatsCalculator`, `UsageMetricsCalculator`, `GearInsightsCalculator`, `YearInReviewCalculator`, `MonthlyGoalCalculator`, `OnThisDayProvider`.
+- **Extension**: `PeakWidgets/` hosts the widgets, the Control Center control, and the Live Activity; it shares state with the app through App Group `group.com.designprism.peak`.
+- **Export/Import**: `PeakExportManager` handles JSON/CSV export and JSON restore; `BackupManager` handles media-inclusive `.peakbackup` archives.
 
 ## Design system
 - Adaptive monochrome palette with full light and dark mode support (ink on paper / foam on ocean)
@@ -41,14 +93,21 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - See `ARCHITECTURE.md` for a full overview of the app structure, data model, and key flows.
 
 ## Platform decisions
-- Minimum iOS: 17.0 (SwiftData)
-- Data store: SwiftData (local only)
+- Minimum iOS: 17.0 (SwiftData) — unchanged by every release through 3.2
+- Data store: SwiftData (local only), schema V10
 - UI: SwiftUI
+- Targets: `Peak` (app), `PeakWidgets` (widget extension: widgets, Control Center control, Live Activity), `PeakTests`, `PeakUITests`
+- App Group: `group.com.designprism.peak`, shared by the app and widget extension
+- iOS 18/26-only API (Control Center controls, Foundation Models, interactive snippets) is availability-gated; nothing raises the floor
 
 ## Getting started
 1. Open `Peak.xcodeproj` in Xcode 17+
 2. Select the `Peak` scheme
 3. Run on any iOS 17+ simulator or device
+
+> Only the `Peak` folder is a file-system-synchronized group. New files in
+> `PeakTests`, `PeakUITests`, or `PeakWidgets` must be registered in
+> `project.pbxproj` before the build can see them — see `AGENTS.md`.
 
 ## Development commands
 - Boot the simulator: `./scripts/boot-sim.sh`
@@ -100,6 +159,13 @@ Optional overrides:
 - Workflow run list only: `./scripts/gh-tooling.sh workflows 10`
 
 ## Testing
+
+Current suite on `main`: **434 unit tests** (`PeakTests`) and **51 UI tests** (`PeakUITests`).
+
+> **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
+> resource; concurrent runs produce false failures that look like real bugs. See
+> `AGENTS.md` → "Build / Test / Simulator Rules".
+
 - Fast unit-only loop:  
   `./scripts/test-unit.sh`
 - Default local/CI gate:  
@@ -117,7 +183,9 @@ Optional overrides:
 ## Privacy and support
 - Privacy policy: `PRIVACY.md`
 - Support contact: `SUPPORT.md`
-- Data stays on-device; no accounts or analytics. Optional Open-Meteo requests are made only when you use Auto-fill Conditions.
+- Data stays on-device; no accounts or analytics. Optional Open-Meteo and NOAA CO-OPS requests are made only when you use Auto-fill Conditions or Best Window Today.
+- On-device insight generation adds no network call; inference runs on the phone.
+- HealthKit reads (workouts and workout routes) are behind the `healthSyncEnabled` opt-in and are a quiet no-op when it is off.
 
 ## Acceptance criteria
 - Users can log a session in under 60 seconds
@@ -126,6 +194,9 @@ Optional overrides:
 - App works fully offline and stores data locally
 - Accessible with Dynamic Type and VoiceOver basics
 - Auto-fill conditions only runs on tap and requires a duration + pinned spot
+- Best Window Today shows a window only when confidence clears the threshold, never a fabricated one
+- Every wave stat is presented as an estimate and is correctable in-app; a user's edit always outranks a derived value
+- Every number rendered by an insight surface comes from Peak's own calculators, on every device, with or without Apple Intelligence
 
 ## UX Notes
 - New-session logging now surfaces a `Quick Start` section with a one-tap "Use last session setup" action and recency-based spot/gear chips to reduce logging friction.

@@ -30,7 +30,28 @@ No social/sharing, accounts, or backend for now.
 ### Privacy & data
 - **Local-only storage** (SwiftData). No backend. No accounts. No social. No analytics SDKs.
 - Do **not** add network calls or permissions unless explicitly requested.
+- **Networking is explicit-user-action-only.** The only endpoints are Open-Meteo and
+  NOAA CO-OPS, and they are reached when the user taps Auto-fill Conditions or
+  Check Conditions — or via the Best Window Today auto-refresh toggle, which is
+  opt-in and off by default. Nothing fetches on launch by default.
+- **On-device means on-device.** Language-model inference and GPS route analysis
+  never leave the phone, and no route coordinates are persisted (only a workout
+  UUID). Do not introduce a server-side model, ever.
+- HealthKit reads stay behind the `healthSyncEnabled` opt-in and must be a quiet
+  no-op when it is off or denied.
 - Keep `PrivacyInfo.xcprivacy` accurate if anything privacy-related changes.
+
+### Honesty about derived numbers
+- Wave stats are **estimates**, labelled as such everywhere, and correctable in-app.
+  A user's edit always outranks a derived value; re-import must never overwrite an
+  `edited` or `manual` session.
+- Best Window Today is gated on **confidence**, not on the predicted rating. Below
+  the threshold, say so — never render a fabricated window.
+- A statistic computed from too little data must say "not enough data yet" rather
+  than show a number (the Board Report's floor is three rated sessions per bucket).
+- No figure on screen may originate from a language model. See
+  `ARCHITECTURE.md` → On-Device Insights for the three guarantees; if you add an
+  insight surface, it must keep all three.
 
 ### Platform
 - Minimum iOS version stays **17.0** unless explicitly requested.
@@ -59,11 +80,16 @@ No social/sharing, accounts, or backend for now.
 - Confirm you are not changing privacy/platform constraints.
 
 ### Definition of done (required)
-- Run tests: `./scripts/test.sh` (**must pass**).
+- Run tests: `./scripts/test.sh` (**must pass**) — one `xcodebuild` at a time, see below.
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
 - Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
+- **Report the test counts you observed**, and reconcile them against the baseline
+  (434 unit / 51 UI on `main`). An unexplained drop is a stale runner or a
+  concurrent run, not a pass.
+- If you added tests, name one in your summary and confirm you saw it in the output.
 - No new warnings or broken builds.
 - If UI layout/snapshot tests fail, update only what’s necessary and keep the UI consistent.
+- Add a `CHANGELOG.md` entry for the release you are working in.
 - Provide a concise summary:
   - what changed
   - where it changed
@@ -73,12 +99,94 @@ No social/sharing, accounts, or backend for now.
 
 ## Build / Test / Simulator Rules
 
-Prefer **XcodeBuildMCP** tools when you need to:
-- build/test
-- boot/run simulators
-- install/launch
-- stream logs
-- capture screenshots/video
+> Everything in this section was learned the hard way and cost real hours. These
+> are rules, not suggestions. The failure modes below all *look like product bugs*
+> — that is exactly why they are expensive.
+
+### 1. The simulator is a single shared resource — run exactly ONE `xcodebuild` at a time
+
+Never start a build or test run while another one is in flight, whether it is
+yours, another agent's, or a human's Xcode window. Check first; wait if something
+is running.
+
+Concurrent runs do **not** fail loudly. They produce false failures that read as
+real bugs. Three distinct ones observed in a single day:
+- a phantom pass reporting **"2 tests executed"** when the suite has hundreds;
+- **"Test crashed with signal kill before establishing connection"** — a bootstrap
+  crash, nothing to do with the code under test;
+- CoreData **"Sandbox access to file-write-create denied"** — two runs fighting
+  over the same container.
+
+If you see any of those, do not debug the app. Establish that you are alone on the
+simulator and re-run.
+
+### 2. A suspiciously small test count means a stale runner, not a passing suite
+
+If a UI run reports far fewer tests than expected **and no failures**, `xcodebuild`
+reused an already-installed `PeakUITests-Runner.app` instead of the one it just
+built. Nothing is wrong with your code and nothing was actually verified.
+
+Fix: delete the runner from DerivedData (`.derivedData/` in the repo root) and
+`xcrun simctl uninstall <udid> <runner bundle id>`, then re-run.
+
+Corollary: **a test count you did not expect is a result you must explain.** Never
+accept "it passed" from a run whose count dropped.
+
+### 3. Neither `PeakTests` nor `PeakUITests` is a synchronized group
+
+Only the iOS `Peak` folder is a `PBXFileSystemSynchronizedRootGroup`. A new file
+dropped into `PeakTests/`, `PeakUITests/`, or `PeakWidgets/` is **invisible to the
+build** until it has a `PBXFileReference`, a `PBXBuildFile`, and an entry in the
+target's Sources phase. It does not error — the tests simply do not exist.
+
+Two acceptable options:
+- **Fold the new tests into an existing file** in that target (simplest, and
+  usually right for a handful of cases).
+- **Register the file with the `xcodeproj` ruby gem.** Do not hand-edit
+  `project.pbxproj`: the project is `objectVersion = 77` and hand-editing reliably
+  corrupts the synchronized root group, its exception sets, and the target's
+  `fileSystemSynchronizedGroups` array — after which Xcode silently drops sources.
+  `scripts/add-watch-tests.rb` on `feature/3.1-watchos` is a working, idempotent
+  template.
+
+**Then prove it ran.** Find the new test *by name* in the run output. A green run
+is not evidence that your test executed.
+
+### 4. UI-test scrolling: `isHittable` is not visibility, and swipes overshoot
+
+- `isHittable` is true for an element whose frame merely **overlaps** the viewport.
+  A field hanging off the bottom edge passes the check while a tap at its centre
+  lands off-screen and silently fails to take focus. **Require the element's centre
+  to be inside the scroll view** (with a small margin — a centre resting exactly on
+  the edge is not reliably tappable).
+- A swipe carries momentum: one can move this app's editor by **~670pt**, more than
+  a phone viewport. A target can therefore travel from below the fold to above it
+  between two checks. **A scroll loop must be able to reverse direction**, or it
+  pins itself at the end of the content with the element existing but unreachable
+  above, and burns its whole swipe budget.
+
+The `scrollToVisible` / `isCentreVisible` helpers in each UI test class already do
+both. Reuse them; do not write a fresh `while !isHittable { swipeUp() }` loop.
+
+Related: a keyboard that silently stays up hides the bottom of the editor and makes
+every later scroll spin against content it can never reach — which reads as a
+broken control rather than a stuck keyboard. `dismissKeyboard` verifies dismissal
+and falls back to the keyboard's own Done/Return key.
+
+### 5. A fresh simulator raises an "Enable Dictation?" alert on first keyboard use
+
+It is a **system** alert, so it steals taps from the app underneath: a stepper tap
+lands on the alert instead of your control, and the test fails reporting a control
+that "did nothing". A freshly created or erased simulator is exactly what CI gets.
+
+`scripts/boot-sim.sh` pre-answers the first-run keyboard prompts so a fresh
+simulator behaves like a warm one. **Keep that.** Do not remove it, and boot
+through the script rather than `simctl boot` directly.
+
+### Commands
+
+Prefer **XcodeBuildMCP** tools when you need to build/test, boot/run simulators,
+install/launch, stream logs, or capture screenshots/video — subject to rule 1.
 
 If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` commands):
 - Boot simulator: `./scripts/boot-sim.sh`
@@ -86,10 +194,15 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 - Fast unit tests only: `./scripts/test-unit.sh`
 - Default test gate: `./scripts/test.sh`
 - iPhone UI tests: `./scripts/test-ui.sh`
+- iPhone + iPad UI/design check: `./scripts/design-check.sh`
+
+Baseline on `main`: **434 unit tests, 51 UI tests.** If your run reports fewer,
+re-read rules 1 and 2 before you believe it.
 
 Project/scheme assumptions:
-- Scheme is likely `Peak`.
+- App/UI scheme is `Peak`; `PeakUnit` is the fast unit-only scheme.
 - Prefer `.xcworkspace` if present; otherwise use `Peak.xcodeproj`.
+- DerivedData is `.derivedData/` in the repo root, not the Xcode default.
 
 ---
 
@@ -133,6 +246,35 @@ Project/scheme assumptions:
 - **Derived metrics should be computed from sessions** unless there’s a strong reason to cache.
   If caching derived values (e.g., XP/levels), it must remain correct under session edit/delete.
 
+#### Schema rule (do not improvise around this)
+
+Only the HEAD schema (currently `PeakSchemaV10`, `Schema.Version(1, 9, 0)`)
+references the live `@Model` classes. Every earlier `PeakSchemaVn` is a **frozen
+inline snapshot** of the shape it shipped with.
+
+Therefore: **editing any live model field silently redefines the already-shipped
+HEAD version** and can shunt a user's store into the recovery archive. Before
+touching a field:
+
+1. Freeze the outgoing HEAD as a new inline `Vn` snapshot — **in the same change
+   as the real field delta.**
+2. Add the new live-referencing HEAD carrying the delta, plus a `.lightweight`
+   migration stage.
+3. Point `PeakDataStore` at the new HEAD.
+4. Update `ModelMigrationTests.testHeadSchemaShapeIsPinned` **deliberately** — it
+   exists to make this decision explicit, so a diff to it is a signal, not noise.
+5. Add both guards for the new version: a **shape-pin test** for the newly frozen
+   snapshot (see `testFrozenV9SnapshotShapeIsPinned`) and an **on-disk round-trip
+   migration test** that actually stages a store forward (see
+   `testV9ToV10MigrationAddsWaveStatFieldsAsNil`).
+
+**A no-op version bump is impossible.** SwiftData rejects two `VersionedSchema`s
+that hash to the same shape ("duplicate version checksums"), so you cannot freeze
+"in advance" as a tidy separate commit. Freeze and delta travel together, always.
+
+New fields should be optional so the migration stays lightweight and old rows
+migrate in as `nil`.
+
 ---
 
 ## Where to Put New Code (keep the repo organized)
@@ -144,6 +286,14 @@ Project/scheme assumptions:
 - Models: `Peak/Models/`
 - Unit tests: `PeakTests/`
 - UI tests/snapshots: `PeakUITests/`
+- Widget / Control Center / Live Activity UI: `PeakWidgets/`
+- Anything shared with the widget extension must be `nonisolated` and free of
+  SwiftData — the two targets do not share default actor isolation, and the
+  extension must never open the store (see `Peak/ActiveSession.swift` for the pattern)
+
+> **Only `Peak/` is a synchronized group.** A new file under `PeakTests/`,
+> `PeakUITests/`, or `PeakWidgets/` is invisible to the build until it is
+> registered in `project.pbxproj`. See rule 3 above.
 
 ---
 
@@ -188,15 +338,40 @@ Project/scheme assumptions:
 - More/Settings/Docs: `Peak/Views/More/*`
 - Design system: `Peak/Supporting/Theme.swift`, `Peak/Supporting/GlassHelpers.swift`
 - Components: `Peak/Views/Components/*`
+- Conditions/tide: `Peak/Supporting/SurfConditionsService.swift`, `TideService.swift`
+- Best Window Today: `Peak/Supporting/WindowScorer.swift`, `TodayWindowService.swift`, `Peak/Views/Today/*`
+- Wave stats: `Peak/Supporting/WaveAnalyzer.swift`, `WaveStatsCalculator.swift`, `HealthKitService.swift`
+- Insights: `Peak/Supporting/InsightsEngine.swift`, `FoundationModelsInsights.swift`
+- Memory/goals: `Peak/Supporting/GearInsightsCalculator.swift`, `OnThisDayProvider.swift`, `YearInReviewCalculator.swift`, `MonthlyGoalCalculator.swift`
+- First run/tips: `Peak/Views/Onboarding/WelcomeView.swift`, `Peak/Supporting/PeakTips.swift`
+- Widget extension: `PeakWidgets/*` (widgets, Control Center control, Live Activity)
+- App-Group shared state: `Peak/WidgetSnapshot.swift`, `Peak/Supporting/WidgetSnapshotWriter.swift`, `Peak/ActiveSession.swift`
+- App Intents: `Peak/Supporting/AppIntentsEntities.swift`, `AppIntents+Peak.swift`, `SessionIntentQueries.swift`, `QuickLogIntents.swift`
 - Tests: `PeakTests/*`, `PeakUITests/*`
 - CI: `.github/workflows/ci.yml`
 - In-app docs: `Peak/Resources/Privacy.md`, `Peak/Resources/Support.md`
 - Privacy manifest: `Peak/PrivacyInfo.xcprivacy`
 
+### Targets and branches
+
+- Shipping targets: `Peak`, `PeakWidgets`, `PeakTests`, `PeakUITests`.
+- App Group `group.com.designprism.peak` is shared by `Peak` and `PeakWidgets`. It
+  is **not yet registered in the Developer portal**, which blocks device builds and
+  archives of those targets — see `RELEASE_PLAYBOOK.md`.
+- The `3.1` watchOS companion (`PeakWatch`, `PeakWatchWidgets`, `PeakShared`) is
+  **code-complete on `feature/3.1-watchos` and deliberately not merged**. It has
+  never recorded a real surf. Do not merge it, ship it, or describe it as shipped;
+  it lands only after real-device ocean testing validates the `WaveAnalyzer`
+  constants against hand-counted sessions.
+
 ---
 
 ## Out of Scope (unless explicitly requested)
 
-- Social/sharing, accounts, cloud sync/backends
+- Social networks, feeds, follows, accounts, cloud sync/backends
+  (exporting an image through the system share sheet — `SessionShareCard`,
+  `RecapShareCard` — is *not* a social feature and is in scope)
+- Any server-side model or remote inference
 - New third-party SDKs
 - Big architecture rewrites (MVVM overhaul, DI frameworks, etc.)
+- Merging or shipping the `3.1` watchOS branch before real-device ocean testing
