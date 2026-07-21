@@ -4,19 +4,23 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 
 ## Current state
 
-- **App Store (live):** `2.0`
-- **TestFlight (beta):** `2.6` (build 1, uploaded 2026-07-13)
-- **On `main`, not yet cut to a build:** `2.7` (ecosystem), `2.8` (tide + Best Window
-  Today), `2.9` (quiver analytics, memory layer, first run), `3.0` (wave stats),
-  `3.2` (on-device insights). `MARKETING_VERSION` in the project is still `2.6` —
-  none of these have been archived. `CHANGELOG.md` has the per-release detail.
+- **App Store (live):** `2.6`
+- **TestFlight (next build):** `3.0` (build 1) — carries five releases at once:
+  `2.7` (widgets, App Intents, Live Activity), `2.8` (tide + Best Window Today),
+  `2.9` (quiver analytics, memory layer, first run), `3.0` (wave stats from
+  HealthKit routes) and `3.2` (on-device insights). `CHANGELOG.md` has the
+  per-release detail.
 - **Not merged, not shipped:** the `3.1` watchOS companion lives on
   `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
   it has never recorded a real surf; it stays off `main` until it passes real-device
   ocean testing.
-- **Release blocker:** the App Group `group.com.designprism.peak` is still
-  unregistered in the Developer portal, which blocks any device build or archive of
-  the widget/Live Activity targets. See `RELEASE_PLAYBOOK.md`.
+- **Test baseline on `main`:** 434 unit, 51 UI.
+- **Known blocker:** the App Group `group.com.designprism.peak` is still
+  unregistered in the Developer portal. The `APP_GROUPS` capability is enabled on
+  both bundle IDs, but the group identifier itself can only be created in the
+  portal or Xcode GUI — the App Store Connect API cannot. Until it exists, a device
+  build or archive containing the widget/Live Activity targets will fail to sign.
+  See `RELEASE_PLAYBOOK.md`.
 
 ## Product scope
 - Offline-first, on-device storage only
@@ -34,6 +38,18 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Board Report, On This Day, Year in Review, and opt-in monthly goals
 - Optional on-device narrative insights (Apple Intelligence devices only), where every figure is still computed by Peak
 - JSON + CSV export, JSON import (merge or replace), full `.peakbackup` archive including media
+- No accounts or social features
+- Quick session logging (date + spot required; location/pin optional)
+- Optional wind and wave height conditions
+- Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
+- Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
+- Photo and video attachments per session
+- History timeline with search + filters (spot, gear, buddy, rating, date range)
+- Stats 2.0 (time in water, streaks, heatmap, monthly bars, spot mix, conditions insights)
+- Spot library + map of pinned breaks (name-only spots are fine)
+- Optional Apple Health (save surfing workouts; import Watch HR/calories) — iPhone, opt-in
+- JSON + CSV export; full `.peakbackup` with media; JSON/backup restore (merge or replace)
+- Session share card
 
 ## Surf conditions auto-fill
 - Requires a session start time, duration, and a surf break with a pinned location.

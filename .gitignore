@@ -24,3 +24,4 @@ Makefile
 # Local build/release artifacts and marketing assets
 .asc/artifacts/
 marketing/
+.asc/release/

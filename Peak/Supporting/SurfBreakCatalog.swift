@@ -8,6 +8,9 @@ final class SurfBreakCatalog {
     private struct Indexed {
         let foldedName: String
         let foldedLocation: String
+        /// Same form as `Spot.makeKey(from:)` / `String.normalizedKey` — precomputed so search
+        /// never touches the SwiftData `@Model Spot` type (avoids host-test heap stress).
+        let key: String
         let value: SurfBreak
     }
 
@@ -19,6 +22,7 @@ final class SurfBreakCatalog {
             Indexed(
                 foldedName: $0.name.searchFolded,
                 foldedLocation: $0.locationLabel.searchFolded,
+                key: $0.name.normalizedKey,
                 value: $0
             )
         }
@@ -27,8 +31,8 @@ final class SurfBreakCatalog {
     var count: Int { index.count }
 
     /// Matches `raw` (>= 2 chars) against break names then locations, excluding any break the user
-    /// has already saved (matched by spot key), returning at most `limit` results
-    /// (name-prefix matches ranked above contains matches).
+    /// has already saved (matched by `Spot.makeKey` / `normalizedKey`), returning at most `limit`
+    /// results (name-prefix matches ranked above contains matches).
     func search(_ raw: String, limit: Int = 6, excludingKeys: Set<String> = []) -> [SurfBreak] {
         let query = raw.searchFolded.trimmingCharacters(in: .whitespacesAndNewlines)
         guard query.count >= 2 else { return [] }
@@ -36,7 +40,7 @@ final class SurfBreakCatalog {
         var prefix: [SurfBreak] = []
         var contains: [SurfBreak] = []
         for entry in index {
-            if excludingKeys.contains(entry.value.name.normalizedKey) { continue }
+            if !excludingKeys.isEmpty, excludingKeys.contains(entry.key) { continue }
             if entry.foldedName.hasPrefix(query) {
                 prefix.append(entry.value)
                 if prefix.count >= limit { break }

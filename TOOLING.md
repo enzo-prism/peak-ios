@@ -64,10 +64,15 @@ See `RELEASE_PLAYBOOK.md` for current version/build status, the branch-strategy 
 
 1. `./scripts/tooling-doctor.sh`
 2. `./scripts/test.sh`
-3. `./scripts/design-check.sh`
+3. `./scripts/design-check.sh` (UI changes)
 4. `./scripts/asc-sync.sh status`
 5. `./scripts/asc-sync.sh latest-build`
-6. `./scripts/asc-ops.sh next-build <VERSION> IOS`
+6. `./scripts/asc-ops.sh next-build 2.6 IOS` (or target version)
+7. Stage / validate / submit (see `RELEASE_PLAYBOOK.md`):
+   - `asc release stage --app 6757644027 --version 2.6 --build <BUILD_ID> --copy-metadata-from 2.4 --confirm`
+   - `asc validate --app 6757644027 --version 2.6 --platform IOS`
+   - `asc review submit --app 6757644027 --version 2.6 --build <BUILD_ID> --confirm`
+8. Monitor: `asc status --app 6757644027` · `./scripts/gh-tooling.sh status`
 
 ## Push flow (to `main`)
 
