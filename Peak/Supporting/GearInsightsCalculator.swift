@@ -1,10 +1,9 @@
 import Foundation
 
-/// Swell-period bands for the board report. Deliberately separate from
-/// `SwellPeriodBucket` (the Best-Conditions card): board choice turns on a
-/// coarser split — under 10 s is windswell you ride a fish in, 13 s+ is the
-/// groundswell you reach for a step-up — while the conditions card keeps the
-/// finer 8/11 s thresholds it shipped with.
+/// Swell-period bands, shared by the board report and the Best-Conditions card
+/// so both name a period the same way. The thresholds follow how surfers talk
+/// about swell rather than an even split: under 10 s is windswell you ride a
+/// fish in, 13 s+ is the groundswell you reach for a step-up.
 enum SwellPeriodBand: String, CaseIterable, Identifiable {
     case short
     case mid

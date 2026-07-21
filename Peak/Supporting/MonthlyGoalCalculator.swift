@@ -64,9 +64,16 @@ enum MonthlyGoalCalculator {
     static let metricKey = "monthlyGoalMetric"
     static let targetKey = "monthlyGoalTarget"
 
+    /// Goals start OFF (`0` hides the card). A target the surfer never chose is
+    /// just a number telling them they're behind — on day one it would read
+    /// "0 of 8", which is exactly the discouragement goals exist to avoid.
+    /// Settings offers this suggested target when they opt in.
+    static let defaultTarget = 0
     /// Roughly two sessions a week: ambitious enough to pull, achievable enough
     /// that a bad-forecast month doesn't zero it out.
-    static let defaultTarget = 8
+    static let suggestedTarget = 8
+    /// The same cadence expressed in hours, assuming a ~1.5 h session.
+    static let suggestedHoursTarget = 12
     static let maximumTarget = 60
 
     static func progress(

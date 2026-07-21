@@ -50,29 +50,6 @@ struct ConditionsInsight: Equatable {
     let sessionCount: Int
 }
 
-enum SwellPeriodBucket: CaseIterable, Equatable {
-    case short
-    case mid
-    case long
-
-    var label: String {
-        switch self {
-        case .short:
-            return "Under 8 s"
-        case .mid:
-            return "8–11 s"
-        case .long:
-            return "11 s+"
-        }
-    }
-
-    static func bucket(forSeconds seconds: Double) -> SwellPeriodBucket {
-        if seconds < 8 { return .short }
-        if seconds <= 11 { return .mid }
-        return .long
-    }
-}
-
 struct CountedItem: Identifiable {
     let key: String
     let name: String
@@ -329,7 +306,7 @@ enum StatsCalculator {
         var windOnly: [String: [Int]] = [:]
 
         for session in rated {
-            let period = session.swellWavePeriodSeconds.map(SwellPeriodBucket.bucket(forSeconds:))
+            let period = session.swellWavePeriodSeconds.map(SwellPeriodBand.band(forSeconds:))
             let wind = session.windCondition
             if let period {
                 periodOnly["\(period.label) swell", default: []].append(session.rating)

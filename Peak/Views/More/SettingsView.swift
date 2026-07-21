@@ -47,6 +47,19 @@ struct SettingsView: View {
                     .listRowBackground(Color.clear)
                     .accessibilityIdentifier("settings.monthlyGoal.stepper")
 
+                    if goalTarget == 0 {
+                        Button("Use suggested target") {
+                            goalTarget = goalMetric == .sessions
+                                ? MonthlyGoalCalculator.suggestedTarget
+                                : MonthlyGoalCalculator.suggestedHoursTarget
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 4)
+                        .listRowBackground(Color.clear)
+                        .accessibilityIdentifier("settings.monthlyGoal.useSuggested")
+                    }
+
                     Text("A monthly target you can miss a week of and still hit. Set it to zero to hide the goal ring.")
                         .font(.caption)
                         .foregroundStyle(Theme.textMuted)
