@@ -36,7 +36,7 @@ defect below was measured against a real store, not inferred.
   with fewer than two observed features. Measured on 30 rated picker-only
   sessions against the reference forecast day: **max confidence 0.0000 before,
   0.1927 after**, and the predicted rating went from flat on the 2.5 neutral
-  prior (spread 0.00) to a 2.34-star spread across the day. That is a usable
+  prior (spread 0.00) to a 2.36-star spread across the day. That is a usable
   model where there was none; it is still below the 0.25 recommendation gate, so
   such a logbook now gets the conditions readout rather than a fabricated window.
   Each picker band supplies a representative number **only where the numeric
