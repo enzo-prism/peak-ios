@@ -874,7 +874,12 @@ private extension SurfConditionsService {
     }
 }
 
-private enum SurfConditionsMapping {
+/// Bands a numeric reading into the editor's coarse pickers.
+///
+/// Internal rather than private because `ManualConditionEstimate` is its exact
+/// inverse and the two are only correct *together* — a test pins the round trip,
+/// which it cannot do if this is unreachable.
+enum SurfConditionsMapping {
     static func windCondition(for speedKph: Double?) -> WindCondition? {
         guard let speedKph else { return nil }
         switch speedKph {

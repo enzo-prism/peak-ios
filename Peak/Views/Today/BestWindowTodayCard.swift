@@ -4,36 +4,58 @@ import SwiftUI
 /// "Best window today" for one of the surfer's favourite spots, justified entirely
 /// by their own rated history there.
 ///
-/// Two rules shape this whole view:
+/// Three rules shape this whole view:
 ///
 /// 1. **No passive networking.** The card sits idle until the surfer taps "Check
 ///    conditions". A Settings toggle opts into fetching on appear, and it ships
 ///    off. Peak is offline-first and a card that quietly phones a weather service
-///    on every Log-tab visit would not be.
-/// 2. **Confidence gates the recommendation, not the star rating.** A thin or
-///    uniform logbook produces zero confidence by construction, and the honest
-///    answer there is to say so — never to dress up the prior as a forecast.
+///    on every Log-tab visit would not be. The backfill action is the same rule
+///    taken seriously: it is the largest request the app makes and it only ever
+///    happens on a tap.
+/// 2. **Confidence gates the recommendation, not the card.** A thin or uniform
+///    logbook produces zero confidence by construction, and the honest answer
+///    there is to say so — never to dress up the prior as a forecast. But the
+///    forecast itself is still true, so a card that cannot recommend anything
+///    reports the day's actual conditions instead of apologising.
+/// 3. **Never render nothing.** Every state the surfer can reach — no
+///    coordinates, no history, a failed fetch — has copy that says what happened
+///    and, where possible, a control that fixes it.
 struct BestWindowTodayCard: View {
     /// The whole logbook: the scorer needs every session at the chosen spot, not
     /// the recents window the rest of the Log tab shows.
     let sessions: [SurfSession]
 
+    @Environment(\.modelContext) private var modelContext
     @AppStorage(TodayWindowService.autoRefreshKey) private var autoRefresh = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedSpotID: PersistentIdentifier?
     @State private var state: LoadState = .idle
-    /// Guards against a second fetch while one is in flight, and against the
-    /// on-appear fetch firing again every time the tab is revisited.
+    @State private var backfill: BackfillState = .idle
+    /// The in-flight fetch, held so a spot change can cancel it. Its presence is
+    /// also the real concurrency guard: `state` is reset to `.idle` when the spot
+    /// changes, so a guard on `state != .loading` could not prevent a second
+    /// fetch and the two would race to write the answer.
+    @State private var refreshTask: Task<Void, Never>?
+    @State private var backfillTask: Task<Void, Never>?
+    /// Guards the on-appear fetch against firing again every time the tab is
+    /// revisited.
     @State private var hasAutoRefreshed = false
+    @State private var editingSpot: Spot?
 
     private enum LoadState: Equatable {
         case idle
         case loading
-        case recommendation(TodayWindowService.Recommendation)
-        /// Ranked, but nothing cleared the confidence gate.
-        case notEnoughHistory
+        /// A completed fetch. `outlook.recommendation` is nil when nothing cleared
+        /// the confidence gate, which is a real answer and not an error.
+        case loaded(TodayWindowService.Outlook)
         case failed(String)
+    }
+
+    private enum BackfillState: Equatable {
+        case idle
+        case running(completed: Int, total: Int)
+        case finished(String)
     }
 
     private var spots: [Spot] {
@@ -46,40 +68,67 @@ struct BestWindowTodayCard: View {
     }
 
     var body: some View {
-        // With no located spot there is nothing to forecast, and an empty card
-        // explaining that would be noise on the app's busiest screen.
+        // The card appears for any spot the surfer actually surfs, located or not.
+        // Requiring coordinates here is what used to make it invisible for every
+        // imported or typed-by-name break.
         if let spot = selectedSpot {
             GlassContainer(spacing: 12) {
                 VStack(alignment: .leading, spacing: 12) {
-                    header(spot: spot)
+                    header
                     spotPicker
-                    content(spot: spot)
-                    refreshButton(spot: spot)
+                    if spot.coordinate == nil {
+                        needsLocation(spot: spot)
+                    } else {
+                        content(spot: spot)
+                        backfillRow(spot: spot)
+                        refreshButton(spot: spot)
+                    }
                 }
                 .padding(Theme.Spacing.l)
                 .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassDimTint, isInteractive: false)
                 .padding(.horizontal)
             }
             .onAppear {
+                // Pure local lookup against the bundled catalog — no network, so it
+                // does not touch the no-passive-fetching rule. Repairs imported
+                // spots permanently, which also makes session auto-fill start
+                // working for them.
+                if SpotCoordinateResolver.resolveMissingCoordinates(for: spots) > 0 {
+                    try? modelContext.save()
+                }
                 guard autoRefresh, !hasAutoRefreshed, case .idle = state else { return }
                 hasAutoRefreshed = true
                 refresh(spot: spot)
+            }
+            .sheet(item: $editingSpot) { spot in
+                SpotEditorView(mode: .edit(spot))
             }
         }
     }
 
     // MARK: Pieces
 
-    private func header(spot: Spot) -> some View {
+    /// The heading names the day it is actually talking about. A window found for
+    /// tomorrow must never sit under the word "today".
+    private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: "clock.badge.checkmark")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .accessibilityHidden(true)
-            Text("Best window today")
+            Text(headingText)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
             Spacer(minLength: 0)
+        }
+    }
+
+    private var headingText: String {
+        guard case .loaded(let outlook) = state else { return "Best window today" }
+        switch outlook.dayOffset {
+        case 0: return "Best window today"
+        case 1: return "Best window tomorrow"
+        default: return "Best window ahead"
         }
     }
 
@@ -95,11 +144,7 @@ struct BestWindowTodayCard: View {
                             systemImage: "mappin",
                             isSelected: spot.persistentModelID == selectedSpot?.persistentModelID
                         ) {
-                            guard spot.persistentModelID != selectedSpot?.persistentModelID else { return }
-                            selectedSpotID = spot.persistentModelID
-                            // The old answer belongs to the old spot; keeping it on
-                            // screen under a new name would be a lie.
-                            state = .idle
+                            select(spot)
                         }
                     }
                 }
@@ -109,6 +154,21 @@ struct BestWindowTodayCard: View {
             // content inside a ScrollView is not reliably queryable.
             .accessibilityIdentifier("window.card.spots")
         }
+    }
+
+    /// Switching spots invalidates everything on screen *and* everything in
+    /// flight. Without the cancel, a slow fetch for the old spot would land after
+    /// the switch and render the old break's recommendation — and the old break's
+    /// cited session — under the new break's name.
+    private func select(_ spot: Spot) {
+        guard spot.persistentModelID != selectedSpot?.persistentModelID else { return }
+        refreshTask?.cancel()
+        refreshTask = nil
+        backfillTask?.cancel()
+        backfillTask = nil
+        selectedSpotID = spot.persistentModelID
+        state = .idle
+        backfill = .idle
     }
 
     @ViewBuilder
@@ -129,15 +189,12 @@ struct BestWindowTodayCard: View {
             }
             .accessibilityIdentifier("window.card.loading")
 
-        case .recommendation(let recommendation):
-            recommendationView(recommendation)
-
-        case .notEnoughHistory:
-            // The honest empty state. Never a fabricated window.
-            message(
-                "Log a few more rated sessions at \(spot.name) and Peak will learn what works here.",
-                identifier: "window.card.lowConfidence"
-            )
+        case .loaded(let outlook):
+            if let recommendation = outlook.recommendation {
+                recommendationView(recommendation)
+            } else {
+                lowConfidenceView(spot: spot, outlook: outlook)
+            }
 
         case .failed(let reason):
             message(reason, identifier: "window.card.error")
@@ -167,6 +224,56 @@ struct BestWindowTodayCard: View {
                 .foregroundStyle(Theme.textMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The honest state, and the common one. Nothing cleared the confidence gate,
+    /// so no window is claimed — but the forecast is still true, so the day's
+    /// conditions are shown, explicitly labelled as conditions.
+    private func lowConfidenceView(spot: Spot, outlook: TodayWindowService.Outlook) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let conditions = outlook.conditions {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(conditionsHeading(dayOffset: outlook.dayOffset, spot: spot))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textMuted)
+                        .textCase(.uppercase)
+                    Text(conditions.summary())
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Theme.textPrimary)
+                        .accessibilityIdentifier("window.card.conditions")
+                    Text("Forecast conditions, not a recommendation.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            message(lowConfidenceCopy(spot: spot), identifier: "window.card.lowConfidence")
+        }
+    }
+
+    private func conditionsHeading(dayOffset: Int, spot: Spot) -> String {
+        dayOffset == 0 ? "Conditions at \(spot.name) now" : "Tomorrow morning at \(spot.name)"
+    }
+
+    /// What the surfer actually has to do, which is not what this used to say.
+    ///
+    /// The old copy — "log a few more rated sessions and Peak will learn what
+    /// works here" — was false twice over: plain sessions were discarded outright,
+    /// so following it changed nothing, and even a full logbook of identically
+    /// rated sessions carries no signal. The two real requirements are conditions
+    /// attached to sessions and ratings that differ, so those are what it asks
+    /// for, and it points at the control that supplies the first one.
+    private func lowConfidenceCopy(spot: Spot) -> String {
+        let rated = sessions.filter { $0.spot?.persistentModelID == spot.persistentModelID && $0.rating > 0 }
+        let ratings = Set(rated.map(\.rating))
+        if rated.count >= 8 && ratings.count <= 1 {
+            return "Your sessions at \(spot.name) are all rated the same, so there is nothing yet to tell a good day from an average one. Rate them apart and Peak can start picking windows."
+        }
+        if hasFillableHistory(spot: spot) {
+            return "Peak needs the conditions you surfed in before it can pick a window at \(spot.name). Fill in past conditions above, then keep rating sessions."
+        }
+        return "Peak needs more rated sessions at \(spot.name), with the conditions attached, before it can honestly call a window."
     }
 
     /// The cited session, tappable through to its detail — the claim has to be
@@ -199,6 +306,76 @@ struct BestWindowTodayCard: View {
         }
     }
 
+    // MARK: Unlocated spots
+
+    /// A break with no coordinate cannot be forecast — but that is a fixable
+    /// problem, not a reason to render an empty view. Spots created by import or
+    /// typed by name arrive here, and the catalog lookup on appear has already had
+    /// its chance, so what is left genuinely needs the surfer.
+    private func needsLocation(spot: Spot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            message(
+                "Peak needs to know where \(spot.name) is before it can check the surf there.",
+                identifier: "window.card.needsLocation"
+            )
+            Button {
+                editingSpot = spot
+            } label: {
+                Label("Add location", systemImage: "mappin.and.ellipse")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .glassButtonStyle()
+            .accessibilityIdentifier("window.card.addLocation")
+        }
+    }
+
+    // MARK: Backfill
+
+    /// Only offered when it would do something: a located spot with sessions
+    /// inside the provider's ~92-day archive that have no conditions stored.
+    private func hasFillableHistory(spot: Spot) -> Bool {
+        guard spot.coordinate != nil else { return false }
+        return !ConditionsBackfill.eligibleSessions(from: sessions, at: spot).isEmpty
+    }
+
+    @ViewBuilder
+    private func backfillRow(spot: Spot) -> some View {
+        switch backfill {
+        case .running(let completed, let total):
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("Filling in past conditions... \(completed) of \(total)")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("window.card.backfillProgress")
+
+        case .finished(let summary):
+            Text(summary)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("window.card.backfillSummary")
+
+        case .idle:
+            if hasFillableHistory(spot: spot), state != .loading {
+                Button {
+                    runBackfill(spot: spot)
+                } label: {
+                    Label("Fill in past conditions", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .glassButtonStyle()
+                .accessibilityIdentifier("window.card.backfill")
+            }
+        }
+    }
+
     private func refreshButton(spot: Spot) -> some View {
         Button {
             refresh(spot: spot)
@@ -209,7 +386,12 @@ struct BestWindowTodayCard: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
         }
         .glassButtonStyle()
-        .disabled(state == .loading)
+        .disabled(state == .loading || isBackfilling)
+    }
+
+    private var isBackfilling: Bool {
+        if case .running = backfill { return true }
+        return false
     }
 
     private func message(_ text: String, identifier: String) -> some View {
@@ -243,28 +425,101 @@ struct BestWindowTodayCard: View {
     // MARK: Loading
 
     private func refresh(spot: Spot) {
-        guard state != .loading,
+        // `refreshTask`, not `state`, is the guard: switching spots resets `state`
+        // to `.idle` while a fetch is still running, so a state-based guard would
+        // let a second fetch start and the two would race.
+        guard refreshTask == nil,
               let latitude = spot.latitude,
               let longitude = spot.longitude else { return }
 
+        let requestedSpotID = spot.persistentModelID
         let history = TodayWindowService.ratedHistory(sessions: sessions, at: spot)
         state = .loading
 
-        Task {
+        refreshTask = Task {
+            let result: LoadState
             do {
                 // Both the fetch and the ranking happen off the main actor; only
                 // the resulting value comes back here.
-                let recommendation = try await TodayWindowService.bestWindow(
+                let outlook = try await TodayWindowService.outlook(
                     history: history,
                     latitude: latitude,
                     longitude: longitude
                 )
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
-                    state = recommendation.map(LoadState.recommendation) ?? .notEnoughHistory
-                }
+                result = .loaded(outlook)
             } catch {
-                state = .failed(errorMessage(for: error))
+                result = .failed(errorMessage(for: error))
             }
+
+            // Every result is tagged with the spot it was asked for. One that no
+            // longer matches is dropped rather than rendered under another break's
+            // name — and dropped *before* clearing `refreshTask`, which by now may
+            // belong to a newer fetch.
+            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
+            refreshTask = nil
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                state = result
+            }
+        }
+    }
+
+    /// Fetches and stores the conditions for past sessions that never got any.
+    ///
+    /// Sequential on purpose: this is a courtesy request against a free public
+    /// API on the surfer's behalf, and firing forty of them at once is how an app
+    /// gets rate-limited. Progress is reported per session, and the run gives up
+    /// after `ConditionsBackfill.consecutiveFailureLimit` failures in a row rather
+    /// than grinding through a dead network.
+    private func runBackfill(spot: Spot) {
+        guard backfillTask == nil,
+              let latitude = spot.latitude,
+              let longitude = spot.longitude else { return }
+
+        let requestedSpotID = spot.persistentModelID
+        let candidates = ConditionsBackfill.eligibleSessions(from: sessions, at: spot)
+        guard !candidates.isEmpty else { return }
+
+        backfill = .running(completed: 0, total: candidates.count)
+
+        backfillTask = Task {
+            var summary = ConditionsBackfill.Summary(
+                filled: 0, attempted: 0, eligible: candidates.count, stoppedEarly: false
+            )
+            var consecutiveFailures = 0
+
+            for session in candidates {
+                if Task.isCancelled { break }
+                summary.attempted += 1
+                do {
+                    let snapshot = try await SurfConditionsService.fetch(
+                        start: session.date,
+                        durationMinutes: session.durationMinutes ?? ConditionsBackfill.assumedDurationMinutes,
+                        latitude: latitude,
+                        longitude: longitude
+                    )
+                    ConditionsBackfill.apply(snapshot, to: session)
+                    summary.filled += 1
+                    consecutiveFailures = 0
+                } catch {
+                    consecutiveFailures += 1
+                    if consecutiveFailures >= ConditionsBackfill.consecutiveFailureLimit {
+                        summary.stoppedEarly = true
+                        break
+                    }
+                }
+                guard selectedSpot?.persistentModelID == requestedSpotID else { return }
+                backfill = .running(completed: summary.attempted, total: candidates.count)
+            }
+
+            guard !Task.isCancelled, selectedSpot?.persistentModelID == requestedSpotID else { return }
+            if summary.filled > 0 {
+                try? modelContext.save()
+            }
+            backfillTask = nil
+            backfill = .finished(summary.message)
+            // The history just changed, so any answer on screen was computed from
+            // the old one. Better to ask again than to show a stale verdict.
+            state = .idle
         }
     }
 
