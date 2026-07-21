@@ -247,6 +247,218 @@ enum SurfConditionsService {
     }
 }
 
+// MARK: - Hourly day forecast (Best Window Today)
+
+// Lives in this file rather than alongside the card because it reuses this
+// file's URL building, time parsing and error mapping wholesale. Same provider,
+// same shapes — the only difference is that nothing is averaged: the scorer wants
+// the hour-by-hour series, not one summary number.
+extension SurfConditionsService {
+
+    /// Hourly marine, wind and sea-level readings for the next `hours` at a spot.
+    ///
+    /// Marine and wind come from two different endpoints on their own hourly
+    /// grids, so they are joined on the hour rather than by index — a missing
+    /// marine hour must not silently shift every wind reading by one.
+    @concurrent
+    nonisolated static func fetchDayForecast(
+        latitude: Double,
+        longitude: Double,
+        start: Date = Date(),
+        hours: Int = 24,
+        session: URLSession = .shared
+    ) async throws -> [ForecastHour] {
+        if TestingDefaults.isUITest, let scenario = TestingDefaults.windowScenario {
+            return try mockDayForecast(for: scenario, start: start, hours: hours)
+        }
+
+        let hourCount = max(1, min(hours, 48))
+        let first = floorToHour(start)
+        let last = first.addingTimeInterval(Double(hourCount) * 3600)
+
+        async let marineResult = fetchMarineSeries(
+            start: first, end: last, latitude: latitude, longitude: longitude, session: session)
+        async let windResult = fetchWindSeries(
+            start: first, end: last, latitude: latitude, longitude: longitude, session: session)
+
+        var marine: [Date: MarineSample] = [:]
+        var wind: [Date: WindSample] = [:]
+        var errors: [Error] = []
+
+        do { marine = try await marineResult } catch { errors.append(error) }
+        do { wind = try await windResult } catch { errors.append(error) }
+
+        // Wind alone cannot rank a surf day and marine alone is missing the single
+        // most common ruiner of good swell, but either is better than nothing and
+        // WindowScorer imputes what is absent rather than guessing at it.
+        guard !marine.isEmpty || !wind.isEmpty else {
+            throw mostInformativeError(from: errors)
+        }
+
+        let stamps = Set(marine.keys).union(wind.keys)
+            .filter { $0 >= first && $0 <= last }
+            .sorted()
+
+        return stamps.map { stamp in
+            let m = marine[stamp]
+            let w = wind[stamp]
+            return ForecastHour(
+                date: stamp,
+                conditions: ConditionsSample(
+                    swellWaveHeightMeters: m?.swellWaveHeightMeters,
+                    swellWavePeriodSeconds: m?.swellWavePeriodSeconds,
+                    swellWaveDirectionDegrees: m?.swellWaveDirectionDegrees,
+                    windWaveHeightMeters: m?.windWaveHeightMeters,
+                    waveHeightMeters: m?.waveHeightMeters,
+                    windSpeedKph: w?.windSpeedKph,
+                    windDirectionDegrees: w?.windDirectionDegrees,
+                    seaSurfaceTemperatureC: m?.seaSurfaceTemperatureC,
+                    seaLevelHeightMeters: m?.seaLevelHeightMeters,
+                    tideTrend: m?.tideTrend
+                )
+            )
+        }
+    }
+
+    struct MarineSample: Sendable {
+        let waveHeightMeters: Double?
+        let swellWaveHeightMeters: Double?
+        let swellWavePeriodSeconds: Double?
+        let swellWaveDirectionDegrees: Double?
+        let windWaveHeightMeters: Double?
+        let seaSurfaceTemperatureC: Double?
+        let seaLevelHeightMeters: Double?
+        let tideTrend: TideTrend?
+    }
+
+    struct WindSample: Sendable {
+        let windSpeedKph: Double?
+        let windDirectionDegrees: Double?
+    }
+
+    @concurrent
+    nonisolated static func fetchMarineSeries(
+        start: Date,
+        end: Date,
+        latitude: Double,
+        longitude: Double,
+        session: URLSession
+    ) async throws -> [Date: MarineSample] {
+        let url = try makeMarineURL(start: start, end: end, latitude: latitude, longitude: longitude)
+        let response: OpenMeteoMarineResponse = try await fetchJSON(url: url, session: session)
+        let times = parseTimes(response.hourly.time)
+        guard !times.isEmpty else { throw SurfConditionsError.noMatchingHours }
+
+        let hourly = response.hourly
+        var out: [Date: MarineSample] = [:]
+        for (index, time) in times.enumerated() {
+            // Trend is per hour here, unlike the session snapshot: "when today?"
+            // is largely a tide question, so each hour needs its own answer,
+            // derived from the same full series.
+            let trend = deriveTideTrend(times: times, levels: hourly.sea_level_height_msl, around: time)
+            out[time] = MarineSample(
+                waveHeightMeters: value(hourly.wave_height, at: index),
+                swellWaveHeightMeters: value(hourly.swell_wave_height, at: index),
+                swellWavePeriodSeconds: value(hourly.swell_wave_period, at: index),
+                swellWaveDirectionDegrees: value(hourly.swell_wave_direction, at: index),
+                windWaveHeightMeters: value(hourly.wind_wave_height, at: index),
+                seaSurfaceTemperatureC: value(hourly.sea_surface_temperature, at: index),
+                seaLevelHeightMeters: value(hourly.sea_level_height_msl, at: index),
+                tideTrend: trend
+            )
+        }
+        return out
+    }
+
+    @concurrent
+    nonisolated static func fetchWindSeries(
+        start: Date,
+        end: Date,
+        latitude: Double,
+        longitude: Double,
+        session: URLSession
+    ) async throws -> [Date: WindSample] {
+        let url = try makeWindURL(start: start, end: end, latitude: latitude, longitude: longitude)
+        let response: OpenMeteoWeatherResponse = try await fetchJSON(url: url, session: session)
+        let times = parseTimes(response.hourly.time)
+        guard !times.isEmpty else { throw SurfConditionsError.noMatchingHours }
+
+        var out: [Date: WindSample] = [:]
+        for (index, time) in times.enumerated() {
+            out[time] = WindSample(
+                windSpeedKph: value(response.hourly.wind_speed_10m, at: index),
+                windDirectionDegrees: value(response.hourly.wind_direction_10m, at: index)
+            )
+        }
+        return out
+    }
+
+    nonisolated static func value(_ values: [Double?]?, at index: Int) -> Double? {
+        guard let values, values.indices.contains(index), let value = values[index], value.isFinite else {
+            return nil
+        }
+        return value
+    }
+
+    /// Deterministic stand-in for the network under UI test.
+    ///
+    /// Shaped like a real day rather than as flat filler: fixed groundswell, wind
+    /// light at dawn and building through the afternoon, a semi-diurnal tide. That
+    /// makes the early hours genuinely the best ones, so the card under test is
+    /// showing a real answer from the real scorer — only the provider is faked.
+    nonisolated static func mockDayForecast(
+        for scenario: String,
+        start: Date,
+        hours: Int
+    ) throws -> [ForecastHour] {
+        switch scenario.lowercased() {
+        case "error", "remote_error":
+            throw SurfConditionsError.remoteError("Mock window service error")
+        case "no_data", "nodata":
+            throw SurfConditionsError.noDataAvailable
+        default:
+            return mockForecastHours(start: start, hours: max(1, hours))
+        }
+    }
+
+    /// Shared by the UI-test mock and by the unit test that proves this forecast,
+    /// against the seeded history, really does clear the confidence gate.
+    nonisolated static func mockForecastHours(start: Date, hours: Int) -> [ForecastHour] {
+        let first = floorToHour(start)
+        return (0..<hours).map { index in
+            let t = Double(index)
+            // Dawn glass building to an onshore afternoon.
+            let windSpeed = min(34, 4 + max(0, t - 4) * 2.6)
+            let windDirection = 40 + min(180, max(0, t - 4) * 12)
+            let angle = 2 * Double.pi * t / 12.42
+            let seaLevel = 0.8 * sin(angle)
+            let slope = cos(angle)
+            let trend: TideTrend
+            if abs(slope) < 0.25 {
+                trend = seaLevel >= 0 ? .high : .low
+            } else {
+                trend = slope > 0 ? .rising : .falling
+            }
+            let windWave = min(1.2, windSpeed / 45 * 0.9)
+            return ForecastHour(
+                date: first.addingTimeInterval(t * 3600),
+                conditions: ConditionsSample(
+                    swellWaveHeightMeters: 1.2,
+                    swellWavePeriodSeconds: 12,
+                    swellWaveDirectionDegrees: 268,
+                    windWaveHeightMeters: windWave,
+                    waveHeightMeters: (1.2 * 1.2 + windWave * windWave).squareRoot(),
+                    windSpeedKph: windSpeed,
+                    windDirectionDegrees: windDirection,
+                    seaSurfaceTemperatureC: 17.5,
+                    seaLevelHeightMeters: seaLevel,
+                    tideTrend: trend
+                )
+            )
+        }
+    }
+}
+
 private extension SurfConditionsService {
     struct MarineConditions: Sendable {
         let latitude: Double
@@ -634,7 +846,7 @@ private extension SurfConditionsService {
         return response.reason ?? "Unknown error"
     }
 
-    static func mostInformativeError(from errors: [Error]) -> Error {
+    nonisolated static func mostInformativeError(from errors: [Error]) -> Error {
         let surfErrors = errors.compactMap { $0 as? SurfConditionsError }
         if let best = surfErrors.sorted(by: { priority(for: $0) < priority(for: $1) }).first {
             return best
@@ -642,7 +854,7 @@ private extension SurfConditionsService {
         return errors.first ?? SurfConditionsError.invalidResponse
     }
 
-    static func priority(for error: SurfConditionsError) -> Int {
+    nonisolated static func priority(for error: SurfConditionsError) -> Int {
         switch error {
         case .outOfRange:
             return 0

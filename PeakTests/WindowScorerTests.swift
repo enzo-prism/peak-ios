@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 
 @testable import Peak
@@ -1771,5 +1772,214 @@ final class WindowScorerRobustnessTests: XCTestCase {
             let async = await WindowScorer.rankOffMain(forecast: s.forecast, history: s.history)
             XCTAssertEqual(sync, async, "rankOffMain disagreed with rank at seed \(seed)")
         }
+    }
+}
+
+// MARK: - App bindings
+
+/// Covers the glue between the logbook and the scorer, plus the one thing the UI
+/// test cannot check for itself: that the fixture it runs against is genuinely
+/// capable of producing the state it asserts on.
+final class TodayWindowServiceTests: XCTestCase {
+
+    private func makeContext() throws -> ModelContext {
+        let schema = Schema(versionedSchema: PeakSchemaV9.self)
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
+    }
+
+    private func makeSpot(_ name: String, located: Bool, in context: ModelContext) -> Spot {
+        let spot = located
+            ? Spot(name: name, latitude: 33.38, longitude: -117.59)
+            : Spot(name: name)
+        context.insert(spot)
+        return spot
+    }
+
+    private func addSessions(_ count: Int, at spot: Spot, from base: Date, in context: ModelContext) {
+        for index in 0..<count {
+            let session = SurfSession(
+                date: base.addingTimeInterval(Double(-index) * 86_400),
+                spot: spot,
+                rating: index % 5
+            )
+            context.insert(session)
+        }
+    }
+
+    // MARK: Favourite spots
+
+    func testFavouriteSpotsRanksByHowOftenTheSpotIsSurfed() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let home = makeSpot("Home Break", located: true, in: context)
+        let backup = makeSpot("Backup", located: true, in: context)
+        let rare = makeSpot("Rare Trip", located: true, in: context)
+
+        addSessions(9, at: home, from: base, in: context)
+        addSessions(4, at: backup, from: base, in: context)
+        addSessions(1, at: rare, from: base, in: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let favourites = TodayWindowService.favouriteSpots(sessions: sessions)
+        XCTAssertEqual(favourites.map(\.name), ["Home Break", "Backup", "Rare Trip"])
+    }
+
+    /// Without coordinates there is no forecast to fetch, so an unlocated spot is
+    /// not a candidate however often it is surfed.
+    func testSpotsWithoutCoordinatesAreNotCandidates() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let unlocated = makeSpot("Secret Spot", located: false, in: context)
+        let located = makeSpot("Mapped Spot", located: true, in: context)
+
+        addSessions(20, at: unlocated, from: base, in: context)
+        addSessions(2, at: located, from: base, in: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let favourites = TodayWindowService.favouriteSpots(sessions: sessions)
+        XCTAssertEqual(favourites.map(\.name), ["Mapped Spot"])
+    }
+
+    func testFavouriteSpotsRespectsItsLimitAndHandlesAnEmptyLog() {
+        XCTAssertTrue(TodayWindowService.favouriteSpots(sessions: []).isEmpty)
+        XCTAssertTrue(TodayWindowService.favouriteSpots(sessions: [], limit: 0).isEmpty)
+    }
+
+    func testFavouriteSpotOrderIsStableAcrossRepeatedCalls() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        // Deliberately tied on session count, so only the tie-break can order them.
+        let a = makeSpot("Alpha", located: true, in: context)
+        let b = makeSpot("Beta", located: true, in: context)
+        addSessions(5, at: a, from: base, in: context)
+        addSessions(5, at: b, from: base, in: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let first = TodayWindowService.favouriteSpots(sessions: sessions).map(\.name)
+        for _ in 0..<10 {
+            XCTAssertEqual(
+                TodayWindowService.favouriteSpots(sessions: sessions).map(\.name), first,
+                "favourite spot order shuffled between calls"
+            )
+        }
+    }
+
+    // MARK: History mapping
+
+    /// The premise of the whole feature is that this spot's own history models this
+    /// spot. Leaking another break's sessions in would quietly destroy that.
+    func testRatedHistoryOnlyIncludesSessionsAtTheChosenSpot() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let here = makeSpot("Here", located: true, in: context)
+        let elsewhere = makeSpot("Elsewhere", located: true, in: context)
+        addSessions(6, at: here, from: base, in: context)
+        addSessions(9, at: elsewhere, from: base, in: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: here).count, 6)
+        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: elsewhere).count, 9)
+    }
+
+    func testRatedHistoryCarriesTideAndSessionIdentity() throws {
+        let context = try makeContext()
+        let spot = makeSpot("Tidal Reef", located: true, in: context)
+        let session = SurfSession(date: Date(timeIntervalSince1970: 1_750_000_000), spot: spot, rating: 5)
+        session.swellWaveHeightMeters = 1.4
+        session.seaLevelHeightM = 0.42
+        session.tide = .falling
+        context.insert(session)
+
+        let history = TodayWindowService.ratedHistory(
+            sessions: try context.fetch(FetchDescriptor<SurfSession>()), at: spot)
+        let mapped = try XCTUnwrap(history.first)
+        XCTAssertEqual(mapped.conditions.tideTrend, .falling)
+        XCTAssertEqual(mapped.conditions.seaLevelHeightMeters ?? 0, 0.42, accuracy: 0.0001)
+        XCTAssertEqual(mapped.rating, 5)
+        // The identifier is what makes the card's "similar to your 5-star session"
+        // tappable through to the real thing.
+        XCTAssertEqual(mapped.sessionID, session.persistentModelID)
+    }
+
+    // MARK: The UI-test fixture is genuinely capable
+
+    /// The UI test asserts that a recommendation appears. That assertion is only
+    /// meaningful if the seeded history and the mocked forecast really do clear the
+    /// confidence gate, which is a property of the algorithm's tuning, not of the
+    /// view. Asserted here so a tuning change fails loudly in the fast suite rather
+    /// than silently turning the UI test into a test of nothing.
+    func testSeededUITestHistoryProducesAConfidentWindow() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let spot = makeSpot("Trestles", located: true, in: context)
+        for session in PreviewData.windowHistory(at: spot, baseDate: base) {
+            context.insert(session)
+        }
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let history = TodayWindowService.ratedHistory(sessions: sessions, at: spot)
+        let forecast = SurfConditionsService.mockForecastHours(start: base, hours: 24)
+        let windows = WindowScorer.rank(forecast: forecast, history: history)
+
+        let top = try XCTUnwrap(
+            windows.first,
+            "the UI-test fixture produced no window, so the UI test would be asserting on nothing"
+        )
+        XCTAssertGreaterThanOrEqual(top.confidence, Tuning().minConfidence)
+        XCTAssertGreaterThanOrEqual(top.predictedRating, Tuning().minWindowRating)
+        XCTAssertNotNil(top.bestMatch, "the card needs a session to cite")
+        XCTAssertFalse(top.matchFactors.isEmpty, "the card needs factors to show")
+
+        // The mock day is glassy at dawn and blown out by afternoon, so the window
+        // must land in the morning. If it did not, the fixture would not be
+        // exercising the behaviour it claims to.
+        let hourOffset = Int(top.start.timeIntervalSince(base) / 3600)
+        XCTAssertLessThan(hourOffset, 8, "best window landed \(hourOffset) h in, not in the morning glass")
+    }
+
+    /// The mirror image: the default four-session seed must NOT produce a window.
+    /// This is the low-confidence UI state, and it has to be genuinely reachable.
+    func testDefaultSeedHistoryIsHonestlyTooThinForAWindow() throws {
+        let context = try makeContext()
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let spot = makeSpot("Trestles", located: true, in: context)
+        let session = SurfSession(date: base, spot: spot, rating: 5)
+        session.swellWaveHeightMeters = 1.2
+        session.swellWavePeriodSeconds = 12
+        session.windSpeedKph = 8
+        context.insert(session)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let history = TodayWindowService.ratedHistory(sessions: sessions, at: spot)
+        let forecast = SurfConditionsService.mockForecastHours(start: base, hours: 24)
+
+        XCTAssertTrue(
+            WindowScorer.rank(forecast: forecast, history: history).isEmpty,
+            "a single rated session produced a recommendation"
+        )
+    }
+
+    // MARK: Mock forecast shape
+
+    func testMockForecastIsAWholeDayOfUsableHours() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        let forecast = SurfConditionsService.mockForecastHours(start: base, hours: 24)
+
+        XCTAssertEqual(forecast.count, 24)
+        XCTAssertTrue(forecast.allSatisfy { $0.conditions.swellWaveHeightMeters != nil })
+        XCTAssertTrue(forecast.allSatisfy { $0.conditions.windSpeedKph != nil })
+        XCTAssertTrue(forecast.allSatisfy { $0.conditions.tideTrend != nil })
+        // Wind builds through the day, which is what makes dawn the answer.
+        let firstWind = forecast.first?.conditions.windSpeedKph ?? 0
+        let lastWind = forecast.last?.conditions.windSpeedKph ?? 0
+        XCTAssertLessThan(firstWind, lastWind)
+    }
+
+    func testMockForecastScenariosSurfaceErrorsRatherThanEmptyData() {
+        let base = Date(timeIntervalSince1970: 1_750_000_000)
+        XCTAssertThrowsError(try SurfConditionsService.mockDayForecast(for: "error", start: base, hours: 24))
+        XCTAssertThrowsError(try SurfConditionsService.mockDayForecast(for: "no_data", start: base, hours: 24))
+        XCTAssertNoThrow(try SurfConditionsService.mockDayForecast(for: "confident", start: base, hours: 24))
     }
 }

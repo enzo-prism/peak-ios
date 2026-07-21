@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
+    @AppStorage(TodayWindowService.autoRefreshKey) private var windowAutoRefresh = false
     @AppStorage(MonthlyGoalCalculator.metricKey) private var goalMetricRaw = MonthlyGoalMetric.sessions.rawValue
     @AppStorage(MonthlyGoalCalculator.targetKey) private var goalTarget = MonthlyGoalCalculator.defaultTarget
     @State private var shareItems: [Any] = []
@@ -102,6 +103,25 @@ struct SettingsView: View {
                     }
                 } header: {
                     sectionHeader("Import / Restore")
+                }
+
+                Section {
+                    Toggle(isOn: $windowAutoRefresh) {
+                        Label("Refresh automatically when I open Peak", systemImage: "arrow.clockwise")
+                            .foregroundStyle(Theme.textPrimary)
+                    }
+                    .tint(Theme.textPrimary)
+                    .padding(12)
+                    .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
+                    .listRowBackground(Color.clear)
+                    .accessibilityIdentifier("settings.window.autoRefresh")
+
+                    Text("Off by default. Peak stays offline until you tap Check conditions on the Best Window card.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.textMuted)
+                        .listRowBackground(Color.clear)
+                } header: {
+                    sectionHeader("Best Window Today")
                 }
 
                 if HealthKitService.isHealthDataAvailable {

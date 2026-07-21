@@ -44,6 +44,19 @@ nonisolated enum TestingDefaults {
         return value
     }
 
+    /// Drives the Best Window Today card under UI test: it both fakes the forecast
+    /// provider and (via `PreviewData`) decides how much rated history the seeded
+    /// spot gets, so the card's confident and low-confidence states are both
+    /// reachable without a network call.
+    static var windowScenario: String? {
+        guard let value = ProcessInfo.processInfo.environment["UITESTS_WINDOW_SCENARIO"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
     static var isRunningTests: Bool {
         if isUITest {
             return true

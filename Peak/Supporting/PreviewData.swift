@@ -126,6 +126,59 @@ enum PreviewData {
         context.insert(session2)
         context.insert(session3)
         context.insert(session4)
+
+        // Gated on the UI-test scenario so it never costs a real launch anything:
+        // the Best Window card needs a real logbook before it can honestly say
+        // anything, and the default four sessions are (correctly) not enough.
+        if TestingDefaults.windowScenario?.lowercased() == "confident" {
+            for session in windowHistory(at: trestles, baseDate: baseDate) {
+                context.insert(session)
+            }
+        }
+    }
+
+    /// A believable logbook at one spot: dawn glass rated well, blown-out
+    /// afternoons rated poorly, with the same swell running through both.
+    ///
+    /// Shared with `TodayWindowServiceTests`, which runs this exact history against
+    /// the exact mock forecast the UI test sees and asserts the pair really does
+    /// clear the confidence gate. Without that, a UI test asserting "a window
+    /// appears" could quietly become a test of nothing.
+    static func windowHistory(at spot: Spot, baseDate: Date) -> [SurfSession] {
+        // Deterministic pseudo-random jitter: a fixed table, not a RNG, so the
+        // seeded store is byte-identical on every launch.
+        let jitter: [Double] = [0.00, 0.07, -0.05, 0.03, -0.08, 0.05, -0.02, 0.09]
+
+        return (0..<32).map { index in
+            let isClean = index % 2 == 0
+            let wobble = jitter[index % jitter.count]
+            let session = SurfSession(
+                date: Calendar.current.date(byAdding: .day, value: -(index + 3) * 4, to: baseDate) ?? baseDate,
+                spot: spot,
+                // Ratings must vary, or the history carries no signal at all and
+                // confidence is zero however many sessions there are.
+                rating: isClean ? (index % 4 == 0 ? 5 : 4) : (index % 4 == 1 ? 1 : 2)
+            )
+            session.swellWaveHeightMeters = 1.2 + wobble
+            session.swellWavePeriodSeconds = 12 + wobble * 4
+            session.swellWaveDirectionDegrees = 268 + wobble * 10
+            session.waveHeightMeters = 1.25 + wobble
+            session.seaSurfaceTemperatureC = 17.5 + wobble
+            session.seaLevelHeightM = isClean ? 0.35 + wobble : -0.4 + wobble
+            session.tide = isClean ? .falling : .rising
+            if isClean {
+                session.windSpeedKph = 5 + wobble * 6
+                session.windDirectionDegrees = 42 + wobble * 20
+                session.windWaveHeightMeters = 0.12 + wobble * 0.2
+            } else {
+                session.windSpeedKph = 27 + wobble * 8
+                session.windDirectionDegrees = 215 + wobble * 20
+                session.windWaveHeightMeters = 0.55 + wobble * 0.3
+            }
+            session.conditionsSource = "Open-Meteo"
+            session.conditionsFetchedAt = session.date
+            return session
+        }
     }
 
     private static func makeSamplePhotoMedia(createdAt: Date) -> SessionMedia? {

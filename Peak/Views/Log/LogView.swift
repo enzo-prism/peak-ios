@@ -27,6 +27,10 @@ struct LogView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         heroCard
 
+                        // Above the memory layer: "when today?" is a question with
+                        // a deadline, and "on this day in 2023" is not.
+                        BestWindowTodayCard(sessions: allSessions)
+
                         if let cachedMemory {
                             NavigationLink {
                                 SessionDetailView(session: cachedMemory.session)
