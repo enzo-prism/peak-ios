@@ -73,11 +73,17 @@ struct WaveStatsEditor: View {
 
     // MARK: Rows
 
-    /// Wave count gets a Stepper rather than a keyboard: it is the number people
+    /// Wave count gets +/- buttons rather than a keyboard: it is the number people
     /// most often correct, it is always a small integer, and "+1 because the app
     /// missed one" is the exact gesture users want.
+    ///
+    /// These are explicit buttons rather than a `Stepper` for two reasons. A stock
+    /// stepper's segments are about 30pt wide, under the 44pt minimum and fiddly
+    /// with cold wet hands. And this row is styled with *interactive* Liquid Glass,
+    /// which makes the glass surface itself the touch responder — a compound
+    /// control sitting on it never receives the tap at all.
     private var waveCountRow: some View {
-        HStack {
+        HStack(spacing: 8) {
             Text("Waves")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textPrimary)
@@ -87,18 +93,51 @@ struct WaveStatsEditor: View {
                 .foregroundStyle(draft.waveCount == nil ? Theme.textMuted : Theme.textPrimary)
                 .monospacedDigit()
                 .accessibilityIdentifier("session.editor.waveCount.value")
-            // The identifier goes on the Stepper itself, not on a wrapping
-            // container: a container id makes the control unreachable as
-            // `app.steppers[...]` in UI tests.
-            Stepper("Waves", value: waveCountBinding, in: 0...Self.maxWaveCount)
-                .labelsHidden()
-                .accessibilityIdentifier("session.editor.waveCount")
-                .accessibilityLabel(Text("Waves"))
-                .accessibilityValue(Text(draft.waveCount.map { WaveStatsFormatter.waveCount($0) } ?? "Not set"))
+
+            waveCountButton(
+                systemName: "minus",
+                identifier: "session.editor.waveCount.decrement",
+                label: "Remove a wave",
+                isEnabled: (draft.waveCount ?? 0) > 0
+            ) {
+                waveCountBinding.wrappedValue = max(0, (draft.waveCount ?? 0) - 1)
+            }
+
+            waveCountButton(
+                systemName: "plus",
+                identifier: "session.editor.waveCount.increment",
+                label: "Add a wave",
+                isEnabled: (draft.waveCount ?? 0) < Self.maxWaveCount
+            ) {
+                waveCountBinding.wrappedValue = (draft.waveCount ?? 0) + 1
+            }
         }
         .padding(12)
         .frame(minHeight: 44)
         .glassInput()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Text("Waves"))
+        .accessibilityValue(Text(draft.waveCount.map { WaveStatsFormatter.waveCount($0) } ?? "Not set"))
+    }
+
+    private func waveCountButton(
+        systemName: String,
+        identifier: String,
+        label: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .foregroundStyle(isEnabled ? Theme.textPrimary : Theme.textMuted)
+        .accessibilityIdentifier(identifier)
+        .accessibilityLabel(Text(label))
     }
 
     private func numericRow(

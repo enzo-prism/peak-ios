@@ -354,6 +354,12 @@ struct SessionEditorView: View {
                                 isSelected: draft.selectedSpot?.persistentModelID == spot.persistentModelID
                             ) {
                                 draft.selectSpot(spot)
+                                // Picking a suggestion finishes the field, so the
+                                // keyboard should go with it. Leaving it up hides
+                                // the lower half of the form — including the wave
+                                // stats — behind a keyboard the surfer no longer
+                                // has any reason to use.
+                                focusedField = nil
                             }
                             .frame(maxWidth: 220, alignment: .leading)
                             // VoiceOver reads the visual "Trestles • 12x" as

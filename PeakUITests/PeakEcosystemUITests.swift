@@ -136,12 +136,38 @@ private extension PeakEcosystemUITests {
         XCTFail("Missing tab: \(name)", file: file, line: line)
     }
 
+    /// Scrolls until `element`'s centre sits inside the scroll view, in whichever
+    /// direction is needed.
+    ///
+    /// Two traps this avoids. First, `isHittable` is true for an element whose
+    /// frame merely *overlaps* the viewport, so a field hanging off the bottom
+    /// edge passes the check while a tap at its centre lands off-screen and
+    /// silently fails to take focus. Centre containment is the property taps
+    /// actually depend on. Second, a swipe carries momentum — one can move this
+    /// app's editor by ~670pt, more than a phone viewport — so a target can pass
+    /// from below the fold to above it between two checks; a loop that only ever
+    /// swipes up then pins itself at the end of the content with the element
+    /// unreachable above.
     func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !element.isHittable && attempts < maxSwipes {
-            scrollView.swipeUp()
+        while !isCentreVisible(element, in: scrollView) && attempts < maxSwipes {
+            if element.exists && element.frame.midY < scrollView.frame.minY {
+                scrollView.swipeDown()
+            } else {
+                scrollView.swipeUp()
+            }
             attempts += 1
         }
+    }
+
+    private func isCentreVisible(_ element: XCUIElement, in scrollView: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let frame = element.frame
+        guard frame.height > 0 else { return false }
+        // Keep a margin so a centre resting exactly on the edge still counts as
+        // off-screen; taps there are unreliable.
+        let visible = scrollView.frame.insetBy(dx: 0, dy: 8)
+        return visible.minY <= frame.midY && frame.midY <= visible.maxY
     }
 }

@@ -853,11 +853,20 @@ private extension PeakUILayoutTests {
         )
     }
 
+    /// Scrolls until `element` is comfortably visible, in whichever direction is
+    /// needed. Swipes carry momentum and can move this app's editor by ~670pt, so
+    /// a target can pass from below the fold to above it between two checks; a
+    /// loop that only swipes up then pins itself at the end of the content with
+    /// the element off the top, existing but unreachable.
     func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
         while !isComfortablyVisible(element) && attempts < maxSwipes {
-            scrollView.swipeUp()
+            if element.exists && element.frame.maxY < scrollView.frame.minY {
+                scrollView.swipeDown()
+            } else {
+                scrollView.swipeUp()
+            }
             attempts += 1
         }
     }

@@ -281,20 +281,35 @@ final class PeakUISmokeTests: XCTestCase {
     /// tapping loses the race against the keyboard's dismissal animation, which
     /// is exactly how this test failed first time round. A coordinate tap does
     /// not re-check hittability, so it cannot lose that race.
+    /// Each increment is confirmed against the displayed value before moving on.
+    /// A blind burst of taps is not safe here: the first keyboard of a session on
+    /// a freshly erased simulator — which is what CI always gets — raises
+    /// springboard's "Enable Dictation?" alert, and a system alert swallows the
+    /// tap underneath it. Retrying until the value actually moves absorbs that
+    /// without hiding a broken control: if the stepper genuinely does not write
+    /// back, every retry fails too and the assertion below still catches it.
     private func incrementWaveCount(times: Int, in scrollView: XCUIElement) {
         dismissKeyboard()
         _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 3)
 
-        let stepper = app.steppers["session.editor.waveCount"]
-        assertExists(stepper)
-        scrollToVisible(stepper, in: scrollView)
-
-        let increment = stepper.buttons.element(boundBy: 1)
+        let increment = app.buttons["session.editor.waveCount.increment"]
         assertExists(increment)
         scrollToVisible(increment, in: scrollView)
 
-        for _ in 0..<times {
-            increment.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let value = app.staticTexts["session.editor.waveCount.value"]
+        assertExists(value)
+
+        for step in 1...times {
+            let expected = String(step)
+            var attempts = 0
+            while value.label != expected && attempts < 4 {
+                increment.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                attempts += 1
+                if value.label != expected {
+                    _ = value.waitForExistence(timeout: 1)
+                }
+            }
+            XCTAssertEqual(value.label, expected, "wave count did not reach \(expected) after \(attempts) taps")
         }
     }
 
@@ -548,9 +563,25 @@ private extension PeakUISmokeTests {
         selectSpotSuggestion(key: key, file: file, line: line)
     }
 
+    /// Dismisses the keyboard and confirms it actually went away.
+    ///
+    /// A single tap on empty chrome is not reliable: whether it lands on
+    /// something that resigns first responder depends on the sheet's layout. A
+    /// keyboard that silently stays up hides the bottom of the editor, and every
+    /// later `scrollToVisible` then spins against content it can never reach —
+    /// which reads as a broken control rather than a stuck keyboard.
     func dismissKeyboard() {
         guard app.keyboards.firstMatch.exists else { return }
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        if app.keyboards.firstMatch.waitForNonExistence(timeout: 2) { return }
+
+        // Fall back to the keyboard's own dismiss affordances before giving up.
+        for label in ["Done", "return", "Return"] where app.keyboards.buttons[label].exists {
+            app.keyboards.buttons[label].tap()
+            if app.keyboards.firstMatch.waitForNonExistence(timeout: 2) { return }
+        }
+        app.swipeDown()
+        _ = app.keyboards.firstMatch.waitForNonExistence(timeout: 2)
     }
 
     func tapElement(_ element: XCUIElement) {
@@ -565,13 +596,39 @@ private extension PeakUISmokeTests {
         XCTAssertTrue(element.waitForExistence(timeout: timeout), "Missing element: \(element)", file: file, line: line)
     }
 
+    /// Scrolls until `element`'s centre sits inside the scroll view, in whichever
+    /// direction is needed.
+    ///
+    /// Two traps this avoids. First, `isHittable` is true for an element whose
+    /// frame merely *overlaps* the viewport, so a field hanging off the bottom
+    /// edge passes the check while a tap at its centre lands off-screen and
+    /// silently fails to take focus. Centre containment is the property taps
+    /// actually depend on. Second, a swipe carries momentum — one can move this
+    /// app's editor by ~670pt, more than a phone viewport — so a target can pass
+    /// from below the fold to above it between two checks; a loop that only ever
+    /// swipes up then pins itself at the end of the content with the element
+    /// unreachable above.
     func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !element.isHittable && attempts < maxSwipes {
-            scrollView.swipeUp()
+        while !isCentreVisible(element, in: scrollView) && attempts < maxSwipes {
+            if element.exists && element.frame.midY < scrollView.frame.minY {
+                scrollView.swipeDown()
+            } else {
+                scrollView.swipeUp()
+            }
             attempts += 1
         }
+    }
+
+    private func isCentreVisible(_ element: XCUIElement, in scrollView: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let frame = element.frame
+        guard frame.height > 0 else { return false }
+        // Keep a margin so a centre resting exactly on the edge still counts as
+        // off-screen; taps there are unreliable.
+        let visible = scrollView.frame.insetBy(dx: 0, dy: 8)
+        return visible.minY <= frame.midY && frame.midY <= visible.maxY
     }
 
     func showOptionalFields(in scrollView: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
