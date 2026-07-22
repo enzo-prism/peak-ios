@@ -92,7 +92,7 @@ final class SurfSession {
         self.gear = gear
         self.buddies = buddies
         self.media = media
-        self.rating = max(0, min(5, rating))
+        self.rating = SurfSession.clampedRating(rating)
         self.durationMinutes = SurfSession.normalizedDuration(durationMinutes)
         self.windCondition = windCondition
         self.waveHeight = waveHeight
@@ -136,6 +136,22 @@ final class SurfSession {
         let step = durationStepMinutes
         let snapped = Int((Double(clamped) / Double(step)).rounded()) * step
         return max(step, min(snapped, maxDurationMinutes))
+    }
+
+    /// Ratings are a 0...5 scale. The initializer clamps, but edit and import
+    /// paths assign `rating` directly, so they route through this too to keep the
+    /// invariant (a stray out-of-range value would skew the average-rating stat).
+    static func clampedRating(_ rating: Int) -> Int {
+        max(0, min(5, rating))
+    }
+
+    /// Whole-millisecond identity key for `createdAt`. A `Date()` carries
+    /// sub-millisecond precision, but the serialized export id is truncated to
+    /// milliseconds — so identity matching (dedupe on import/restore) must round
+    /// both sides to the same millisecond grid or a session won't match its own
+    /// export, duplicating the whole library on a merge restore.
+    static func millisecondsKey(for createdAt: Date) -> Int64 {
+        Int64((createdAt.timeIntervalSince1970 * 1000).rounded())
     }
 
     var hasSurfConditions: Bool {

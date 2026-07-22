@@ -79,6 +79,7 @@ struct SpotLibraryView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add surf break")
                 .accessibilityIdentifier("spot.library.add")
             }
         }

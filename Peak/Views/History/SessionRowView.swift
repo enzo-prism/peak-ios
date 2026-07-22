@@ -49,7 +49,12 @@ struct SessionRowView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.l)
-        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+        // Not interactive glass: the row is wrapped by callers in a NavigationLink
+        // + PressFeedbackButtonStyle, which owns the press feedback. Interactive
+        // glass here only adds a misleading shimmer and runs the most expensive
+        // glass path on the app's densest scrolling list (Apple reserves the
+        // interactive material for controls, not scrolling content).
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("history.row")
     }
@@ -84,15 +89,19 @@ struct SessionRowView: View {
         }
         if !session.gear.isEmpty {
             chip(Label("\(session.gear.count)", systemImage: "surfboard"))
+                .accessibilityLabel("^[\(session.gear.count) gear item](inflect: true)")
         }
         if !session.buddies.isEmpty {
             chip(Label("\(session.buddies.count)", systemImage: "person.2"))
+                .accessibilityLabel("^[\(session.buddies.count) buddy](inflect: true)")
         }
         if !session.media.isEmpty && !showsMediaPreviews {
             chip(Label("\(session.media.count)", systemImage: "photo.on.rectangle"))
+                .accessibilityLabel("^[\(session.media.count) attachment](inflect: true)")
         }
         if !session.notes.isEmpty {
             chip(Label("Notes", systemImage: "note.text"))
+                .accessibilityLabel("Has notes")
         }
     }
 

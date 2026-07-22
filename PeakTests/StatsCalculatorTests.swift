@@ -35,6 +35,47 @@ final class StatsCalculatorTests: XCTestCase {
 
         XCTAssertEqual(summary.topGear.map(\.name), ["Alpha", "Beta"])
     }
+
+    func testTopItemsAreDeterministicWhenNameAndCountTie() {
+        // Same display name, different kind → same name + count but distinct keys.
+        // The final `key` tiebreak must give a stable order across runs.
+        let fishBoard = TestFixture.gear(name: "Fish", kind: .board)
+        let fishFins = TestFixture.gear(name: "Fish", kind: .fins)
+
+        let sessions = [
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 5), gear: [fishBoard]),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 6), gear: [fishFins])
+        ]
+
+        let keys = StatsCalculator.summarize(sessions: sessions, topLimit: 2).topGear.map(\.key)
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertEqual(keys, keys.sorted(), "Ties must resolve deterministically by key")
+    }
+
+    func testSpotMixOtherBucketUsesSingularForOneSpot() {
+        // Six spots, topLimit 5 → exactly one spot lands in the Other bucket.
+        let sessions = (1...6).map { index in
+            TestFixture.session(
+                date: TestCalendar.makeDate(year: 2026, month: 2, day: index),
+                spot: TestFixture.spot(name: "Spot \(index)")
+            )
+        }
+        let mix = StatsCalculator.spotMix(sessions: sessions, topLimit: 5)
+        let other = mix.first { $0.key == "stats.spot-mix.other" }
+        XCTAssertEqual(other?.detail, "1 spot")
+    }
+
+    func testSpotMixOtherBucketUsesPluralForMultipleSpots() {
+        let sessions = (1...7).map { index in
+            TestFixture.session(
+                date: TestCalendar.makeDate(year: 2026, month: 2, day: index),
+                spot: TestFixture.spot(name: "Spot \(index)")
+            )
+        }
+        let mix = StatsCalculator.spotMix(sessions: sessions, topLimit: 5)
+        let other = mix.first { $0.key == "stats.spot-mix.other" }
+        XCTAssertEqual(other?.detail, "2 spots")
+    }
 }
 
 /// Anniversary windowing. The interesting cases are the ones a naive

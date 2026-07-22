@@ -44,6 +44,7 @@ struct BuddyDetailView: View {
                     .glassButtonStyle(prominent: false)
                 }
                 .padding()
+                .readableContentWidth()
             }
         }
         .navigationTitle("Buddy")
@@ -128,7 +129,7 @@ struct BuddyDetailView: View {
                     } label: {
                         SessionRowView(session: session)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressFeedbackButtonStyle())
                 }
             }
         }

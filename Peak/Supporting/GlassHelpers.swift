@@ -115,6 +115,21 @@ extension View {
         #endif
     }
 
+    /// Collapses a `.searchable` field into a button that expands on tap (iOS 26
+    /// space-saving behavior); no-op on earlier systems.
+    @ViewBuilder
+    func searchMinimizeBehavior() -> some View {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                self.searchToolbarBehavior(.minimize)
+            } else {
+                self
+            }
+        #else
+            self
+        #endif
+    }
+
     /// Lets the Liquid Glass tab bar recede while scrolling down on iOS 26;
     /// no-op on earlier systems.
     @ViewBuilder

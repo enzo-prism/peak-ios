@@ -77,6 +77,7 @@ struct MonthlyBarsCard: View {
                 Text("Monthly surf days")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                 Text(selectedEntry == nil ? "Scroll · tap a bar" : selectedMonthLabel)
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)

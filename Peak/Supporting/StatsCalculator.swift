@@ -110,15 +110,24 @@ enum StatsCalculator {
             year: year,
             calendar: calendar
         )
-        let weekStarts = Set(surfDays.compactMap { day in
-            calendar.dateInterval(of: .weekOfYear, for: day)?.start
+        // Streak counts an unbroken run of weeks that each have at least one
+        // session, computed over ALL sessions (not just this year) so a run
+        // spanning a year boundary isn't truncated. When the current week has no
+        // session yet, the walk starts from the most recent completed week, so a
+        // brand-new week doesn't reset the streak to 0 before you've surfed.
+        let allWeekStarts = Set(sessions.compactMap { session in
+            calendar.dateInterval(of: .weekOfYear, for: session.date)?.start
         })
         let currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)?.start
         var streak = 0
-        var cursor = currentWeekStart
-        while let weekStart = cursor, weekStarts.contains(weekStart) {
-            streak += 1
-            cursor = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart)
+        if let currentWeekStart {
+            var cursor: Date? = allWeekStarts.contains(currentWeekStart)
+                ? currentWeekStart
+                : calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart)
+            while let weekStart = cursor, allWeekStarts.contains(weekStart) {
+                streak += 1
+                cursor = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart)
+            }
         }
 
         return SurfYearSummary(
@@ -268,7 +277,7 @@ enum StatsCalculator {
             result.append(CountedItem(
                 key: "stats.spot-mix.other",
                 name: "Other",
-                detail: "\(rest.count) spots",
+                detail: "\(rest.count) spot\(rest.count == 1 ? "" : "s")",
                 count: otherCount
             ))
         }
@@ -389,6 +398,11 @@ enum StatsCalculator {
 
         return counts.values.sorted { lhs, rhs in
             if lhs.count == rhs.count {
+                // Final `key` tiebreak keeps ordering stable when two items
+                // share both a count and a display name (e.g. duplicate names).
+                if lhs.name == rhs.name {
+                    return lhs.key < rhs.key
+                }
                 return lhs.name < rhs.name
             }
             return lhs.count > rhs.count

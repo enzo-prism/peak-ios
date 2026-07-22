@@ -539,9 +539,12 @@ enum PeakExportManager {
             if let existing = context.existingSpot(named: spotExport.name) {
                 existing.name = spotExport.name
                 existing.key = Spot.makeKey(from: spotExport.name)
-                existing.locationName = spotExport.locationName
-                existing.latitude = spotExport.latitude
-                existing.longitude = spotExport.longitude
+                // Merge must not lose local data: only overwrite an optional field
+                // when the import actually carries a value, so importing a stale
+                // export can't wipe a pin/location the user added locally.
+                existing.locationName = spotExport.locationName ?? existing.locationName
+                existing.latitude = spotExport.latitude ?? existing.latitude
+                existing.longitude = spotExport.longitude ?? existing.longitude
                 existing.createdAt = createdAt
                 spotById[spotExport.id] = existing
             } else {
@@ -567,12 +570,15 @@ enum PeakExportManager {
                 existing.name = gearExport.name
                 existing.kind = kind
                 existing.key = Gear.makeKey(name: gearExport.name, kind: kind)
-                existing.brand = gearExport.brand
-                existing.model = gearExport.model
-                existing.size = gearExport.size
-                existing.volumeLiters = gearExport.volumeLiters
-                existing.notes = gearExport.notes
-                existing.photoData = photoData
+                // Merge must not lose local data: only overwrite an optional field
+                // when the import carries a value (a stale export shouldn't blank
+                // out gear details the user filled in locally).
+                existing.brand = gearExport.brand ?? existing.brand
+                existing.model = gearExport.model ?? existing.model
+                existing.size = gearExport.size ?? existing.size
+                existing.volumeLiters = gearExport.volumeLiters ?? existing.volumeLiters
+                existing.notes = gearExport.notes ?? existing.notes
+                existing.photoData = photoData ?? existing.photoData
                 existing.isArchived = isArchived
                 existing.createdAt = createdAt
                 gearById[gearExport.id] = existing
@@ -620,7 +626,7 @@ enum PeakExportManager {
             )
 
             session.date = ExportDateFormatter.date(from: sessionExport.date) ?? session.date
-            session.rating = sessionExport.rating
+            session.rating = SurfSession.clampedRating(sessionExport.rating)
             session.durationMinutes = SurfSession.normalizedDuration(sessionExport.durationMinutes)
             session.windCondition = sessionExport.windCondition.flatMap(WindCondition.init)
             session.waveHeight = sessionExport.waveHeight.flatMap(WaveHeight.init)
@@ -673,12 +679,21 @@ enum PeakExportManager {
     }
 
     nonisolated private static func csvEscape(_ value: String) -> String {
-        let needsEscaping = value.contains(",") || value.contains("\"") || value.contains("\n")
+        // Neutralize spreadsheet formula/command injection: a cell beginning with
+        // =, +, -, or @ is executed as a formula by Excel/Sheets. Prefix a single
+        // quote — but skip values that parse as a plain number, so legitimate
+        // negatives (e.g. a west longitude like -117.593) aren't mangled into text.
+        var sanitized = value
+        if let first = value.first, "=+-@".contains(first), Double(value) == nil {
+            sanitized = "'" + value
+        }
+        let needsEscaping = sanitized.contains(",") || sanitized.contains("\"")
+            || sanitized.contains("\n") || sanitized.contains("\r")
         if needsEscaping {
-            let escaped = value.replacingOccurrences(of: "\"", with: "\"\"")
+            let escaped = sanitized.replacingOccurrences(of: "\"", with: "\"\"")
             return "\"\(escaped)\""
         }
-        return value
+        return sanitized
     }
 }
 
@@ -688,18 +703,22 @@ enum ExportError: Error {
 }
 
 enum ExportDateFormatter {
-    nonisolated private static func iso8601Formatter() -> ISO8601DateFormatter {
+    // Cache the formatter instead of allocating a fresh one per call: export and
+    // restore invoke this O(sessions + media) times. `ISO8601DateFormatter` is
+    // documented thread-safe for formatting/parsing and is never mutated after
+    // configuration, so a shared instance is safe on the `@concurrent` paths.
+    nonisolated(unsafe) private static let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }
+    }()
 
     nonisolated static func string(from date: Date) -> String {
-        iso8601Formatter().string(from: date)
+        iso8601.string(from: date)
     }
 
     nonisolated static func date(from string: String) -> Date? {
-        iso8601Formatter().date(from: string)
+        iso8601.date(from: string)
     }
 
     nonisolated static func fileSafeString(from date: Date) -> String {

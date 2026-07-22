@@ -61,6 +61,7 @@ struct BuddyLibraryView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add buddy")
                 .accessibilityIdentifier("buddy.library.add")
             }
         }

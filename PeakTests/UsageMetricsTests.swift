@@ -82,6 +82,58 @@ final class UsageMetricsTests: XCTestCase {
         XCTAssertEqual(summary.currentWeekStreak, 3)
     }
 
+    func testWeekStreakCountsPriorWeeksWhenCurrentWeekNotYetSurfed() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        calendar.firstWeekday = 2
+
+        // A new week that hasn't been surfed yet must NOT reset the streak to 0.
+        let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 3, day: 16, hour: 9))!
+        let currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)!.start
+        let lastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart)!
+        let twoWeeksAgo = calendar.date(byAdding: .weekOfYear, value: -2, to: currentWeekStart)!
+
+        let sessions = [
+            SurfSession(date: lastWeek, spot: nil),
+            SurfSession(date: twoWeeksAgo, spot: nil)
+        ]
+
+        let summary = StatsCalculator.surfDaysThisYear(
+            sessions: sessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(summary.currentWeekStreak, 2)
+    }
+
+    func testWeekStreakSpansYearBoundary() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        calendar.firstWeekday = 2
+
+        // Reference in early January; a run that began in December must still count
+        // even though those sessions fall in the previous calendar year.
+        let referenceDate = calendar.date(from: DateComponents(year: 2026, month: 1, day: 7, hour: 9))!
+        let currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: referenceDate)!.start
+        let decemberWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart)!
+        let earlierDecemberWeek = calendar.date(byAdding: .weekOfYear, value: -2, to: currentWeekStart)!
+
+        let sessions = [
+            SurfSession(date: currentWeekStart, spot: nil),
+            SurfSession(date: decemberWeek, spot: nil),
+            SurfSession(date: earlierDecemberWeek, spot: nil)
+        ]
+
+        let summary = StatsCalculator.surfDaysThisYear(
+            sessions: sessions,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(summary.currentWeekStreak, 3)
+    }
+
     func testMonthlyUsageCountsUseReferenceDate() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current

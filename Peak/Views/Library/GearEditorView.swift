@@ -170,6 +170,7 @@ struct GearEditorView: View {
                             }
                         }
                         .padding()
+                        .readableContentWidth()
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .onChange(of: isNotesFocused) { _, focused in

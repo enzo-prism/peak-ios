@@ -146,6 +146,19 @@ enum BackupManager {
         let data = try Data(contentsOf: url)
         let file = try decodeBackupFile(data)
 
+        // Snapshot which sessions already exist (by their millisecond identity key)
+        // BEFORE the import. On a merge restore into a library that still holds
+        // these sessions, media is reattached additively below — so without this we
+        // would append every photo/video a second time (and orphan video files) on
+        // each restore. `.replace` already wiped everything, so the set stays empty.
+        let preexistingSessionKeys: Set<String>
+        if mode == .merge {
+            let existing = (try? context.fetch(FetchDescriptor<SurfSession>())) ?? []
+            preexistingSessionKeys = Set(existing.map { ExportDateFormatter.string(from: $0.createdAt) })
+        } else {
+            preexistingSessionKeys = []
+        }
+
         try PeakExportManager.applyImport(file.export, mode: mode, context: context)
 
         // Index the imported sessions by their createdAt string (= SessionExport.id).
@@ -155,8 +168,23 @@ enum BackupManager {
             sessionByKey[ExportDateFormatter.string(from: session.createdAt)] = session
         }
 
+        // Sessions that existed before this merge get their media replaced (not
+        // duplicated): clear once, deleting stored video files first, before the
+        // manifest reattaches the backup's copy.
+        var clearedSessionKeys: Set<String> = []
+
         for entry in file.manifest.media {
             guard let session = sessionByKey[entry.sessionId] else { continue }
+
+            if preexistingSessionKeys.contains(entry.sessionId),
+               !clearedSessionKeys.contains(entry.sessionId) {
+                SessionMediaStore.deleteStoredMedia(for: session.media)
+                for existingMedia in session.media {
+                    context.delete(existingMedia)
+                }
+                session.media.removeAll()
+                clearedSessionKeys.insert(entry.sessionId)
+            }
 
             let kind = SessionMediaKind(rawValue: entry.kind) ?? .photo
             let photoData = entry.photoBase64.flatMap { Data(base64Encoded: $0) }

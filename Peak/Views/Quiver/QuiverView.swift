@@ -59,10 +59,12 @@ struct QuiverView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Add gear")
                 .accessibilityIdentifier("quiver.add")
             }
         }
         .searchable(text: $searchText, prompt: "Search gear")
+        .searchMinimizeBehavior()
         .sheet(isPresented: $showEditor) {
             GearEditorView(mode: .new)
         }
@@ -148,7 +150,7 @@ struct QuiverView: View {
         if searchText.trimmedNonEmpty != nil {
             return "No matching gear"
         }
-        return "No gear yet 🏄"
+        return "No gear yet"
     }
 
     private var emptyStateMessage: String {
