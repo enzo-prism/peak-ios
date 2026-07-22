@@ -256,6 +256,7 @@ private struct StatListSection<Destination: View>: View {
             Text(title)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
             if items.isEmpty {
                 Text("Not enough data yet")
                     .font(.subheadline)

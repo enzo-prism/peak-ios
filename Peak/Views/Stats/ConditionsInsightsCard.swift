@@ -33,6 +33,7 @@ struct ConditionsInsightsCard: View {
                 Text("Wave height vs. rating")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                 Text("Every rated session with a measured wave height")
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)

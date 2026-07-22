@@ -13,7 +13,11 @@ struct MetricCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
+            // `textCase` uppercases for display only; `title.uppercased()` would
+            // also change the string VoiceOver speaks (letter-by-letter for short
+            // titles), so keep the transform presentation-only.
+            Text(title)
+                .textCase(.uppercase)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(2)
@@ -35,5 +39,8 @@ struct MetricCardView: View {
         .padding(Theme.Spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        // Read the title + value + subtitle as one unit instead of as separate,
+        // unpaired VoiceOver stops.
+        .accessibilityElement(children: .combine)
     }
 }

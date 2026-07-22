@@ -391,6 +391,137 @@ final class ExportImportTests: XCTestCase {
         XCTAssertTrue(fm.fileExists(atPath: archiveDir.appendingPathComponent(".default_SUPPORT/blob.bin").path))
     }
 
+    func testMergeImportDoesNotDuplicateSessionOnReimportIntoSameLibrary() throws {
+        // A real session's createdAt (from Date()) carries sub-millisecond
+        // precision; the export id is truncated to milliseconds. Re-importing an
+        // export back into the library that still holds the original must match on
+        // the millisecond key, not exact Date equality, or the whole library
+        // duplicates on a merge restore.
+        let createdAt = Date(timeIntervalSince1970: 1_770_000_000.123456)
+
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let spot = Spot(name: "Trestles", createdAt: createdAt)
+        let session = SurfSession(date: createdAt, spot: spot, rating: 4, createdAt: createdAt, updatedAt: createdAt)
+        context.insert(spot)
+        context.insert(session)
+
+        let export = PeakExportManager.makeExport(
+            sessions: [session],
+            spots: [spot],
+            gear: [],
+            buddies: [],
+            now: createdAt
+        )
+        let decoded = try PeakExportManager.decodeJSON(try PeakExportManager.jsonData(from: export))
+
+        try PeakExportManager.applyImport(decoded, mode: .merge, context: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.count, 1, "Re-importing an export must not duplicate the existing session")
+    }
+
+    func testMergeRestoreDoesNotDuplicateMediaOnExistingSession() async throws {
+        let createdAt = Date(timeIntervalSince1970: 1_770_000_000.123456)
+
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        let spot = Spot(name: "Uluwatu", createdAt: createdAt)
+        let photo = SessionMedia(kind: .photo, photoData: Data([0x01, 0x02]), sortIndex: 0, createdAt: createdAt)
+        let session = SurfSession(date: createdAt, spot: spot, media: [photo], rating: 4, createdAt: createdAt, updatedAt: createdAt)
+        context.insert(spot)
+        context.insert(session)
+
+        let backupURL = try await BackupManager.makeBackupFile(
+            sessions: [session],
+            spots: [spot],
+            gear: [],
+            buddies: [],
+            now: createdAt
+        )
+        defer { try? FileManager.default.removeItem(at: backupURL) }
+
+        // Restore the same backup into the library that still holds the original.
+        try await BackupManager.restore(from: backupURL, mode: .merge, context: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions.first?.media.count, 1, "Merge restore must not duplicate media on an existing session")
+    }
+
+    func testImportClampsOutOfRangeRating() throws {
+        let createdString = ExportDateFormatter.string(from: TestCalendar.makeDate(year: 2026, month: 2, day: 1, hour: 6))
+        let sessionExport = SessionExport(
+            id: createdString,
+            date: createdString,
+            spotId: nil,
+            spotName: nil,
+            rating: 99,
+            durationMinutes: nil,
+            windCondition: nil,
+            waveHeight: nil,
+            windSpeedKph: nil,
+            windDirectionDegrees: nil,
+            waveHeightMeters: nil,
+            swellWaveHeightMeters: nil,
+            swellWavePeriodSeconds: nil,
+            swellWaveDirectionDegrees: nil,
+            windWaveHeightMeters: nil,
+            windWavePeriodSeconds: nil,
+            windWaveDirectionDegrees: nil,
+            seaSurfaceTemperatureC: nil,
+            seaLevelHeightM: nil,
+            tideTrend: nil,
+            conditionsSource: nil,
+            conditionsFetchedAt: nil,
+            conditionsLatitude: nil,
+            conditionsLongitude: nil,
+            waveCount: nil,
+            topSpeedKph: nil,
+            longestRideSeconds: nil,
+            longestRideMeters: nil,
+            paddleDistanceMeters: nil,
+            waveStatsSource: nil,
+            linkedWorkoutID: nil,
+            notes: "",
+            buddyIds: [],
+            gearIds: [],
+            createdAt: createdString,
+            updatedAt: createdString
+        )
+        let export = PeakExport(
+            schemaVersion: PeakExportManager.schemaVersion,
+            exportedAt: createdString,
+            sessions: [sessionExport],
+            spots: [],
+            gear: [],
+            buddies: []
+        )
+
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        try PeakExportManager.applyImport(export, mode: .merge, context: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.first?.rating, 5, "Out-of-range imported rating must clamp to the 0...5 scale")
+    }
+
+    func testSessionsCSVNeutralizesFormulaInjectionButKeepsNegativeNumbers() {
+        let session = SurfSession(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 1),
+            spot: Spot(name: "=SUM(A1:A9)"),
+            conditionsLongitude: -117.593,
+            notes: "@cmd"
+        )
+
+        let csv = PeakExportManager.sessionsCSV(sessions: [session])
+
+        XCTAssertTrue(csv.contains("'=SUM(A1:A9)"), "Formula-leading text must be quote-prefixed")
+        XCTAssertTrue(csv.contains("'@cmd"), "@-leading text must be quote-prefixed")
+        XCTAssertTrue(csv.contains("-117.593"), "Negative numbers must survive")
+        XCTAssertFalse(csv.contains("'-117.593"), "Legitimate negative numbers must not be mangled into text")
+    }
+
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)

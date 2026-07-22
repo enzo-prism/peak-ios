@@ -20,6 +20,7 @@ struct SelectableChip: View {
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
+            .frame(minHeight: 44)
             .foregroundStyle(isSelected ? Theme.textInverse : Theme.textPrimary)
             .glassCapsule(tint: isSelected ? Theme.glassStrongTint : Theme.glassDimTint, isInteractive: true)
             .contentShape(Capsule())
@@ -34,11 +35,15 @@ struct PressFeedbackButtonStyle: ButtonStyle {
     var pressedScale: CGFloat = 0.98
     var pressedOpacity: Double = 0.92
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? pressedScale : 1)
+            // Reduce Motion keeps the (non-motion) opacity dim but drops the
+            // scale + spring, matching how the rest of the app gates animation.
+            .scaleEffect(reduceMotion ? 1 : (configuration.isPressed ? pressedScale : 1))
             .opacity(configuration.isPressed ? pressedOpacity : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

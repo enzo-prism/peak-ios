@@ -50,6 +50,7 @@ struct ConsistencyHeatmapCard: View {
                 Text("Consistency")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Text("Last \(weeksCount) weeks")
                     .font(.caption)

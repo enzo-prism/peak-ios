@@ -9,7 +9,9 @@ struct StatCardView: View {
         let sanitizedTitle = title.lowercased().replacingOccurrences(of: " ", with: "-")
         let identifier = "stats.card.\(sanitizedTitle)"
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
+            // Display-only uppercasing so VoiceOver still speaks the real words.
+            Text(title)
+                .textCase(.uppercase)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.textSecondary)
             Text(value)
@@ -25,6 +27,7 @@ struct StatCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassTint, isInteractive: false)
         .accessibilityIdentifier(identifier)
+        .accessibilityElement(children: .combine)
     }
 }
 

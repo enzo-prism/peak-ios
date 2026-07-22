@@ -47,6 +47,7 @@ struct SpotDetailView: View {
                     .glassButtonStyle(prominent: false)
                 }
                 .padding()
+                .readableContentWidth()
             }
         }
         .navigationTitle("Spot")
@@ -165,7 +166,7 @@ struct SpotDetailView: View {
                     } label: {
                         SessionRowView(session: session)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressFeedbackButtonStyle())
                 }
             }
         }

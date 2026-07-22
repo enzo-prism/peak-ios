@@ -106,8 +106,21 @@ extension ModelContext {
     }
 
     func existingSession(createdAt: Date) -> SurfSession? {
-        let descriptor = FetchDescriptor<SurfSession>(predicate: #Predicate { $0.createdAt == createdAt })
-        return (try? fetch(descriptor))?.first
+        // Match at millisecond precision, not exact `Date` equality: a stored
+        // `createdAt` from `Date()` keeps sub-millisecond precision, while the
+        // value parsed back from an export is truncated to milliseconds. Exact
+        // equality therefore fails to match a session against its own export,
+        // which would duplicate the entire library on a merge import/restore.
+        // Narrow the fetch to the surrounding second in-store, then match on the
+        // millisecond key in memory.
+        let target = SurfSession.millisecondsKey(for: createdAt)
+        let lower = createdAt.addingTimeInterval(-1)
+        let upper = createdAt.addingTimeInterval(1)
+        let descriptor = FetchDescriptor<SurfSession>(
+            predicate: #Predicate { $0.createdAt >= lower && $0.createdAt <= upper }
+        )
+        let candidates = (try? fetch(descriptor)) ?? []
+        return candidates.first { SurfSession.millisecondsKey(for: $0.createdAt) == target }
     }
 
     private func deleteSessionMediaFiles() throws {

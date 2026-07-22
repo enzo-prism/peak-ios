@@ -52,6 +52,7 @@ struct GearDetailView: View {
                     actionSection(policy: cachedPolicy)
                 }
                 .padding()
+                .readableContentWidth()
             }
         }
         .navigationTitle("Gear")

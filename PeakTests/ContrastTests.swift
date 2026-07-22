@@ -34,7 +34,14 @@ final class ContrastTests: XCTestCase {
                 ("textMuted on card (\(name))", Theme.textMuted, card, 7.0),
                 ("textMuted on dim (\(name))", Theme.textMuted, dim, 7.0),
                 ("textMuted on input (\(name))", Theme.textMuted, input, 7.0),
-                ("textInverse on strong (\(name))", Theme.textInverse, strong, 4.5)
+                ("textInverse on strong (\(name))", Theme.textInverse, strong, 4.5),
+                // `destructive` is documented as clearing the 7:1 key-text bar on
+                // the glassDimTint surfaces it renders on (delete/reset rows).
+                ("destructive on dim (\(name))", Theme.destructive, dim, 7.0),
+                // `surfGreen` is used as an icon/graphic tint (waves, Health, the
+                // success check), so hold it to the 3:1 non-text graphics bar.
+                ("surfGreen on card (\(name))", Theme.surfGreen, card, 3.0),
+                ("surfGreen on dim (\(name))", Theme.surfGreen, dim, 3.0)
             ]
 
             for (label, foreground, background, minimum) in samples {

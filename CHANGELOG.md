@@ -11,6 +11,61 @@ Status at a glance:
 - **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
 - **TestFlight / ship binary:** `2.6` build **2** (privacy policy + CI host-store hardening; product features same as build 1)
 
+## [Unreleased] — Audit fixes: conditions, import/restore, accessibility, glass
+
+A four-dimension audit (design/Liquid Glass, accessibility, engineering/SwiftData,
+correctness) against the current Apple HIG and iOS 26 SDK docs, then fixed and
+regression-tested (+15 tests). No schema changes; the established look is preserved.
+
+### Fixed
+
+- **Wind & swell directions were averaged wrong across due north.** The
+  session-window mean for wind/swell/wind-wave *direction* used a linear average,
+  so samples straddling 0°/360° (e.g. 350° and 10°) averaged to ~180° — the
+  opposite bearing — and were stored as authoritative Open-Meteo data. Now uses a
+  circular (vector) mean; scalar readings (height/period/speed/temperature/sea
+  level) are unchanged. (`Peak/Supporting/SurfConditionsService.swift`)
+- **Merge import/restore could duplicate the entire library.** Session identity
+  matched on exact `Date` equality, but a stored `createdAt` keeps sub-millisecond
+  precision while the serialized id is millisecond-truncated, so a session never
+  matched its own export. Now matched at millisecond precision.
+  (`Peak/Supporting/ModelContext+Helpers.swift`, `Peak/Models/SurfSession.swift`)
+- **Merge restore duplicated media on already-present sessions.** Manifest media
+  was appended unconditionally; existing sessions now have their media replaced
+  (stored video files deleted first) instead of doubled on each restore.
+  (`Peak/Supporting/BackupManager.swift`)
+- **Merge could wipe local edits.** Importing an older export no longer blanks a
+  spot's pin/location or gear details filled in locally — optional fields are
+  overwritten only when the import actually carries a value.
+  (`Peak/Supporting/ExportFormat.swift`)
+- **Imported ratings weren't clamped** (a corrupt value could push average rating
+  above 5); the **"Spot mix → Other"** bucket now pluralizes ("1 spot"); and top
+  spot/gear/buddy ordering is deterministic when both count and name tie.
+  (`Peak/Models/SurfSession.swift`, `Peak/Supporting/ExportFormat.swift`,
+  `Peak/Supporting/StatsCalculator.swift`)
+- **Weekly streak reset to 0 at the start of each new week** and couldn't cross
+  the New Year; it now counts the unbroken run up to the most recent surfed week
+  across all history. (`Peak/Supporting/StatsCalculator.swift`)
+- **CSV export was open to spreadsheet formula injection** (a leading `=`, `+`,
+  `-`, or `@`) and mis-split rows on a lone carriage return; both are handled now,
+  and legitimate negative numbers (e.g. west longitudes) are preserved.
+  (`Peak/Supporting/ExportFormat.swift`)
+
+### Changed
+
+- **Accessibility.** Labeled the add buttons in Quiver/Spots/Buddies; stat and
+  metric cards read as one VoiceOver element with their real (non-uppercased)
+  titles; session-row count chips read as "2 gear items" rather than a bare
+  number; section and chart headings expose the `.isHeader` trait for the rotor;
+  the duration slider is labeled; Auto-fill Conditions announces its result;
+  selection chips meet the 44×44pt target; and press feedback honors Reduce Motion.
+  Contrast tests extended to the `destructive` and `surfGreen` tokens.
+- **Liquid Glass / iOS 26.** Scrolling History rows drop the interactive-glass
+  shimmer (Apple reserves the interactive material for controls, not scrolling
+  content); `.searchable` fields minimize on iOS 26; gear/spot/buddy detail and
+  the gear editor use readable content width on iPad; identical session rows share
+  press feedback; and the History filter icon uses a symbol-replace transition.
+
 ## [Unreleased] — Best Window Today, repaired
 
 Best Window Today shipped in 2.8 and was, for most real logbooks, dead. Not

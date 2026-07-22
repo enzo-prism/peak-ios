@@ -23,6 +23,9 @@ struct EmptyStateView: View {
                 .renderingMode(.template)
                 .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+                // Decorative: the title + message already convey the meaning, and
+                // the custom-asset initializer would otherwise read a raw filename.
+                .accessibilityHidden(true)
             VStack(spacing: 8) {
                 Text(title)
                     .font(.title2.weight(.bold))

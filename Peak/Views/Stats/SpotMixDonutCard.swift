@@ -34,6 +34,7 @@ struct SpotMixDonutCard: View {
             Text("Spot mix")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+                .accessibilityAddTraits(.isHeader)
 
             Chart(slices) { slice in
                 SectorMark(

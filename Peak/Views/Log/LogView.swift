@@ -63,6 +63,7 @@ struct LogView: View {
                                     Text("Recent sessions")
                                         .font(.headline.weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
+                                        .accessibilityAddTraits(.isHeader)
                                         .accessibilityIdentifier("log.recent.title")
                                     ForEach(sessions) { session in
                                         NavigationLink {

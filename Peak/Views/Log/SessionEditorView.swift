@@ -490,6 +490,7 @@ struct SessionEditorView: View {
                 )
                     .tint(Theme.textPrimary)
                     .accessibilityIdentifier("session.editor.duration")
+                    .accessibilityLabel("Duration")
                     .accessibilityValue(durationLabel)
             }
             .padding(12)
@@ -1163,12 +1164,18 @@ struct SessionEditorView: View {
                 await MainActor.run {
                     isFetchingConditions = false
                     draft.applySurfConditions(snapshot)
-                    surfConditionsNotice = SurfConditionsNotice(style: .success, message: successMessage(for: snapshot))
+                    let message = successMessage(for: snapshot)
+                    surfConditionsNotice = SurfConditionsNotice(style: .success, message: message)
+                    // The result is visual-only otherwise; announce it so VoiceOver
+                    // users know the fetch finished and what was filled in.
+                    AccessibilityNotification.Announcement(message).post()
                 }
             } catch {
                 await MainActor.run {
                     isFetchingConditions = false
-                    surfConditionsNotice = SurfConditionsNotice(style: .error, message: errorMessage(for: error))
+                    let message = errorMessage(for: error)
+                    surfConditionsNotice = SurfConditionsNotice(style: .error, message: message)
+                    AccessibilityNotification.Announcement(message).post()
                 }
             }
         }

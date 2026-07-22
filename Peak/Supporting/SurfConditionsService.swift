@@ -474,6 +474,30 @@ extension SurfConditionsService {
         return value
     }
 
+    /// Vector (circular) mean for compass bearings in degrees. Directions are a
+    /// circular quantity, so a plain arithmetic mean is wrong across the 0°/360°
+    /// wrap — e.g. averaging 350° and 10° must yield 0° (N), not 180° (S). Used
+    /// only for the direction fields; scalar quantities (height/period/speed/temp)
+    /// keep the linear `average`.
+    nonisolated static func circularAverage(values: [Double?]) -> Double? {
+        let filtered = values.compactMap { $0 }
+        guard !filtered.isEmpty else { return nil }
+        var sinSum = 0.0
+        var cosSum = 0.0
+        for degrees in filtered {
+            let radians = degrees * .pi / 180
+            sinSum += sin(radians)
+            cosSum += cos(radians)
+        }
+        // Perfectly opposing samples cancel out and leave the mean undefined;
+        // fall back to the linear mean rather than returning an arbitrary bearing.
+        guard abs(sinSum) > 1e-9 || abs(cosSum) > 1e-9 else {
+            return average(values: values)
+        }
+        let degrees = atan2(sinSum, cosSum) * 180 / .pi
+        return (degrees + 360).truncatingRemainder(dividingBy: 360)
+    }
+
     /// Deterministic stand-in for the network under UI test.
     ///
     /// Shaped like a real day rather than as flat filler: fixed groundswell, wind
@@ -593,10 +617,10 @@ private extension SurfConditionsService {
         let waveHeightMeters = average(values: values(at: indices, in: response.hourly.wave_height))
         let swellWaveHeightMeters = average(values: values(at: indices, in: response.hourly.swell_wave_height))
         let swellWavePeriodSeconds = average(values: values(at: indices, in: response.hourly.swell_wave_period))
-        let swellWaveDirectionDegrees = average(values: values(at: indices, in: response.hourly.swell_wave_direction))
+        let swellWaveDirectionDegrees = circularAverage(values: values(at: indices, in: response.hourly.swell_wave_direction))
         let windWaveHeightMeters = average(values: values(at: indices, in: response.hourly.wind_wave_height))
         let windWavePeriodSeconds = average(values: values(at: indices, in: response.hourly.wind_wave_period))
-        let windWaveDirectionDegrees = average(values: values(at: indices, in: response.hourly.wind_wave_direction))
+        let windWaveDirectionDegrees = circularAverage(values: values(at: indices, in: response.hourly.wind_wave_direction))
         let seaSurfaceTemperatureC = average(values: values(at: indices, in: response.hourly.sea_surface_temperature))
         let seaLevelHeightMeters = average(values: values(at: indices, in: response.hourly.sea_level_height_msl))
 
@@ -647,7 +671,7 @@ private extension SurfConditionsService {
             throw SurfConditionsError.noMatchingHours
         }
         let windSpeedKph = average(values: values(at: indices, in: response.hourly.wind_speed_10m))
-        let windDirectionDegrees = average(values: values(at: indices, in: response.hourly.wind_direction_10m))
+        let windDirectionDegrees = circularAverage(values: values(at: indices, in: response.hourly.wind_direction_10m))
         return WindConditions(
             windSpeedKph: windSpeedKph,
             windDirectionDegrees: windDirectionDegrees

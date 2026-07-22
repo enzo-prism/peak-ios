@@ -26,7 +26,7 @@ struct HistoryView: View {
 
                 if sessions.isEmpty {
                     EmptyStateView(
-                        title: "No sessions yet 🌊",
+                        title: "No sessions yet",
                         message: "Log your first surf and your timeline will show up here.",
                         systemImage: "wave.3.right"
                     )
@@ -53,6 +53,7 @@ struct HistoryView: View {
                         showFilters = true
                     } label: {
                         Label("Filters", systemImage: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .contentTransition(.symbolEffect(.replace))
                     }
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -64,6 +65,7 @@ struct HistoryView: View {
                 }
             }
             .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
+            .searchMinimizeBehavior()
         }
         .sheet(isPresented: $showFilters) {
             HistoryFilterSheetView(filters: $filters)
