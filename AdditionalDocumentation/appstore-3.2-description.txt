@@ -1,0 +1,50 @@
+Peak is a fast, private surf-session logbook built for surfers.
+
+Log a session in seconds:
+• Date + spot (location pin optional)
+• Gear used (boards, wetsuits, fins, leashes, and more)
+• Who you surfed with
+• Star rating + optional notes
+• Optional photos and videos
+• Or start a timer when you paddle out and end it when you come in
+
+Your surf history at a glance:
+• Timeline with search and filters (spot, gear, buddy, rating, dates)
+• Stats — time in the water, week streaks, consistency heatmap, monthly charts, top spots and gear
+• Board Report — which board actually earns its keep, broken down by wave height and swell period
+• Monthly goals in sessions or hours, with a progress ring
+• Wave records — most waves in a session, fastest wave, longest ride
+• On This Day and Year in Review, so the logbook gives something back
+• Spots map for the breaks you've pinned
+
+Conditions, recorded with the session:
+• One-tap auto-fill for wind, waves, swell, water temperature, and tide
+• Best Window Today scores the next 24 hours at your most-logged breaks against the sessions you've rated there — and tells you when your logbook doesn't yet carry enough signal to say
+• Readings in your local units (ft/mph/°F or m/km/h/°C)
+
+Apple Health, entirely optional:
+• Save your surf sessions to Health as surfing workouts
+• Import surf workouts recorded elsewhere, including on Apple Watch
+• From an imported workout's GPS route, Peak can estimate wave count, top speed, longest ride, and paddle distance — worked out on your iPhone, with nothing sent anywhere
+• Every one of those figures is labelled an estimate and every one is editable. Your correction always wins, and a later import will never overwrite it.
+
+Widgets and shortcuts:
+• Home Screen and Lock Screen widgets for your week streak and your last session
+• A Control Center button to start a session without opening the app
+• Siri and Shortcuts: log a session, start or end one, or ask when you last surfed
+• A Live Activity that counts the session on your Lock Screen and in the Dynamic Island
+
+Designed for iOS:
+• Full Light and Dark Mode
+• Dynamic Type, VoiceOver, and Reduce Motion support
+• A clean, surf-inspired design that stays out of your way
+• On iPhone models that support Apple Intelligence, your monthly recap is phrased on-device. Every number in it is computed by Peak from your own logbook — the model only supplies the wording, and nothing leaves your phone. On every other iPhone the same facts render as plain stats.
+
+Private by default:
+• No accounts
+• No social features
+• No analytics, no tracking, no ads
+• Your data stays on your device
+• Export to JSON or CSV, or take a full backup including photos and videos, whenever you want
+
+Go surf. Log it. Improve.

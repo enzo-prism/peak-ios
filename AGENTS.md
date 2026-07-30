@@ -199,6 +199,27 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 Baseline on `main`: **510 unit tests, 54 UI tests.** If your run reports fewer,
 re-read rules 1 and 2 before you believe it.
 
+**Marketing screenshots.** `PeakMarketingCaptureTests` lives at the end of
+`PeakUISmokeTests.swift` (folded in, per rule 3 above — a standalone file would
+be invisible to the build). It is skipped unless the runner env carries
+`PEAK_SHOT_DIR`, so it adds a *skipped* test to a normal run, not an executed
+one. Regenerate a full App Store set with:
+
+```bash
+TEST_RUNNER_PEAK_SHOT_DIR=/tmp/peak-shots/iphone xcodebuild test \
+  -project Peak.xcodeproj -scheme Peak -derivedDataPath .derivedData \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' \
+  -only-testing:PeakUITests/PeakMarketingCaptureTests \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+```
+
+Note the `TEST_RUNNER_` prefix — a bare env var never reaches the test process.
+iPhone 17 Pro Max yields 1320×2868 and iPad Pro 13-inch yields 2064×2752, which
+are exactly the two sizes App Store Connect requires; `XCUIScreen` PNGs carry no
+alpha, which Apple rejects. Upload with `asc screenshots upload --device-type
+IPHONE_67` (the CLI aliases 6.9" onto the `APP_IPHONE_67` set) and
+`IPAD_PRO_3GEN_129`.
+
 **Known iPad breakage (2026-07-29):** 8 of the 54 UI tests fail on the iPad leg
 of `design-check.sh` on current `main` (verified by stashing all local changes
 and re-running — the failures are identical on a clean tree). Two clusters: a

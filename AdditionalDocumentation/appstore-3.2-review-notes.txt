@@ -1,0 +1,42 @@
+NO SIGN-IN. No account system, no server, no demo credentials needed. Everything is stored locally with SwiftData.
+
+WHY 2.6 JUMPED TO 3.2
+Versions 2.7-3.1 were built and tested but never released, so 3.2 ships all of that work at once. "What's New" describes the full cumulative change set, which is what a customer upgrading from 2.6 actually receives.
+
+SAMPLE DATA
+A fresh install starts empty by design. To populate Stats, Board Report and Year in Review, log two or three sessions: Log tab > Log Session > type any spot name (a name is all that is required; no map pin needed) > Save. Empty states are intentional and explain themselves.
+
+MAIN FLOW (under 60 seconds)
+1. Log tab > "Log Session"
+2. Enter a spot, e.g. "Trestles". Optionally add rating, duration, gear, notes, photos.
+3. Save. It appears in Log recents and in History.
+4. History tab: tap a row for detail; swipe a row to edit or delete.
+5. Stats tab: totals, streaks, heatmap, charts, monthly recap.
+
+APPLE HEALTH - OPTIONAL, OFF BY DEFAULT
+More > Settings > Apple Health. The toggle is off until turned on, and the app is fully functional if you decline the permission or never open this screen.
+- Reads: workouts, workout routes (GPS), heart rate, active energy.
+- Writes: a logged session can be saved to Health as a surfing workout.
+- Purpose: importing surf workouts recorded elsewhere and deriving session metrics.
+- Health data is processed only on device. It is never transmitted, never used for advertising, and never shared with a third party. There is no analytics SDK and no backend.
+
+WAVE STATS ARE ESTIMATES
+More > Settings > Apple Health > Import from Health lists surf workouts not already logged. If a workout has a GPS route, Peak analyses it on-device to estimate wave count, top speed, longest ride and paddle distance. Every value is labelled an estimate in the UI and is user-editable; once edited, re-importing will not overwrite it. Peak makes no accuracy or medical claims, gives no health or training advice, and never writes derived estimates back into Health.
+
+APPLE INTELLIGENCE - ABSENT WHEN UNAVAILABLE (please read)
+The monthly recap on Stats and the recap paragraph in Year in Review use Apple's on-device Foundation Models for phrasing only. This needs iOS 26+ on a device with Apple Intelligence enabled. On any device that cannot run the model (older hardware, iOS 17/18, Apple Intelligence off, model still downloading) the feature is silently absent and the identical facts render as plain statistics - no error, no empty panel, no dead button. If you test on hardware without Apple Intelligence you will see the plain form; that is intended, not a defect. Every figure is computed by Peak from the user's own logbook; the model receives no numerals and generated text containing digits is discarded. Nothing is sent off device.
+
+WIDGETS, CONTROL CENTER, LIVE ACTIVITY, SIRI
+- Widgets: long-press Home or Lock Screen > add "Surf Streak" or "Last Session".
+- Control Center: edit Control Center > add "Start Surf Session".
+- Live Activity: Log tab > "Start Session" shows a timer on the Lock Screen and Dynamic Island; "End Session" opens the editor prefilled. Drawn with Text(timerInterval:), so no push notifications and no push token.
+- Siri: "Log a surf session in Peak", "When did I last surf?", "Sessions this month".
+
+NETWORKING
+The only network calls are user-initiated HTTPS requests to Open-Meteo for surf conditions: "Auto-fill Conditions" in the editor, or "Check conditions" on the Best Window Today card. One Settings toggle can refresh that card on launch and is off by default. Nothing else contacts the network.
+
+LOCATION
+Used only to pin a spot near you via "Use My Location" in the spot editor, and to centre the spots map. Optional; spots can be created from a name alone.
+
+ENCRYPTION
+Standard HTTPS only. Export compliance: exempt (usesNonExemptEncryption = false).

@@ -1,0 +1,34 @@
+Peak 3.2 is a big one: everything built since 2.6, released together.
+
+Widgets, Siri, and the Lock Screen
+• Home Screen and Lock Screen widgets for your week streak and your last session
+• A Live Activity that counts your session on the Lock Screen and in the Dynamic Island
+• A Control Center button that starts a session without opening the app
+• Siri and Shortcuts: log a session, start or end one, or ask when you last surfed
+
+Wave stats from Apple Health
+• Import a surf workout and Peak estimates wave count, top speed, longest ride, and paddle distance from its GPS route — worked out on your iPhone, with nothing sent anywhere
+• Every figure is labelled an estimate and every one is editable. Your correction is never overwritten by a later import.
+• New wave records on Stats: most waves in a session, fastest wave, longest ride
+
+Best Window Today
+• Scores the next 24 hours at your most-logged breaks against the sessions you have actually rated there, and cites the past session it resembles
+• When your logbook does not yet carry enough signal, it says so instead of guessing
+• Tide now joins the conditions Peak records, with a rising, high, falling, or low trend
+
+Knowing your quiver
+• Board Report: how each board rates across wave heights and swell periods, with a floor of three rated sessions before Peak will call it a pattern
+• Monthly goals in sessions or hours, with a progress ring
+• On This Day resurfaces a session from a previous year
+• Year in Review turns your season into one shareable card
+
+Recaps
+• A monthly recap on Stats, and a written recap in Year in Review
+• On iPhone models that support Apple Intelligence the phrasing is generated on-device; every number is computed by Peak itself. On every other iPhone the same facts render as plain stats.
+
+Also in this release
+• A first-run welcome and in-app tips
+• A broad accessibility pass: larger touch targets, better VoiceOver labels, Reduce Transparency support, and Dynamic Type fixes throughout
+• Fixes to conditions maths, backup and restore integrity, widget freshness, and Siri's view of your logbook
+
+Private by default. No accounts. Your data stays on your device.

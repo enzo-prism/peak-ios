@@ -1123,3 +1123,163 @@ final class PeakInsightsUITests: XCTestCase {
         XCTAssertFalse(text.contains(privacyLine), "Claimed on-device authorship with no model present")
     }
 }
+
+// MARK: - Marketing screenshot capture
+
+/// Regenerates the App Store screenshot set. Skipped unless `PEAK_SHOT_DIR` is
+/// exported for the run, so the normal UI gate is unaffected (it reports one
+/// skipped test, not one more executed test).
+///
+/// Replaces the `PeakAdCaptureFlowTests` harness that was dropped from the
+/// project; folded in here because `PeakUITests` is not a synchronized group and
+/// a standalone file would be invisible to the build (AGENTS.md rule 3).
+///
+///     PEAK_SHOT_DIR=/tmp/shots/iphone xcodebuild test \
+///       -only-testing:PeakUITests/PeakMarketingCaptureTests ...
+///
+/// Seeded, fictional data only — Apple requires screenshots show the app in use
+/// with fictional content. Insights are deliberately NOT stubbed: the captured
+/// Stats screen is the plain one every device renders, never the Apple
+/// Intelligence layout that only some hardware can show.
+final class PeakMarketingCaptureTests: XCTestCase {
+    private var app: XCUIApplication!
+    private var shotDirectory: URL!
+
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        continueAfterFailure = false
+
+        let path = try XCTUnwrap(
+            ProcessInfo.processInfo.environment["PEAK_SHOT_DIR"],
+            "Set PEAK_SHOT_DIR to capture App Store screenshots"
+        )
+        shotDirectory = URL(fileURLWithPath: path, isDirectory: true)
+        try FileManager.default.createDirectory(at: shotDirectory, withIntermediateDirectories: true)
+
+        XCUIDevice.shared.orientation = .portrait
+
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        // Deliberately no UITESTS_FIXED_DATE: the seed dates every session
+        // relative to its base date, so pinning the past leaves the
+        // recent-weeks surfaces (streak, consistency heatmap, monthly goal)
+        // empty. Seeding from "now" is what makes Stats look alive.
+        app.launchEnvironment["UITESTS_WINDOW_SCENARIO"] = "confident"
+        app.launchEnvironment["UITESTS_SURF_CONDITIONS_SCENARIO"] = "success"
+        app.launch()
+    }
+
+    override func tearDown() {
+        app = nil
+        super.tearDown()
+    }
+
+    func testCaptureAppStoreScreenshots() throws {
+        tapTab("Log")
+        _ = app.staticTexts["Peak"].waitForExistence(timeout: 8)
+        // Left on the Best Window card's call to action deliberately. Tapping
+        // it here would render the canned UI-test forecast, whose hours ignore
+        // the daylight filter the real service applies — a late-night "best
+        // window" is a fixture artefact, not the product, and has no place in
+        // a store screenshot.
+        settle()
+        try capture("01-log")
+
+        tapTab("History")
+        _ = app.staticTexts["Trestles"].firstMatch.waitForExistence(timeout: 8)
+        settle()
+        try capture("02-history")
+
+        let session = app.staticTexts["Trestles"].firstMatch
+        if session.exists {
+            tap(session)
+            settle()
+            try capture("03-session-detail")
+            back()
+        }
+
+        tapTab("Stats")
+        settle()
+        // Scroll to the charts. Two swipes clears the counters, the
+        // monthly-goal ring (an empty opt-in state until a target is set) and
+        // the monthly recap card. The recap is deliberately out of frame: on a
+        // machine with Apple Intelligence it renders its on-device authorship
+        // line, and a screenshot must not advertise a surface that a reviewer
+        // on ineligible hardware would never see.
+        app.swipeUp()
+        settle(0.5)
+        app.swipeUp()
+        settle()
+        try capture("04-stats")
+
+        tapTab("Quiver")
+        settle()
+        try capture("05-quiver")
+
+        tapTab("More")
+        let recap = app.buttons["Year in Review"].firstMatch
+        if recap.waitForExistence(timeout: 4) {
+            tap(recap)
+            settle()
+            try capture("06-year-in-review")
+        }
+    }
+
+    // MARK: Helpers
+
+    private func tapTab(_ name: String) {
+        // The tab bar minimizes on scroll (iOS 26), so a tab we just scrolled
+        // past is genuinely absent until the content is scrolled back to the
+        // top — which can take several swipes on a long tab like Stats.
+        for attempt in 0..<6 {
+            let tab = app.tabBars.buttons[name]
+            if tab.waitForExistence(timeout: attempt == 0 ? 5 : 1), tab.isHittable {
+                tap(tab)
+                return
+            }
+            let button = app.buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+            if button.exists, button.isHittable {
+                tap(button)
+                return
+            }
+            app.swipeDown()
+            settle(0.5)
+        }
+        XCTFail("Missing tab: \(name)")
+    }
+
+    private func back() {
+        let backButton = app.navigationBars.buttons.element(boundBy: 0)
+        if backButton.exists && backButton.isHittable {
+            backButton.tap()
+            settle()
+        }
+    }
+
+    private func tap(_ element: XCUIElement) {
+        if element.isHittable {
+            element.tap()
+        } else {
+            element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+    }
+
+    private func settle(_ seconds: TimeInterval = 1.2) {
+        Thread.sleep(forTimeInterval: seconds)
+    }
+
+    /// Writes an opaque PNG: App Store screenshots may not carry an alpha
+    /// channel, and `XCUIScreen.pngRepresentation` includes one.
+    private func capture(_ name: String) throws {
+        let shot = XCUIScreen.main.screenshot()
+        let url = shotDirectory.appendingPathComponent("\(name).png")
+        try shot.pngRepresentation.write(to: url, options: .atomic)
+
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
