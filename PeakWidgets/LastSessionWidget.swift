@@ -35,6 +35,7 @@ struct LastSessionWidgetView: View {
                 Text(spot).font(.headline).lineLimit(1)
                 Text(date, format: .relative(presentation: .named)).font(.caption)
             }
+            .accessibilityElement(children: .combine)
             .widgetURL(peakLogSessionURL)
         } else {
             VStack(alignment: .leading, spacing: 4) {
@@ -45,6 +46,7 @@ struct LastSessionWidgetView: View {
                     .font(.title3.weight(.bold))
                     .lineLimit(2)
                     .minimumScaleFactor(0.7)
+                    .widgetAccentable()
                 if let rating = snapshot.lastSessionRating, rating > 0 {
                     RatingDots(rating: rating)
                 }
@@ -55,7 +57,8 @@ struct LastSessionWidgetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .widgetURL(peakLogSessionURL)
-            .accessibilityLabel("Last surf at \(spot)")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(fullLabel(spot: spot, date: date))
         }
     }
 
@@ -68,6 +71,17 @@ struct LastSessionWidgetView: View {
                 .font(.subheadline.weight(.semibold))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
         .widgetURL(peakLogSessionURL)
+    }
+
+    /// Everything the widget shows, spoken in one element: spot, rating, when.
+    private func fullLabel(spot: String, date: Date) -> String {
+        var parts = ["Last surf at \(spot)"]
+        if let rating = snapshot.lastSessionRating, rating > 0 {
+            parts.append("rated \(rating) out of 5")
+        }
+        parts.append(date.formatted(.relative(presentation: .named)))
+        return parts.joined(separator: ", ")
     }
 }

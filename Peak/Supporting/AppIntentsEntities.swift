@@ -22,11 +22,13 @@ enum PeakIntentStore {
         if let fallback { return fallback }
         // Never let a Siri query archive a "corrupt" store out from under the
         // app: read-only intent access uses the plain load path and simply
-        // returns nothing if it fails.
+        // returns nothing if it fails. Must open at the HEAD schema — asking for
+        // a frozen snapshot against a store the app has already migrated past it
+        // throws, and every intent then reads an empty logbook.
         fallback = try? ModelContainer(
-            for: Schema(versionedSchema: PeakSchemaV8.self),
+            for: Schema(versionedSchema: PeakDataStore.headSchema),
             migrationPlan: PeakMigrationPlan.self,
-            configurations: [ModelConfiguration(schema: Schema(versionedSchema: PeakSchemaV8.self))]
+            configurations: [ModelConfiguration(schema: Schema(versionedSchema: PeakDataStore.headSchema))]
         )
         return fallback
     }

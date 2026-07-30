@@ -14,7 +14,6 @@ struct HistoryView: View {
     /// (sessions/filters/debounced-search changes), not on every body pass.
     @State private var groupedSessions: [(key: Date, value: [SurfSession])] = []
     @State private var showFilters = false
-    @State private var showNewSession = false
     @State private var editingSession: SurfSession?
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
@@ -58,7 +57,9 @@ struct HistoryView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showNewSession = true
+                        // Single presenter: ContentView owns the new-session
+                        // sheet so this can't race a system-initiated request.
+                        QuickLogCoordinator.shared.requestNewSession()
                     } label: {
                         Label("New Session", systemImage: "plus")
                     }
@@ -69,9 +70,6 @@ struct HistoryView: View {
         }
         .sheet(isPresented: $showFilters) {
             HistoryFilterSheetView(filters: $filters)
-        }
-        .sheet(isPresented: $showNewSession) {
-            SessionEditorView(mode: .new)
         }
         .sheet(item: $editingSession) { session in
             SessionEditorView(mode: .edit(session))

@@ -52,6 +52,42 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         sessionsThisMonth: 0,
         generatedAt: .distantPast
     )
+
+    /// Re-derives the time-relative values for display at `date`. The snapshot
+    /// is only rewritten when the app runs, so a widget that keeps rendering the
+    /// stored scalars shows "Surfed today" for a week if the app isn't opened.
+    /// Sessions are only ever added through the app (which rewrites the
+    /// snapshot), so between writes the library is known to be unchanged and
+    /// every one of these values is derivable from `lastSessionDate` alone:
+    /// - `daysSinceLastSession` is recounted against `date`.
+    /// - `sessionsThisMonth` resets to zero once `date` leaves the month the
+    ///   snapshot was generated in.
+    /// - the week streak keeps its stored value while the last session sits in
+    ///   `date`'s week or the week before (the same current-week grace
+    ///   `StatsCalculator` gives), and breaks to zero after that.
+    func adjusted(for date: Date, calendar: Calendar = .current) -> PeakWidgetSnapshot {
+        var adjusted = self
+
+        if let lastSessionDate {
+            adjusted.daysSinceLastSession = calendar.dateComponents(
+                [.day],
+                from: calendar.startOfDay(for: lastSessionDate),
+                to: calendar.startOfDay(for: date)
+            ).day ?? daysSinceLastSession
+
+            if let lastWeek = calendar.dateInterval(of: .weekOfYear, for: lastSessionDate),
+               let graceEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: lastWeek.end),
+               date >= graceEnd {
+                adjusted.currentStreakWeeks = 0
+            }
+        }
+
+        if !calendar.isDate(date, equalTo: generatedAt, toGranularity: .month) {
+            adjusted.sessionsThisMonth = 0
+        }
+
+        return adjusted
+    }
 }
 
 /// One place to ask WidgetKit for a refresh, so the test gate is stated once.

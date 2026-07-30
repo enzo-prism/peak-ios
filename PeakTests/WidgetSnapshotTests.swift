@@ -117,6 +117,81 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.lastSessionSpot)
     }
 
+    // MARK: - Time adjustment between app runs
+
+    /// The snapshot is only rewritten when the app runs; between writes the
+    /// widget re-derives the day-relative values for each timeline entry so a
+    /// week away from the app can't leave "Surfed today" on the Home Screen.
+    func testAdjustedRecountsDaysSinceLastSession() {
+        let sessions = [TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 16), spot: TestFixture.spot())]
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: TestCalendar.gmt)
+        XCTAssertEqual(snapshot.daysSinceLastSession, 2)
+
+        let aWeekLater = TestCalendar.makeDate(year: 2026, month: 2, day: 25, hour: 9)
+        XCTAssertEqual(snapshot.adjusted(for: aWeekLater, calendar: TestCalendar.gmt).daysSinceLastSession, 9)
+        // Rendering "now" changes nothing.
+        XCTAssertEqual(snapshot.adjusted(for: now, calendar: TestCalendar.gmt), snapshot)
+    }
+
+    func testAdjustedResetsSessionsThisMonthWhenTheMonthTurns() {
+        let sessions = [
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 10), spot: TestFixture.spot()),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 16), spot: TestFixture.spot())
+        ]
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: TestCalendar.gmt)
+        XCTAssertEqual(snapshot.sessionsThisMonth, 2)
+
+        // Later in February: the count stands.
+        let laterSameMonth = TestCalendar.makeDate(year: 2026, month: 2, day: 27)
+        XCTAssertEqual(snapshot.adjusted(for: laterSameMonth, calendar: TestCalendar.gmt).sessionsThisMonth, 2)
+
+        // March: no app run means no new sessions, so the new month starts at zero.
+        let march = TestCalendar.makeDate(year: 2026, month: 3, day: 2)
+        XCTAssertEqual(snapshot.adjusted(for: march, calendar: TestCalendar.gmt).sessionsThisMonth, 0)
+    }
+
+    /// The streak keeps `StatsCalculator`'s current-week grace: it survives
+    /// while the last session sits in the render date's week or the week
+    /// before, and breaks to zero after that — exactly what recomputing the
+    /// streak over the unchanged library would produce.
+    func testAdjustedBreaksTheStreakAfterTheGraceWeek() {
+        let calendar = TestCalendar.gmt
+        let sessions = [
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 17)),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 10))
+        ]
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: calendar)
+        XCTAssertEqual(snapshot.currentStreakWeeks, 2)
+
+        // Same week (Feb 18 is in the Feb 17 session's week): streak stands.
+        XCTAssertEqual(snapshot.adjusted(for: now, calendar: calendar).currentStreakWeeks, 2)
+
+        // The following week: current-week grace, streak still stands — and it
+        // matches what StatsCalculator says for the same library at that date.
+        let graceWeek = TestCalendar.makeDate(year: 2026, month: 2, day: 24)
+        XCTAssertEqual(snapshot.adjusted(for: graceWeek, calendar: calendar).currentStreakWeeks, 2)
+        XCTAssertEqual(
+            StatsCalculator.surfDaysThisYear(sessions: sessions, referenceDate: graceWeek, calendar: calendar).currentWeekStreak,
+            2
+        )
+
+        // Two weeks on: broken, in agreement with StatsCalculator.
+        let afterGrace = TestCalendar.makeDate(year: 2026, month: 3, day: 3)
+        XCTAssertEqual(snapshot.adjusted(for: afterGrace, calendar: calendar).currentStreakWeeks, 0)
+        XCTAssertEqual(
+            StatsCalculator.surfDaysThisYear(sessions: sessions, referenceDate: afterGrace, calendar: calendar).currentWeekStreak,
+            0
+        )
+    }
+
+    func testAdjustedLeavesAnEmptySnapshotAlone() {
+        let empty = PeakWidgetSnapshot.empty
+        let adjusted = empty.adjusted(for: now, calendar: TestCalendar.gmt)
+        XCTAssertNil(adjusted.daysSinceLastSession)
+        XCTAssertEqual(adjusted.currentStreakWeeks, 0)
+        XCTAssertEqual(adjusted.sessionsThisMonth, 0)
+    }
+
     // MARK: - Deep link
 
     /// The widgets and the app agree on one URL constant; this pins the shape

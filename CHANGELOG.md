@@ -11,6 +11,110 @@ Status at a glance:
 - **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
 - **TestFlight / ship binary:** `2.6` build **2** (privacy policy + CI host-store hardening; product features same as build 1)
 
+## [Unreleased] — Audit fixes round 2: intents, widgets, restore integrity, HIG
+
+A second HIG + engineering audit pass (Apple HIG / framework docs cross-referenced
+against the codebase), fixed and regression-tested (+5 tests, 510 unit total).
+No schema changes; the established look is preserved.
+
+### Fixed
+
+- **Siri/Spotlight could read a full logbook as empty.** The App Intents fallback
+  container opened the store at frozen `PeakSchemaV8`; once the app had migrated
+  the file to V10 that open throws, was swallowed, and every intent answered from
+  an empty store. The fallback now opens at `PeakDataStore.headSchema` — the one
+  statement of HEAD both openers share. (`Peak/Supporting/AppIntentsEntities.swift`,
+  `Peak/Supporting/PeakDataStore.swift`)
+- **A failed restore could destroy existing media.** Merge-restore deleted a
+  session's photos/videos *before* writing the backup's copies, so a disk-full
+  mid-restore lost both. Restore now decodes everything and writes all video
+  files first, the model-mutation phase cannot throw, and any earlier failure
+  rolls back the context and removes the fresh files. Corrupt video payloads are
+  dropped instead of restored as permanently broken rows (new test). The whole
+  read/decode/write phase also moved off the main actor (`@concurrent
+  prepareRestore`), so a large backup no longer freezes the UI for its duration.
+  (`Peak/Supporting/BackupManager.swift`, `Peak/Supporting/SessionMediaStore.swift`)
+- **The Streak widget froze time-relative values.** "Days since", "this month"
+  and the week streak were computed at snapshot-write time and re-rendered
+  unchanged for days — a week away from the app kept "Surfed today" on the Home
+  Screen. The provider now emits midnight-aligned entries with the values
+  re-derived per entry (`PeakWidgetSnapshot.adjusted(for:)`, 4 new tests), and
+  the streak applies the same current-week grace as `StatsCalculator`.
+  (`Peak/WidgetSnapshot.swift`, `PeakWidgets/WidgetSupport.swift`)
+- **Editing a session never refreshed the widget.** `onChange(of: sessions)`
+  compares model identity, so in-place edits (rating, spot, wave count) left the
+  Home Screen stale until the next foreground return — and Control Center's
+  Start Session kept preselecting the old spot. ContentView now watches the same
+  `persistentModelID + updatedAt` stamp HistoryView already used.
+  (`Peak/ContentView.swift`)
+- **Widget and Siri disagreed on "sessions this month".** Unified on one rule,
+  stated once: a session logged ahead of time doesn't count until it has
+  happened. (`Peak/Supporting/SessionIntentQueries.swift`,
+  `Peak/Supporting/WidgetSnapshotWriter.swift`)
+- **A system-initiated new-session request could be silently dropped.** LogView
+  and HistoryView each presented their own editor sheet, racing the
+  ContentView presenter that the Live Activity / Control Center path uses; the
+  loser's prefilled draft was lost. All three routes now go through
+  `QuickLogCoordinator`, the app's single presenter. (`Peak/ContentView.swift`,
+  `Peak/Views/Log/LogView.swift`, `Peak/Views/History/HistoryView.swift`)
+- **Leaving Import from Health kept every route query running.** The
+  `HKWorkoutRouteQuery` bridge now stops the query and fails the await on task
+  cancellation, the per-fix `RouteSample` mapping runs off the main actor, and
+  the workout list is lazy so forty unimported workouts no longer start forty
+  simultaneous route analyses on appear.
+  (`Peak/Supporting/HealthKitService.swift`, `Peak/Views/More/HealthImportView.swift`)
+- **Backfill claimed success when the save failed.** "Filled in N sessions" now
+  reports a failed `modelContext.save()` instead of letting the work silently
+  evaporate and the surfer re-fetch it all next launch.
+  (`Peak/Views/Today/BestWindowTodayCard.swift`)
+- **Year in Review faulted every photo of the year into memory** to choose six
+  highlights (external-storage attributes fault on a nil *check*). Candidates
+  are now ordered on cheap fields and only the six survivors touch their blobs.
+  (`Peak/Supporting/YearInReviewCalculator.swift`)
+- **Keyboard inset was measured against the display, not the window.** On iPad
+  in Split View / Stage Manager the deprecated `UIScreen.main` math produced a
+  phantom bottom inset taller than the real keyboard overlap; the observer now
+  intersects the keyboard frame with the app's own key window.
+  (`Peak/Supporting/KeyboardObserver.swift`)
+
+### Accessibility & HIG
+
+- Import from Health: the row no longer flattens away its Import button for
+  VoiceOver (`.combine` → `.contain`), and the failure state's impossible
+  "pull to refresh" instruction became a working Try Again button.
+- 44 pt hit targets for the History filter chips and Clear pills, map annotation
+  buttons and "Not on the map" chips, the spot editor's My Location button, and
+  the media viewer's Done button.
+- Session editor: the notes placeholder no longer intercepts taps and both notes
+  editors carry a "Notes" label; alert titles state the problem ("Spot Required",
+  "Couldn't Add Media"); the conditions "Replace" button is marked destructive.
+- Settings: the working scrim is now a semantic modal (VoiceOver can no longer
+  swipe behind it mid-restore), its fill is visible in dark mode, the last
+  legacy `.alert(item:)` moved to the modern API, and Email Support no longer
+  dies silently when Mail is unavailable.
+- Media: photo/video thumbnails are announced as "Photo N of M" in the detail
+  view, the reorder sheet, and Year in Review highlights.
+- Map pin-drop has an accessible equivalent ("Drop Pin at Map Center" action)
+  and an honest hint.
+- Year picker switches to a menu once it outgrows a segmented control
+  (5+ years); Welcome pages scroll at accessibility text sizes.
+- Share cards render at a pinned Dynamic Type size so exports can't clip at AX
+  sizes; live-UI fixed font sizes converted to text styles; widget rating dots
+  raised from 6 pt.
+- Widgets: streak/spot marked `widgetAccentable()` for tinted Home Screens,
+  complete VoiceOver labels on all families, inline streak emoji replaced with
+  a `Label` that survives Lock Screen vibrant rendering.
+- Reduce Transparency now swaps the glass fallback surface to an opaque fill;
+  the backfill progress line carries `.updatesFrequently`; non-tappable hero
+  tags no longer render as interactive Liquid Glass; History's "Clear" moved
+  out of the cancel slot.
+
+### Documentation
+
+- `ARCHITECTURE.md` no longer describes the NOAA CO-OPS tide layer as shipped:
+  `TideService` is built and tested but has no call sites yet — wiring it into
+  auto-fill is open work, and every tide reading today is the Open-Meteo curve.
+
 ## [Unreleased] — Audit fixes: conditions, import/restore, accessibility, glass
 
 A four-dimension audit (design/Liquid Glass, accessibility, engineering/SwiftData,

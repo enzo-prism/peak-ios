@@ -449,6 +449,51 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(sessions.first?.media.count, 1, "Merge restore must not duplicate media on an existing session")
     }
 
+    /// A manifest video entry whose base64 payload is corrupt must be dropped,
+    /// not inserted as a `SessionMedia(videoFileName: nil)` row — that tile
+    /// would be permanently broken and invisible to file cleanup.
+    func testRestoreDropsVideoEntryWithCorruptBase64() async throws {
+        let createdAt = Date(timeIntervalSince1970: 1_770_000_000)
+        let createdString = ExportDateFormatter.string(from: createdAt)
+
+        let sessionExport = PeakExportManager.makeExport(
+            sessions: [SurfSession(date: createdAt, spot: nil, rating: 3, createdAt: createdAt, updatedAt: createdAt)],
+            spots: [], gear: [], buddies: [],
+            now: createdAt
+        )
+        let corruptVideo = SessionMediaBackupEntry(
+            id: "corrupt",
+            sessionId: createdString,
+            kind: "video",
+            sortIndex: 0,
+            cropOriginX: 0, cropOriginY: 0, cropWidth: 1, cropHeight: 1,
+            createdAt: createdString,
+            photoBase64: nil,
+            thumbnailBase64: nil,
+            videoBase64: "!!!not-base64!!!"
+        )
+        let file = PeakBackupFile(
+            export: sessionExport,
+            manifest: PeakBackupManifest(
+                backupVersion: BackupManager.backupVersion,
+                exportedAt: createdString,
+                media: [corruptVideo]
+            )
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("corrupt-video-test.peakbackup")
+        try BackupManager.encodeBackupFile(file).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let container = try makeContainer()
+        let context = ModelContext(container)
+        try await BackupManager.restore(from: url, mode: .merge, context: context)
+
+        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions.first?.media.count, 0, "Corrupt video payloads must be skipped, not restored as broken rows")
+    }
+
     func testImportClampsOutOfRangeRating() throws {
         let createdString = ExportDateFormatter.string(from: TestCalendar.makeDate(year: 2026, month: 2, day: 1, hour: 6))
         let sessionExport = SessionExport(

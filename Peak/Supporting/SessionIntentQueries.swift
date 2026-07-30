@@ -103,8 +103,11 @@ enum SessionIntentQueries {
         guard let month = calendar.dateInterval(of: .month, for: now) else { return [] }
         // Half-open on purpose: `DateInterval.contains` is inclusive of `end`,
         // which would count the first instant of next month as this month.
+        // Clamped to `now` so a session logged ahead of time doesn't count
+        // until it has actually happened — the widget applies the same rule,
+        // and the two surfaces must never disagree on this number.
         return sessions
-            .filter { $0.date >= month.start && $0.date < month.end }
+            .filter { $0.date >= month.start && $0.date <= now }
             .sorted { $0.date > $1.date }
     }
 

@@ -131,20 +131,118 @@ enum BackupManager {
 
     // MARK: - Restore
 
+    /// A manifest entry with its base64 payloads decoded and its video already
+    /// written into the media store, ready for main-actor model insertion.
+    struct PreparedMediaEntry: Sendable {
+        let sessionId: String
+        let kind: SessionMediaKind
+        let sortIndex: Int
+        let cropOriginX: Double
+        let cropOriginY: Double
+        let cropWidth: Double
+        let cropHeight: Double
+        let createdAt: Date
+        let photoData: Data?
+        let thumbnailData: Data?
+        let videoFileName: String?
+    }
+
     /// Restores a `.peakbackup` file into `context`.
     ///
     /// Sessions/spots/gear/buddies go through `PeakExportManager.applyImport`
     /// (which owns the merge/dedupe + `.replace` wipe semantics). Media is then
-    /// reattached additively: each manifest entry is matched to its imported
-    /// session by `createdAt` string, decoded from base64, and appended to that
-    /// session's `media` relationship. Entries whose session isn't found are skipped.
+    /// reattached: each manifest entry is matched to its imported session by
+    /// `createdAt` string and appended to that session's `media` relationship.
+    /// Entries whose session isn't found are skipped.
+    ///
+    /// Ordering is deliberate: every byte the backup carries is decoded and
+    /// every restored video is written to disk **before** any existing row or
+    /// media file is touched, so a failure (disk full, corrupt payload) can
+    /// only ever leave stray fresh files behind — which the `catch` removes —
+    /// never a library whose media was deleted ahead of a write that then
+    /// failed. The model mutation phase itself cannot throw, and on any earlier
+    /// throw `context.rollback()` discards the partial import.
     static func restore(
         from url: URL,
         mode: ImportMode,
         context: ModelContext
     ) async throws {
+        let (file, preparedMedia) = try await prepareRestore(from: url)
+
+        do {
+            try applyRestore(file: file, preparedMedia: preparedMedia, mode: mode, context: context)
+        } catch {
+            context.rollback()
+            for name in preparedMedia.compactMap(\.videoFileName) {
+                SessionMediaStore.deleteVideoFile(named: name)
+            }
+            throw error
+        }
+    }
+
+    /// Off-main phase: whole-file read, JSON decode, per-entry base64 decode,
+    /// and video writes. A 600 MB backup must not freeze the UI (or invite the
+    /// watchdog) for the tens of seconds this takes — same reason
+    /// `encodeBackup` is `@concurrent` on the way out.
+    @concurrent
+    nonisolated static func prepareRestore(from url: URL) async throws -> (PeakBackupFile, [PreparedMediaEntry]) {
         let data = try Data(contentsOf: url)
         let file = try decodeBackupFile(data)
+
+        var prepared: [PreparedMediaEntry] = []
+        prepared.reserveCapacity(file.manifest.media.count)
+        var writtenVideoFileNames: [String] = []
+
+        do {
+            for entry in file.manifest.media {
+                let item: PreparedMediaEntry? = try autoreleasepool {
+                    let kind = SessionMediaKind(rawValue: entry.kind) ?? .photo
+                    var videoFileName: String?
+                    if kind == .video {
+                        // A corrupt or absent video payload is dropped outright:
+                        // inserting a `SessionMedia(videoFileName: nil)` row
+                        // would be a permanently broken tile that even
+                        // `deleteStoredMedia` skips.
+                        guard let base64 = entry.videoBase64,
+                              let videoData = Data(base64Encoded: base64) else { return nil }
+                        let name = try writeRestoredVideo(videoData)
+                        videoFileName = name
+                        writtenVideoFileNames.append(name)
+                    }
+                    return PreparedMediaEntry(
+                        sessionId: entry.sessionId,
+                        kind: kind,
+                        sortIndex: entry.sortIndex,
+                        cropOriginX: entry.cropOriginX,
+                        cropOriginY: entry.cropOriginY,
+                        cropWidth: entry.cropWidth,
+                        cropHeight: entry.cropHeight,
+                        createdAt: ExportDateFormatter.date(from: entry.createdAt) ?? Date(),
+                        photoData: entry.photoBase64.flatMap { Data(base64Encoded: $0) },
+                        thumbnailData: entry.thumbnailBase64.flatMap { Data(base64Encoded: $0) },
+                        videoFileName: videoFileName
+                    )
+                }
+                if let item { prepared.append(item) }
+            }
+        } catch {
+            for name in writtenVideoFileNames {
+                SessionMediaStore.deleteVideoFile(named: name)
+            }
+            throw error
+        }
+
+        return (file, prepared)
+    }
+
+    /// Main-actor phase: the model mutations. After `applyImport` returns, this
+    /// cannot throw — see `restore` for why that matters.
+    private static func applyRestore(
+        file: PeakBackupFile,
+        preparedMedia: [PreparedMediaEntry],
+        mode: ImportMode,
+        context: ModelContext
+    ) throws {
 
         // Snapshot which sessions already exist (by their millisecond identity key)
         // BEFORE the import. On a merge restore into a library that still holds
@@ -173,8 +271,15 @@ enum BackupManager {
         // manifest reattaches the backup's copy.
         var clearedSessionKeys: Set<String> = []
 
-        for entry in file.manifest.media {
-            guard let session = sessionByKey[entry.sessionId] else { continue }
+        for entry in preparedMedia {
+            guard let session = sessionByKey[entry.sessionId] else {
+                // The video was pre-written but its session never landed —
+                // remove the file rather than orphan it on disk.
+                if let name = entry.videoFileName {
+                    SessionMediaStore.deleteVideoFile(named: name)
+                }
+                continue
+            }
 
             if preexistingSessionKeys.contains(entry.sessionId),
                !clearedSessionKeys.contains(entry.sessionId) {
@@ -186,28 +291,17 @@ enum BackupManager {
                 clearedSessionKeys.insert(entry.sessionId)
             }
 
-            let kind = SessionMediaKind(rawValue: entry.kind) ?? .photo
-            let photoData = entry.photoBase64.flatMap { Data(base64Encoded: $0) }
-            let thumbnailData = entry.thumbnailBase64.flatMap { Data(base64Encoded: $0) }
-
-            var videoFileName: String?
-            if kind == .video,
-               let base64 = entry.videoBase64,
-               let videoData = Data(base64Encoded: base64) {
-                videoFileName = try writeRestoredVideo(videoData)
-            }
-
             let media = SessionMedia(
-                kind: kind,
-                photoData: photoData,
-                thumbnailData: thumbnailData,
-                videoFileName: videoFileName,
+                kind: entry.kind,
+                photoData: entry.photoData,
+                thumbnailData: entry.thumbnailData,
+                videoFileName: entry.videoFileName,
                 sortIndex: entry.sortIndex,
                 cropOriginX: entry.cropOriginX,
                 cropOriginY: entry.cropOriginY,
                 cropWidth: entry.cropWidth,
                 cropHeight: entry.cropHeight,
-                createdAt: ExportDateFormatter.date(from: entry.createdAt) ?? Date()
+                createdAt: entry.createdAt
             )
             context.insert(media)
             session.media.append(media)
@@ -217,7 +311,7 @@ enum BackupManager {
     /// Writes decoded video bytes into the app's SessionMedia store and returns
     /// the stored file name. Reuses `SessionMediaStore.storeVideo` (which moves
     /// the file into Application Support/SessionMedia and honors test redirection).
-    private static func writeRestoredVideo(_ data: Data) throws -> String {
+    nonisolated private static func writeRestoredVideo(_ data: Data) throws -> String {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString).mov")
         try data.write(to: tempURL, options: [.atomic])

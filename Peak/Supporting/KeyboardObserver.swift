@@ -37,9 +37,26 @@ final class KeyboardObserver: ObservableObject {
             height = 0
             return
         }
-        let screen = UIScreen.main.bounds
-        let overlap = max(0, screen.maxY - frame.minY)
-        height = overlap
+        // Measure against the app's own window, not the display: in iPad Split
+        // View / Slide Over / Stage Manager the window doesn't fill the screen,
+        // so `UIScreen.main.maxY - frame.minY` (the deprecated old math here)
+        // produced a phantom inset far taller than the real overlap.
+        guard let window = Self.activeKeyWindow else {
+            height = 0
+            return
+        }
+        let keyboardFrame = window.convert(frame, from: window.screen.coordinateSpace)
+        let overlap = window.bounds.intersection(keyboardFrame).height
+        height = overlap.isFinite ? max(0, overlap) : 0
+    }
+
+    private static var activeKeyWindow: UIWindow? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes
+            .filter { $0.activationState == .foregroundActive }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)
+            ?? scenes.first?.keyWindow
     }
 }
 

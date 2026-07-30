@@ -50,7 +50,7 @@ This document describes the runtime structure, data model, and key flows in Peak
 **Tide**
 - The marine request asks for `sea_level_height_msl` and extends three hours either side of the session window, so the hourly curve has enough shape to read a turning point. Every other reading still averages over the session window only.
 - Trend (rising / high / falling / low) is derived from that curve; `TideTrend` lives in `Peak/Models/TideTrend.swift` because SwiftData stores its raw value on `SurfSession`.
-- Optional US precision: `Peak/Supporting/TideService.swift` resolves the nearest NOAA CO-OPS station once per spot (cached on `Spot.tideStationId`) and fetches harmonic high/low predictions. Free, no key, no account.
+- Optional US precision (**built, not yet wired in**): `Peak/Supporting/TideService.swift` resolves the nearest NOAA CO-OPS station once per spot (to be cached on `Spot.tideStationId`, the V9 field reserved for it) and fetches harmonic high/low predictions. Free, no key, no account. The service is complete and covered by `SurfConditionsServiceTests`, but nothing calls it from the app yet — every tide reading a user sees today comes from the Open-Meteo modelled curve, and `Spot.tideStationId` is never written. Wiring it into the auto-fill path is the open work.
 - **Every failure path resolves to `nil` and the caller silently keeps the Open-Meteo curve.** No station nearby, station list unreachable, malformed response, spot outside the US — none of these is an error, and none is ever presented as one. A 120 km cap stops a spot in Baja or Nova Scotia adopting a distant American gauge.
 - Only the NOAA layer quotes a datum (MLLW), because only it has one. Copy never claims chart-datum height or exact turn times from the modelled curve.
 
@@ -135,8 +135,8 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Keep `Peak/PrivacyInfo.xcprivacy` accurate when anything privacy-relevant changes
 
 **Testing**
-- Unit tests: `PeakTests/*` — **434 tests** on `main`
-- UI layout tests: `PeakUITests/*` — **51 tests** on `main`
+- Unit tests: `PeakTests/*` — **510 tests** on `main`
+- UI layout tests: `PeakUITests/*` — **54 tests** on `main`
 - Standard commands: `./scripts/build-sim.sh`, `./scripts/test.sh`
 - **Run one `xcodebuild` at a time.** The simulator is a single shared resource; concurrent runs produce false failures. See `AGENTS.md`.
 - Only the `Peak` folder is a file-system-synchronized group. New files in `PeakTests`, `PeakUITests`, or `PeakWidgets` need explicit `project.pbxproj` registration before the build can see them.

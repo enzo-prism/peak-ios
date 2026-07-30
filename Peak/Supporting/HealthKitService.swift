@@ -390,14 +390,23 @@ final class HealthKitService {
             // one after a long GPS outage). They are concatenated; the analyzer
             // sorts by timestamp and treats the seam as an untrusted link anyway.
             for route in try await routeSeries(for: workout) {
-                for location in try await locations(in: route) {
-                    samples.append(RouteSample(location: location))
-                }
+                let locations = try await locations(in: route)
+                // Mapped off-main: a long session is tens of thousands of fixes,
+                // and this method is otherwise MainActor-isolated.
+                samples.append(contentsOf: await Self.mapToRouteSamples(locations))
             }
             return samples
         } catch {
             return []
         }
+    }
+
+    /// `@concurrent` so the CLLocation → RouteSample conversion leaves the main
+    /// actor (a plain `nonisolated` async function would inherit the caller's
+    /// actor under this project's MainActor default isolation).
+    @concurrent
+    nonisolated private static func mapToRouteSamples(_ locations: [CLLocation]) async -> [RouteSample] {
+        locations.map(RouteSample.init(location:))
     }
 
     private func workout(withID id: UUID) async throws -> HKWorkout? {
@@ -425,18 +434,30 @@ final class HealthKitService {
     /// once — resuming twice is a hard crash, not a warning.
     private func locations(in route: HKWorkoutRoute) async throws -> [CLLocation] {
         let accumulator = RouteAccumulator()
-        return try await withCheckedThrowingContinuation { continuation in
-            let query = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
-                if let error {
-                    if accumulator.finish() { continuation.resume(throwing: error) }
+        let store = healthStore
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let query = HKWorkoutRouteQuery(route: route) { _, locations, done, error in
+                    if let error {
+                        if accumulator.finish() { continuation.resume(throwing: error) }
+                        return
+                    }
+                    accumulator.append(locations ?? [])
+                    if done, accumulator.finish() {
+                        continuation.resume(returning: accumulator.collected)
+                    }
+                }
+                // `begin` loses the race only if cancellation already claimed
+                // the finish — then the query must never start and the await
+                // fails as cancelled here instead.
+                guard accumulator.begin(query: query, continuation: continuation) else {
+                    continuation.resume(throwing: CancellationError())
                     return
                 }
-                accumulator.append(locations ?? [])
-                if done, accumulator.finish() {
-                    continuation.resume(returning: accumulator.collected)
-                }
+                store.execute(query)
             }
-            healthStore.execute(query)
+        } onCancel: {
+            accumulator.cancel(store: store)
         }
     }
 
@@ -501,6 +522,8 @@ private final class RouteAccumulator: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [CLLocation] = []
     private var isFinished = false
+    private var query: HKWorkoutRouteQuery?
+    private var continuation: CheckedContinuation<[CLLocation], Error>?
 
     var collected: [CLLocation] {
         lock.lock(); defer { lock.unlock() }
@@ -512,12 +535,46 @@ private final class RouteAccumulator: @unchecked Sendable {
         storage.append(contentsOf: locations)
     }
 
+    /// Registers the in-flight query and continuation so a task cancellation
+    /// can stop the one and resume the other. Returns false when the work
+    /// already finished (or was cancelled) first — the caller should not
+    /// execute the query in that case.
+    func begin(query: HKWorkoutRouteQuery, continuation: CheckedContinuation<[CLLocation], Error>) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard !isFinished else { return false }
+        self.query = query
+        self.continuation = continuation
+        return true
+    }
+
     /// Claims the right to resume the continuation. True exactly once.
+    /// Also drops the registered query/continuation so `cancel` can no
+    /// longer touch them.
     func finish() -> Bool {
         lock.lock(); defer { lock.unlock() }
         guard !isFinished else { return false }
         isFinished = true
+        query = nil
+        continuation = nil
         return true
+    }
+
+    /// Cancellation path: claims the single resume, stops the HealthKit query
+    /// so it releases its buffers immediately, and fails the await. Without
+    /// this, leaving the Import screen leaves every in-flight route query
+    /// running to completion with its accumulated locations alive.
+    func cancel(store: HKHealthStore) {
+        lock.lock()
+        guard !isFinished else { lock.unlock(); return }
+        isFinished = true
+        let query = self.query
+        let continuation = self.continuation
+        self.query = nil
+        self.continuation = nil
+        lock.unlock()
+
+        if let query { store.stop(query) }
+        continuation?.resume(throwing: CancellationError())
     }
 }
 
@@ -532,7 +589,7 @@ extension RouteSample {
     /// `-1` "unknown" sentinels for speed and course are passed straight through —
     /// `RouteSample` documents them as its own contract and handles them
     /// internally, so nothing here needs to pre-clean them.
-    init(location: CLLocation) {
+    nonisolated init(location: CLLocation) {
         self.init(
             timestamp: location.timestamp,
             latitude: location.coordinate.latitude,

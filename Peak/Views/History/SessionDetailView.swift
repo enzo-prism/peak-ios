@@ -373,7 +373,7 @@ struct SessionDetailView: View {
         .foregroundStyle(Theme.textPrimary)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+        .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(text)
 
@@ -405,7 +405,7 @@ struct SessionDetailView: View {
         let ordered = session.media.sorted { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(ordered, id: \.persistentModelID) { media in
+                ForEach(Array(ordered.enumerated()), id: \.element.persistentModelID) { index, media in
                     Button {
                         selectedMedia = media
                     } label: {
@@ -419,7 +419,7 @@ struct SessionDetailView: View {
                         .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
                     }
                     .buttonStyle(PressFeedbackButtonStyle())
-                    .accessibilityLabel(media.kind == .video ? "Video" : "Photo")
+                    .accessibilityLabel("\(media.kind == .video ? "Video" : "Photo") \(index + 1) of \(ordered.count)")
                     .accessibilityIdentifier(media.kind == .video ? "session.detail.heroMedia.video" : "session.detail.heroMedia.photo")
                 }
             }
@@ -573,8 +573,9 @@ struct SessionDetailView: View {
     private var mediaSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             let columns = [GridItem(.adaptive(minimum: 110), spacing: 12)]
+            let ordered = session.media.sorted(by: { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) })
             LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(session.media.sorted(by: { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }), id: \.persistentModelID) { media in
+                ForEach(Array(ordered.enumerated()), id: \.element.persistentModelID) { index, media in
                     Button {
                         selectedMedia = media
                     } label: {
@@ -589,7 +590,7 @@ struct SessionDetailView: View {
                         .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
                     }
                     .buttonStyle(PressFeedbackButtonStyle())
-                    .accessibilityLabel(media.kind == .video ? "Video" : "Photo")
+                    .accessibilityLabel("\(media.kind == .video ? "Video" : "Photo") \(index + 1) of \(ordered.count)")
                     .accessibilityIdentifier(media.kind == .video ? "session.media.video" : "session.media.photo")
                 }
             }
@@ -681,7 +682,8 @@ private struct SessionMediaViewer: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .glassCapsule(tint: Theme.glassStrongTint, isInteractive: true)
-            .contentShape(Capsule())
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
             .buttonStyle(PressFeedbackButtonStyle())
             .accessibilityIdentifier("media.viewer.done")
         }

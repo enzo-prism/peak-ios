@@ -76,6 +76,7 @@ struct GearLibraryView: View {
                     showEditor = true
                 } label: {
                     Image(systemName: "plus")
+                        .accessibilityLabel("Add Gear")
                 }
             }
         }

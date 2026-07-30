@@ -10,7 +10,11 @@ struct LogView: View {
     private var allSessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @State private var showNewSession = false
+    /// New-session presentation goes through the shared coordinator so the app
+    /// has exactly one presenter (`ContentView`); a second local sheet here
+    /// could race a system-initiated request (Live Activity / Control Center)
+    /// and silently drop its prefilled draft.
+    private var quickLog: QuickLogCoordinator { .shared }
     @State private var showContent = false
     /// Mirrors the App-Group record so the hero can swap between "start" and a
     /// live timer. Re-read on appear and whenever the surfer starts/ends.
@@ -90,19 +94,16 @@ struct LogView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
-                        showNewSession = true
+                        quickLog.requestNewSession()
                     } label: {
                         Label("New Session", systemImage: "plus")
                     }
                 }
             }
         }
-        .sheet(isPresented: $showNewSession) {
-            SessionEditorView(mode: .new)
-        }
         // Light impact when the primary "Log Session" action opens the editor,
         // matching the save/delete haptics elsewhere in the app.
-        .sensoryFeedback(trigger: showNewSession) { _, isPresented in
+        .sensoryFeedback(trigger: quickLog.showNewSession) { _, isPresented in
             isPresented ? .impact : nil
         }
         .onAppear {
@@ -154,7 +155,7 @@ struct LogView: View {
                     .accessibilityIdentifier("log.hero.subtitle")
 
                 Button {
-                    showNewSession = true
+                    quickLog.requestNewSession()
                 } label: {
                     Label("Log Session", systemImage: "plus")
                         .font(.headline)

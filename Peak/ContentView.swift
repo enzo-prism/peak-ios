@@ -67,8 +67,12 @@ struct ContentView: View {
             quickLog.drainPendingLogFromStore()
             WidgetSnapshotWriter.update(from: sessions)
         }
-        .onChange(of: sessions) { _, newValue in
-            WidgetSnapshotWriter.update(from: newValue)
+        // `[SurfSession]` compares by model identity, so `onChange(of: sessions)`
+        // fires for inserts/deletes but not in-place edits — the stamp folds in
+        // `updatedAt` (same trick as HistoryView) so editing the last session's
+        // rating updates the Home Screen too.
+        .onChange(of: sessionsStamp) {
+            WidgetSnapshotWriter.update(from: sessions)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -90,6 +94,17 @@ struct ContentView: View {
     private var prefillDraft: SessionDraft? {
         guard let record = quickLog.pendingLog else { return nil }
         return ActiveSessionCalculator.makeDraft(from: record, spots: spots)
+    }
+
+    /// Cheap change signature covering inserts, deletes, and edits (via
+    /// `updatedAt`); mirrors `HistoryView.sessionsStamp`.
+    private var sessionsStamp: Int {
+        var hasher = Hasher()
+        for session in sessions {
+            hasher.combine(session.persistentModelID)
+            hasher.combine(session.updatedAt)
+        }
+        return hasher.finalize()
     }
 }
 

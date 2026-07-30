@@ -80,7 +80,7 @@ struct HistoryFilterSheetView: View {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .bottomBar) {
                     Button("Clear") {
                         filters.clear()
                     }

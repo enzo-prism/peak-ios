@@ -92,12 +92,20 @@ struct YearInReviewView: View {
     }
 
     private var yearPicker: some View {
-        Picker("Year", selection: $selectedYear) {
+        let picker = Picker("Year", selection: $selectedYear) {
             ForEach(availableYears, id: \.self) { year in
                 Text(String(year)).tag(Int?.some(year))
             }
         }
-        .pickerStyle(.segmented)
+        // A segmented control grows unboundedly with each new year; fall back
+        // to a menu once it would get cramped.
+        return Group {
+            if availableYears.count > 4 {
+                picker.pickerStyle(.menu)
+            } else {
+                picker.pickerStyle(.segmented)
+            }
+        }
     }
 
     private func headlineCard(_ review: YearInReview) -> some View {
@@ -230,7 +238,7 @@ struct YearInReviewView: View {
                 columns: [GridItem(.adaptive(minimum: 96), spacing: 8)],
                 spacing: 8
             ) {
-                ForEach(highlights) { media in
+                ForEach(Array(highlights.enumerated()), id: \.element.id) { index, media in
                     SessionMediaThumbnailView(
                         imageData: media.thumbnailData ?? media.photoData,
                         isVideo: media.kind == .video,
@@ -238,6 +246,7 @@ struct YearInReviewView: View {
                     )
                     .aspectRatio(1, contentMode: .fill)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input, style: .continuous))
+                    .accessibilityLabel("\(media.kind == .video ? "Video" : "Photo") \(index + 1) of \(highlights.count)")
                 }
             }
         }

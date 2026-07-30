@@ -65,6 +65,7 @@ struct SpotLibraryView: View {
                     SpotsMapView()
                 } label: {
                     Image(systemName: "map")
+                        .accessibilityLabel("Spot Map")
                 }
                 .accessibilityIdentifier("spot.library.map")
                 .disabled(spots.allSatisfy { $0.coordinate == nil })

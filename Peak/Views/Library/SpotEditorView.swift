@@ -300,7 +300,13 @@ struct SpotEditorView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
             .accessibilityLabel("Surf break map")
-            .accessibilityHint("Double tap to drop a pin")
+            .accessibilityHint("Drops a pin at the center of the map")
+            .accessibilityAction(named: "Drop Pin at Map Center") {
+                if let coordinate = cameraPosition.region?.center {
+                    selectedCoordinate = coordinate
+                    cameraPosition = Self.cameraPosition(for: coordinate)
+                }
+            }
             .accessibilityIdentifier("spot.editor.map")
         }
     }
@@ -323,6 +329,8 @@ struct SpotEditorView: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .disabled(isLocating)
         .accessibilityIdentifier("spot.editor.useMyLocation")

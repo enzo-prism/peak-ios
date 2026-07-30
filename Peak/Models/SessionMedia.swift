@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import SwiftData
 
-enum SessionMediaKind: String, Codable {
+nonisolated enum SessionMediaKind: String, Codable {
     case photo
     case video
 }

@@ -26,8 +26,13 @@ struct StoreLoadResult {
 enum PeakDataStore {
     private static let storeFileName = "default.store"
 
+    /// The one statement of which schema version is HEAD. Everything that opens
+    /// the store (app launch, App Intents fallback) must agree on this, or the
+    /// second opener throws against the already-migrated store file.
+    static let headSchema: any VersionedSchema.Type = PeakSchemaV10.self
+
     static func load(isUITest: Bool) -> StoreLoadResult {
-        let schema = Schema(versionedSchema: PeakSchemaV10.self)
+        let schema = Schema(versionedSchema: headSchema)
 
         // UI tests always run against a fresh in-memory store (seeded by PeakApp).
         if isUITest {

@@ -119,16 +119,29 @@ enum YearInReviewCalculator {
         calendar: Calendar = .current,
         limit: Int = 6
     ) -> [SessionMedia] {
-        sessions
+        // Two passes on purpose. `thumbnailData`/`photoData` are external-storage
+        // attributes, so *testing them for nil faults the backing file into
+        // memory* — an eager filter here would read every photo blob of the
+        // year off disk to pick six. Order candidates on cheap fields first,
+        // then touch the blobs only until `limit` survivors are found.
+        let candidates = sessions
             .filter { calendar.component(.year, from: $0.date) == year }
             .sorted { $0.date > $1.date }
             .flatMap { session in
                 session.media
-                    .filter { $0.kind == .photo && ($0.thumbnailData != nil || $0.photoData != nil) }
+                    .filter { $0.kind == .photo }
                     .sorted { ($0.sortIndex, $0.createdAt) < ($1.sortIndex, $1.createdAt) }
             }
-            .prefix(limit)
-            .map { $0 }
+
+        var highlights: [SessionMedia] = []
+        highlights.reserveCapacity(limit)
+        for media in candidates {
+            guard highlights.count < limit else { break }
+            if media.thumbnailData != nil || media.photoData != nil {
+                highlights.append(media)
+            }
+        }
+        return highlights
     }
 
     // MARK: - Private

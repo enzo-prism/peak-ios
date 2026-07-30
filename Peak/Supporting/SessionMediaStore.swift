@@ -3,7 +3,7 @@ import Foundation
 import ImageIO
 import UIKit
 
-struct StoredSessionVideo {
+nonisolated struct StoredSessionVideo {
     let fileName: String
     let thumbnailData: Data?
 }
@@ -18,7 +18,9 @@ struct ProcessedSessionPhoto: Sendable {
 enum SessionMediaStore {
     private static let mediaFolderName = "SessionMedia"
 
-    static func storeVideo(from sourceURL: URL, thumbnailData: Data?) throws -> StoredSessionVideo {
+    /// `nonisolated` so a backup restore can write video files off the main
+    /// actor: pure FileManager work against stateless paths.
+    nonisolated static func storeVideo(from sourceURL: URL, thumbnailData: Data?) throws -> StoredSessionVideo {
         let directory = try mediaDirectoryURL()
         let pathExtension = sourceURL.pathExtension.isEmpty ? "mov" : sourceURL.pathExtension
         let fileName = "\(UUID().uuidString).\(pathExtension)"
@@ -77,7 +79,7 @@ enum SessionMediaStore {
         return UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.75)
     }
 
-    static func videoURL(for fileName: String) -> URL {
+    nonisolated static func videoURL(for fileName: String) -> URL {
         let directory = resolvedMediaDirectoryURL()
         return directory.appendingPathComponent(fileName)
     }
@@ -104,12 +106,14 @@ enum SessionMediaStore {
         try? FileManager.default.removeItem(at: directory)
     }
 
-    private static func deleteVideoFile(named fileName: String) {
+    /// Non-private so a failed backup restore can roll back the video files it
+    /// pre-wrote before any model rows referenced them.
+    nonisolated static func deleteVideoFile(named fileName: String) {
         let url = videoURL(for: fileName)
         try? FileManager.default.removeItem(at: url)
     }
 
-    private static func resolvedMediaDirectoryURL() -> URL {
+    nonisolated private static func resolvedMediaDirectoryURL() -> URL {
         if TestingDefaults.isRunningTests {
             let directory = FileManager.default.temporaryDirectory
                 .appendingPathComponent(mediaFolderName, isDirectory: true)
@@ -140,7 +144,7 @@ enum SessionMediaStore {
         return fallback
     }
 
-    private static func mediaDirectoryURL() throws -> URL {
+    nonisolated private static func mediaDirectoryURL() throws -> URL {
         if TestingDefaults.isRunningTests {
             let directory = FileManager.default.temporaryDirectory
                 .appendingPathComponent(mediaFolderName, isDirectory: true)

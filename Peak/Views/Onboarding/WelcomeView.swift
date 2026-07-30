@@ -90,33 +90,41 @@ struct WelcomeView: View {
     }
 
     private func pageContent(icon: String, title: String, body: String) -> some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 0)
+        // ScrollView so AX text sizes can scroll; minHeight + the inner Spacers
+        // keep the content vertically centered at default sizes.
+        GeometryReader { geo in
+            ScrollView {
+                VStack(spacing: 20) {
+                    Spacer(minLength: 0)
 
-            Image(systemName: icon)
-                .font(.system(size: 56, weight: .regular))
-                .foregroundStyle(Theme.textPrimary)
-                .padding(28)
-                .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassTint, isInteractive: false)
-                .accessibilityHidden(true)
+                    Image(systemName: icon)
+                        .font(.system(size: 56, weight: .regular))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(28)
+                        .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassTint, isInteractive: false)
+                        .accessibilityHidden(true)
 
-            VStack(spacing: 12) {
-                Text(title)
-                    .font(.largeTitle.weight(.bold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(body)
-                    .font(.body)
-                    .foregroundStyle(Theme.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                    VStack(spacing: 12) {
+                        Text(title)
+                            .font(.largeTitle.weight(.bold))
+                            .foregroundStyle(Theme.textPrimary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(body)
+                            .font(.body)
+                            .foregroundStyle(Theme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 28)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geo.size.height)
             }
-
-            Spacer(minLength: 0)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

@@ -92,7 +92,8 @@ struct SpotsMapView: View {
             .padding(.vertical, 6)
             .padding(.horizontal, 10)
             .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
-            .frame(maxWidth: 220)
+            .frame(maxWidth: 220, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressFeedbackButtonStyle())
         .accessibilityLabel("\(spot.name), \(count) session\(count == 1 ? "" : "s")")
@@ -119,6 +120,8 @@ struct SpotsMapView: View {
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 10)
                                 .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(PressFeedbackButtonStyle())
                         .accessibilityHint("Opens spot details")

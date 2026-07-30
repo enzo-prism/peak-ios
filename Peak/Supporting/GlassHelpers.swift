@@ -150,9 +150,11 @@ private struct GlassFallbackSurface<S: Shape>: View {
     let shape: S
     let tint: Color
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         shape
-            .fill(.ultraThinMaterial)
+            .fill(reduceTransparency ? AnyShapeStyle(Theme.background) : AnyShapeStyle(.ultraThinMaterial))
             .overlay(shape.fill(tint))
             .overlay(
                 shape.stroke(Theme.glassStroke, lineWidth: 1)

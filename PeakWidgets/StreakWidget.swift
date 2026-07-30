@@ -25,7 +25,9 @@ struct StreakWidgetView: View {
     var body: some View {
         switch family {
         case .accessoryInline:
-            Text("🌊 \(snapshot.currentStreakWeeks) wk streak")
+            // A Label, not an emoji: emoji render monochrome/inconsistently in
+            // the Lock Screen's vibrant mode and say nothing to VoiceOver.
+            Label("\(snapshot.currentStreakWeeks) wk streak", systemImage: "flame.fill")
         case .accessoryCircular:
             Gauge(value: Double(min(snapshot.currentStreakWeeks, 12)), in: 0...12) {
                 Image(systemName: "flame.fill")
@@ -33,7 +35,8 @@ struct StreakWidgetView: View {
                 Text("\(snapshot.currentStreakWeeks)")
             }
             .gaugeStyle(.accessoryCircular)
-            .accessibilityLabel("\(snapshot.currentStreakWeeks) week streak")
+            .accessibilityLabel("Week streak")
+            .accessibilityValue("\(snapshot.currentStreakWeeks) weeks")
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
                 Label("\(snapshot.currentStreakWeeks) week streak", systemImage: "flame.fill")
@@ -41,6 +44,7 @@ struct StreakWidgetView: View {
                 Text(daysSinceText)
                     .font(.caption)
             }
+            .accessibilityElement(children: .combine)
             .widgetURL(peakLogSessionURL)
         default:
             homeView
@@ -60,6 +64,10 @@ struct StreakWidgetView: View {
                     .foregroundStyle(PeakWidgetStyle.muted)
                     .padding(.top, 10)
             }
+            // Marks the streak as the accent group so the tinted Home Screen
+            // rendering mode keeps its emphasis instead of flattening the
+            // whole widget uniformly.
+            .widgetAccentable()
             Text("Week streak")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(PeakWidgetStyle.muted)
@@ -76,7 +84,8 @@ struct StreakWidgetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .widgetURL(peakLogSessionURL)
-        .accessibilityLabel("\(snapshot.currentStreakWeeks) week streak, \(snapshot.sessionsThisMonth) sessions this month")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(snapshot.currentStreakWeeks) week streak, \(snapshot.sessionsThisMonth) sessions this month, \(daysSinceText)")
     }
 
     private func metric(_ value: String, _ label: String) -> some View {

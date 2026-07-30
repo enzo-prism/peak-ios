@@ -39,7 +39,7 @@ struct MediaCropView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                    .stroke(Theme.glassStroke, lineWidth: 1)
                             )
                             .padding(.horizontal)
                             .accessibilityIdentifier("media.crop.image")

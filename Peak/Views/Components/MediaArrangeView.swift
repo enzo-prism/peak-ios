@@ -12,7 +12,7 @@ struct MediaArrangeView: View {
                 Theme.background.ignoresSafeArea()
 
                 List {
-                    ForEach(items) { item in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         HStack(spacing: 12) {
                             SessionMediaThumbnailView(
                                 imageData: item.thumbnailData ?? item.photoData,
@@ -21,6 +21,7 @@ struct MediaArrangeView: View {
                             )
                             .frame(width: 54, height: 54)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .accessibilityHidden(true)
 
                             Text(item.kind == .video ? "Video" : "Photo")
                                 .font(.body)
@@ -28,6 +29,8 @@ struct MediaArrangeView: View {
 
                             Spacer()
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(item.kind == .video ? "Video" : "Photo") \(index + 1) of \(items.count)")
                         .listRowBackground(Color.clear)
                     }
                     .onMove { source, destination in

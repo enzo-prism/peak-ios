@@ -223,16 +223,20 @@ struct SettingsView: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            .accessibilityHidden(isWorking)
 
             if isWorking {
-                Color.black.opacity(0.2)
-                    .ignoresSafeArea()
-                ProgressView(workingTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.textPrimary)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+                ZStack {
+                    Theme.background.opacity(0.6)
+                        .ignoresSafeArea()
+                    ProgressView(workingTitle)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+                }
+                .accessibilityAddTraits(.isModal)
             }
         }
         .navigationTitle("Settings")
@@ -287,8 +291,17 @@ struct SettingsView: View {
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
         }
-        .alert(item: $alertMessage) { message in
-            Alert(title: Text(message.title), message: Text(message.body), dismissButton: .default(Text("OK")))
+        .alert(
+            alertMessage?.title ?? "",
+            isPresented: Binding(
+                get: { alertMessage != nil },
+                set: { if !$0 { alertMessage = nil } }
+            ),
+            presenting: alertMessage
+        ) { _ in
+            Button("OK") {}
+        } message: { message in
+            Text(message.body)
         }
     }
 
@@ -468,7 +481,14 @@ struct SettingsView: View {
     }
 
     private func openSupportEmail() {
-        guard let url = URL(string: "mailto:support@prism.app") else { return }
+        guard let url = URL(string: "mailto:support@prism.app"),
+              UIApplication.shared.canOpenURL(url) else {
+            alertMessage = AlertMessage(
+                title: "Email Unavailable",
+                body: "No mail app is set up on this device. You can reach us at support@prism.app."
+            )
+            return
+        }
         UIApplication.shared.open(url)
     }
 }

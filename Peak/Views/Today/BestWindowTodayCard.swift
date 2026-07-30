@@ -360,6 +360,9 @@ struct BestWindowTodayCard: View {
                     .foregroundStyle(Theme.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The count ticks up silently; the trait tells VoiceOver to re-poll
+            // the line instead of announcing a stale "3 of 40" forever.
+            .accessibilityAddTraits(.updatesFrequently)
             .accessibilityIdentifier("window.card.backfillProgress")
 
         case .finished(let summary):
@@ -542,8 +545,16 @@ struct BestWindowTodayCard: View {
             // Saved before the staleness check, not after: the conditions were
             // genuinely written to those sessions, and whether the surfer has since
             // switched spots has no bearing on whether that work should survive.
+            // A failed save is reported, not swallowed — telling the surfer
+            // "Filled in 40 sessions" that never reached disk would send them
+            // re-running 40 requests next launch wondering why nothing stuck.
+            var finishedMessage = summary.message
             if summary.filled > 0 {
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    finishedMessage = "Fetched conditions for \(summary.filled) sessions, but the changes couldn't be saved. Free up space and try again."
+                }
             }
 
             // As in `refresh`: only cancellation means the slot belongs to
@@ -557,7 +568,7 @@ struct BestWindowTodayCard: View {
                 backfill = .idle
                 return
             }
-            backfill = .finished(summary.message)
+            backfill = .finished(finishedMessage)
             // The history just changed, so any answer on screen was computed from
             // the old one. Better to ask again than to show a stale verdict.
             state = .idle

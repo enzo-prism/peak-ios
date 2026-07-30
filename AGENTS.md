@@ -84,7 +84,7 @@ No social/sharing, accounts, or backend for now.
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
 - Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
 - **Report the test counts you observed**, and reconcile them against the baseline
-  (434 unit / 51 UI on `main`). An unexplained drop is a stale runner or a
+  (510 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
   concurrent run, not a pass.
 - If you added tests, name one in your summary and confirm you saw it in the output.
 - No new warnings or broken builds.
@@ -196,8 +196,17 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 - iPhone UI tests: `./scripts/test-ui.sh`
 - iPhone + iPad UI/design check: `./scripts/design-check.sh`
 
-Baseline on `main`: **434 unit tests, 51 UI tests.** If your run reports fewer,
+Baseline on `main`: **510 unit tests, 54 UI tests.** If your run reports fewer,
 re-read rules 1 and 2 before you believe it.
+
+**Known iPad breakage (2026-07-29):** 8 of the 54 UI tests fail on the iPad leg
+of `design-check.sh` on current `main` (verified by stashing all local changes
+and re-running — the failures are identical on a clean tree). Two clusters: a
+"tab bar never appeared / Missing tab" group (PeakInsightsUITests ×4,
+PeakEcosystemUITests ×2, PeakWindowCardUITests settings test) and
+`testQuiverRowHitAreaFullWidth` (row hit area 688 pt vs expected ≥794 pt).
+iPhone runs all 54 green. Do not attribute these to your diff; fixing them is
+open work.
 
 Project/scheme assumptions:
 - App/UI scheme is `Peak`; `PeakUnit` is the fast unit-only scheme.

@@ -16,10 +16,11 @@ enum WidgetSnapshotWriter {
         let sorted = sessions.sorted { $0.date > $1.date }
         let last = sorted.first
 
-        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
-        let sessionsThisMonth = monthStart.map { start in
-            sessions.filter { $0.date >= start && $0.date <= now }.count
-        } ?? 0
+        // Same definition as `SessionIntentQueries.sessionsThisMonth`, so the
+        // widget and Siri can never disagree about the count.
+        let sessionsThisMonth = SessionIntentQueries.sessionsThisMonth(
+            in: sessions, now: now, calendar: calendar
+        ).count
 
         let daysSinceLast = last.map { session in
             calendar.dateComponents([.day], from: calendar.startOfDay(for: session.date), to: calendar.startOfDay(for: now)).day ?? 0

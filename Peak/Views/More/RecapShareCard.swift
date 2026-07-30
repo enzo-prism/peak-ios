@@ -232,7 +232,7 @@ enum RecapShareCardRenderer {
 
         let card = RecapShareCard(review: review, photos: photos)
 
-        let renderer = ImageRenderer(content: card.environment(\.colorScheme, .dark))
+        let renderer = ImageRenderer(content: card.environment(\.colorScheme, .dark).environment(\.dynamicTypeSize, .large))
         renderer.scale = 3
         guard let uiImage = renderer.uiImage else { return nil }
         return RecapShareContent(image: uiImage, caption: card.caption)

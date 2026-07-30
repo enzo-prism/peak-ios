@@ -257,7 +257,7 @@ enum SessionShareCardRenderer {
 
         let card = SessionShareCard(session: session, photo: photo)
 
-        let renderer = ImageRenderer(content: card.environment(\.colorScheme, .dark))
+        let renderer = ImageRenderer(content: card.environment(\.colorScheme, .dark).environment(\.dynamicTypeSize, .large))
         renderer.scale = 3
         guard let uiImage = renderer.uiImage else { return nil }
         return SessionShareContent(image: uiImage, caption: card.caption)

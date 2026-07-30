@@ -44,11 +44,23 @@ struct HealthImportView: View {
                 )
 
             case .failed:
-                EmptyStateView(
-                    title: "Couldn't read Health",
-                    message: "Something went wrong reading your workouts. Pull to refresh or try again later.",
-                    systemImage: "exclamationmark.triangle"
-                )
+                VStack(spacing: 16) {
+                    EmptyStateView(
+                        title: "Couldn't read Health",
+                        message: "Something went wrong reading your workouts.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    Button {
+                        state = .loading
+                        Task { await load() }
+                    } label: {
+                        Label("Try Again", systemImage: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 4)
+                    }
+                    .glassButtonStyle(prominent: true)
+                    .accessibilityIdentifier("health.import.retry")
+                }
 
             case .loaded(let workouts):
                 if workouts.isEmpty {
@@ -73,7 +85,11 @@ struct HealthImportView: View {
     private func workoutList(_ workouts: [HealthKitLogic.WorkoutSummary]) -> some View {
         ScrollView {
             GlassContainer(spacing: 12) {
-                VStack(spacing: 12) {
+                // Lazy on purpose: each row's `.task` kicks off a route fetch +
+                // wave analysis, so an eager VStack would start one per unlogged
+                // workout the moment the screen appears — forty at once for a
+                // long-time Watch user. Lazy rows analyze on scroll instead.
+                LazyVStack(spacing: 12) {
                     ForEach(workouts) { workout in
                         workoutRow(workout)
                     }
@@ -132,7 +148,10 @@ struct HealthImportView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .opacity(isImported ? 0.6 : 1)
-        .accessibilityElement(children: .combine)
+        // `.contain`, not `.combine`: combine flattens the row into one static
+        // element, which makes the Import button — the screen's only action —
+        // unreachable to VoiceOver.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("health.import.row")
         .task(id: workout.id) {
             await loadRoutePreview(for: workout)

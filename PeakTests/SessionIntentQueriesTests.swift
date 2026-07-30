@@ -155,10 +155,14 @@ final class SessionIntentQueriesTests: XCTestCase {
         XCTAssertNil(SessionIntentQueries.lastSession(in: []))
     }
 
-    func testSessionsThisMonthFiltersToTheCalendarMonth() {
+    func testSessionsThisMonthFiltersToTheCalendarMonthAndExcludesFutureSessions() {
         let sessions = [
             TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 1, day: 31)),
             TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 1)),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 12)),
+            // After `now` (Feb 18): logged ahead of time, not yet surfed — the
+            // same rule the widget snapshot applies, so Siri and the Home
+            // Screen can never disagree on the count.
             TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 28)),
             TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 3, day: 1))
         ]
@@ -167,7 +171,7 @@ final class SessionIntentQueriesTests: XCTestCase {
 
         XCTAssertEqual(thisMonth.count, 2)
         // Newest first.
-        XCTAssertEqual(thisMonth.first?.date, TestCalendar.makeDate(year: 2026, month: 2, day: 28))
+        XCTAssertEqual(thisMonth.first?.date, TestCalendar.makeDate(year: 2026, month: 2, day: 12))
     }
 
     func testLastSessionDialogSpeaksDaysAndSpot() {

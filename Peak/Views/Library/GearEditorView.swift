@@ -165,6 +165,7 @@ struct GearEditorView: View {
                                     .padding(12)
                                     .glassInput()
                                     .accessibilityIdentifier("gear.editor.notes")
+                                    .accessibilityLabel("Notes")
                                     .focused($isNotesFocused)
                                     .id("gear.editor.notes")
                             }

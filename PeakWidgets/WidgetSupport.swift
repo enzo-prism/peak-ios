@@ -16,16 +16,31 @@ struct PeakSnapshotProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PeakEntry) -> Void) {
-        let snapshot = context.isPreview ? .preview : PeakWidgetStore.read()
+        let snapshot = context.isPreview ? .preview : PeakWidgetStore.read().adjusted(for: .now)
         completion(PeakEntry(date: .now, snapshot: snapshot))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PeakEntry>) -> Void) {
         let snapshot = PeakWidgetStore.read()
-        // Snapshot is push-updated by the app on every data change; refresh a few
-        // times a day only so "days since" stays roughly current between edits.
-        let next = Calendar.current.date(byAdding: .hour, value: 6, to: .now) ?? .now.addingTimeInterval(6 * 3600)
-        completion(Timeline(entries: [PeakEntry(date: .now, snapshot: snapshot)], policy: .after(next)))
+        // Snapshot is push-updated by the app on every data change. Between
+        // writes the time-relative values ("days since", "this month", streak)
+        // still move, and they all tick at local midnight — so pre-render one
+        // entry per upcoming midnight with the values re-derived for that day,
+        // instead of re-reading the same frozen scalars every few hours.
+        let calendar = Calendar.current
+        let now = Date.now
+        var entries = [PeakEntry(date: now, snapshot: snapshot.adjusted(for: now))]
+        var cursor = now
+        for _ in 0..<3 {
+            guard let midnight = calendar.nextDate(
+                after: cursor,
+                matching: DateComponents(hour: 0, minute: 0, second: 0),
+                matchingPolicy: .nextTime
+            ) else { break }
+            entries.append(PeakEntry(date: midnight, snapshot: snapshot.adjusted(for: midnight)))
+            cursor = midnight
+        }
+        completion(Timeline(entries: entries, policy: .atEnd))
     }
 }
 
@@ -60,10 +75,14 @@ struct RatingDots: View {
         HStack(spacing: 2) {
             ForEach(0..<5, id: \.self) { index in
                 Image(systemName: index < rating ? "circle.fill" : "circle")
-                    .font(.system(size: 6))
+                    .font(.caption2)
+                    .imageScale(.small)
                     .foregroundStyle(index < rating ? PeakWidgetStyle.ink : PeakWidgetStyle.muted)
             }
         }
-        .accessibilityLabel("\(rating) out of 5")
+        // Collapse the five images into one element so the label below is what
+        // VoiceOver reads, not five separate "circle" images.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Rated \(rating) out of 5")
     }
 }

@@ -173,12 +173,12 @@ struct SessionEditorView: View {
         .sheet(isPresented: $showArrange) {
             MediaArrangeView(items: $draft.mediaItems)
         }
-        .alert("Spot", isPresented: $showSpotAlert) {
+        .alert("Spot Required", isPresented: $showSpotAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(spotAlertMessage)
         }
-        .alert("Media", isPresented: $showMediaAlert) {
+        .alert("Couldn't Add Media", isPresented: $showMediaAlert) {
             Button("OK", role: .cancel) {
                 if dismissAfterMediaAlert {
                     dismissAfterMediaAlert = false
@@ -189,7 +189,7 @@ struct SessionEditorView: View {
             Text(mediaAlertMessage)
         }
         .confirmationDialog("Replace conditions?", isPresented: $showSurfConditionsOverwriteAlert, titleVisibility: .visible) {
-            Button("Replace") {
+            Button("Replace", role: .destructive) {
                 fetchSurfConditions()
             }
             Button("Cancel", role: .cancel) {}
@@ -732,7 +732,7 @@ struct SessionEditorView: View {
                                 .glassCard(cornerRadius: 16, tint: Theme.glassDimTint, isInteractive: false)
                                 .overlay(alignment: .bottomLeading) {
                                     Image(systemName: "crop")
-                                        .font(.system(size: 11, weight: .bold))
+                                        .font(.caption2.weight(.bold))
                                         .foregroundStyle(Theme.foam)
                                         .padding(6)
                                         .background(Color.black.opacity(0.5), in: Circle())
@@ -747,7 +747,7 @@ struct SessionEditorView: View {
                                 removeMediaItem(item)
                             } label: {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.caption2.weight(.bold))
                                     .foregroundStyle(Theme.foam)
                                     .padding(6)
                                     .background(Color.black.opacity(0.5), in: Circle())
@@ -805,6 +805,7 @@ struct SessionEditorView: View {
                 .scrollContentBackground(.hidden)
                 .foregroundStyle(Theme.textPrimary)
                 .accessibilityIdentifier("session.editor.notes")
+                .accessibilityLabel("Notes")
                 .focused($focusedField, equals: .notes)
                 .id(FocusField.notes)
             if draft.notes.isEmpty {
@@ -812,6 +813,8 @@ struct SessionEditorView: View {
                     .foregroundStyle(Theme.textMuted)
                     .padding(.top, 8)
                     .padding(.leading, 5)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .padding(12)
@@ -1281,7 +1284,7 @@ struct SessionEditorView: View {
             Spacer()
             if let trailingIcon {
                 Image(systemName: trailingIcon)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundStyle(Theme.textMuted)
             }
         }
