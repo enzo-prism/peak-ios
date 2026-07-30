@@ -1,23 +1,32 @@
 # Peak iOS Release Playbook
 
-## Current state (as of July 21, 2026)
+## Current state (as of July 29, 2026)
 - App: `peak.surf` (`com.designprism.peak`)
 - App ID: `6757644027` · Team: `L49MKXGVM4`
 - **App Store (live):** `2.0` (`READY_FOR_SALE`, since June 11, 2026)
-- **TestFlight (beta):** `2.6` — build 1, uploaded 2026-07-13 (`2.5` build 1 previously in beta)
-- Versions `2.1`–`2.6` have shipped to **TestFlight only**; the public App Store
+- **TestFlight (beta):** `3.2` — build 1, uploaded 2026-07-29, `VALID`,
+  encryption-exempt. Cut from `main` at the audit-round-2 commit; carries every
+  formerly-unshipped train (`2.7`–`3.0`, `3.2`) plus both audit-fix rounds.
+  Previous: `3.0` builds 2–3 (2026-07-21, cut off-machine), `2.6` builds 1–2.
+- Versions `2.1`+ have shipped to **TestFlight only**; the public App Store
   listing is still `2.0`. See `CHANGELOG.md` for what each build contains.
-- **`main` carries five unshipped release trains:** `2.7` (ecosystem), `2.8` (tide
-  + Best Window Today), `2.9` (quiver analytics / memory / first run), `3.0` (wave
-  stats), `3.2` (on-device insights). `MARKETING_VERSION` in `project.pbxproj` is
-  still **`2.6`** — none of these has been archived or uploaded. Pick the version
-  train deliberately when you cut the next build, and set `MARKETING_VERSION` in
-  **both** build configs.
-- **Suite baseline on `main`: 434 unit tests, 51 UI tests.**
+- `MARKETING_VERSION` in `project.pbxproj` is **`3.2`**, `CURRENT_PROJECT_VERSION`
+  **1**, aligned across app and widget targets; Release configs use **manual
+  signing** (see the resolved-blocker note below).
+- **Suite baseline on `main`: 510 unit tests, 54 UI tests** (8 iPad UI failures
+  are pre-existing — see AGENTS.md).
 
-> 🚫 **Release blocker — App Group not registered.** See the next section. Widgets
-> and Live Activity cannot be built for a device or archived until it is fixed, so
-> **no `2.7`+ archive can succeed today.**
+> ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
+> was created in the Developer portal and associated with both
+> `com.designprism.peak` and `com.designprism.peak.PeakWidgets`. The `3.2` build 1
+> archive was cut the same day with **manual signing** — App Store distribution
+> profiles "Peak App Store 3.2" / "Peak Widgets App Store 3.2" (created via
+> `asc profiles create`, cert `9M47KCWLU8`), wired into the Release build configs
+> as `PROVISIONING_PROFILE_SPECIFIER`. Note: on this Mac, Xcode has no Apple ID
+> and `xcodebuild -allowProvisioningUpdates` rejects the API key, so manual
+> profiles are the working path; the export options for manual signing live at
+> `.asc/artifacts/ExportOptions-3.2-1.plist` (gitignored — recreate per build).
+> The section below is kept for history.
 
 > ⚠️ **Branch strategy.** `main` is the active trunk. Land every fix on a short
 > branch off `main`, PR it, and merge.

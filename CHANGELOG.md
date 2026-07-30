@@ -9,7 +9,7 @@ Status at a glance:
 
 - **App Store (live):** `2.4`
 - **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
-- **TestFlight / ship binary:** `2.6` build **2** (privacy policy + CI host-store hardening; product features same as build 1)
+- **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything on `main` through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — Audit fixes round 2: intents, widgets, restore integrity, HIG
 
