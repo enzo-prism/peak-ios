@@ -405,3 +405,28 @@ migrate in as `nil`.
 - New third-party SDKs
 - Big architecture rewrites (MVVM overhaul, DI frameworks, etc.)
 - Merging or shipping the `3.1` watchOS branch before real-device ocean testing
+
+---
+
+## Cursor Cloud specific instructions
+
+**Cloud Agents run on Linux; this app can only be built/tested/run on macOS.**
+Peak is a native iOS app (SwiftUI + SwiftData, iOS 17+) built from `Peak.xcodeproj`
+with `xcodebuild` + the iOS Simulator. Xcode, `xcodebuild`, `xcrun`, and `simctl`
+are macOS-only. The Cloud Agent VM is Ubuntu Linux (x86_64) with no Apple
+toolchain, so it **cannot** build, run, or execute any of the test/build/run
+scripts here — `./scripts/test.sh`, `./scripts/test-unit.sh`, `./scripts/test-ui.sh`,
+`./scripts/build-sim.sh`, `./scripts/boot-sim.sh`, and `./scripts/design-check.sh`
+all require macOS + Xcode and will fail on Linux.
+
+- There is **nothing to install** on the Linux VM to make the build/test/run work,
+  and no environment update script can change that. The repo has no cross-platform
+  component: no SPM package (it is an `.xcodeproj`), no server/web frontend, and no
+  Node/Ruby/Python/CocoaPods dependency manifest (no `Package.swift`, `package.json`,
+  `Gemfile`, `Podfile`, or `requirements.txt`). All dependencies are Apple system
+  frameworks (SwiftUI, SwiftData, HealthKit, WidgetKit, AppIntents, FoundationModels).
+- On a Cloud Agent you can still do **code-only work**: read, reason about, and
+  edit Swift/config files, and prepare diffs. You **cannot** validate them here.
+- **Verification must happen on macOS with Xcode.** Run the build/test/simulator
+  scripts and follow the Build/Test/Simulator Rules above on a Mac (or a macOS CI
+  runner). Do not attempt to install Xcode/`simctl` on the Linux VM.
