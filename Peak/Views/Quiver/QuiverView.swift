@@ -10,6 +10,8 @@ enum QuiverSortOption: String, CaseIterable, Identifiable {
 }
 
 struct QuiverView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Gear.name) private var gear: [Gear]
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.gear]))
     private var sessions: [SurfSession]
@@ -19,12 +21,62 @@ struct QuiverView: View {
     @State private var showArchived = false
     @State private var showEditor = false
     @State private var cachedSnapshots: [String: GearUsageSnapshot] = [:]
+    @State private var openedGear: PeakEntityRef?
 
     private var snapshots: [String: GearUsageSnapshot] {
         cachedSnapshots
     }
 
+    private var usesSplitNavigation: Bool {
+        horizontalSizeClass == .regular
+    }
+
     var body: some View {
+        Group {
+            if usesSplitNavigation {
+                NavigationSplitView {
+                    quiverRoot
+                        .navigationTitle("Quiver")
+                        .toolbar { quiverToolbar }
+                        .searchable(text: $searchText, prompt: "Search gear")
+                        .searchMinimizeBehavior()
+                } detail: {
+                    if let ref = openedGear, let item = gearMatching(ref) {
+                        GearDetailView(gear: item)
+                    } else {
+                        ContentUnavailableView("Select gear", systemImage: "surfboard")
+                    }
+                }
+            } else {
+                quiverRoot
+                    .navigationTitle("Quiver")
+                    .toolbar { quiverToolbar }
+                    .searchable(text: $searchText, prompt: "Search gear")
+                    .searchMinimizeBehavior()
+                    .navigationDestination(item: $openedGear) { ref in
+                        gearDetail(for: ref)
+                    }
+            }
+        }
+        .sheet(isPresented: $showEditor) {
+            GearEditorView(mode: .new)
+        }
+        .onAppear {
+            refreshSnapshots()
+            consumePendingGearIfNeeded()
+        }
+        .onChange(of: sessions) { _, _ in
+            refreshSnapshots()
+        }
+        .onChange(of: navigation.pendingGearID) { _, _ in
+            consumePendingGearIfNeeded()
+        }
+        .onChange(of: navigation.selectedTab) { _, _ in
+            consumePendingGearIfNeeded()
+        }
+    }
+
+    private var quiverRoot: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
@@ -51,28 +103,18 @@ struct QuiverView: View {
                 .readableContentWidth()
             }
         }
-        .navigationTitle("Quiver")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    showEditor = true
-                } label: {
-                    Image(systemName: "plus")
-                }
-                .accessibilityLabel("Add gear")
-                .accessibilityIdentifier("quiver.add")
+    }
+
+    @ToolbarContentBuilder
+    private var quiverToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                showEditor = true
+            } label: {
+                Image(systemName: "plus")
             }
-        }
-        .searchable(text: $searchText, prompt: "Search gear")
-        .searchMinimizeBehavior()
-        .sheet(isPresented: $showEditor) {
-            GearEditorView(mode: .new)
-        }
-        .onAppear {
-            refreshSnapshots()
-        }
-        .onChange(of: sessions) { _, _ in
-            refreshSnapshots()
+            .accessibilityLabel("Add gear")
+            .accessibilityIdentifier("quiver.add")
         }
     }
 
@@ -99,15 +141,45 @@ struct QuiverView: View {
                 .foregroundStyle(Theme.textMuted)
 
             ForEach(items) { item in
-                NavigationLink {
-                    GearDetailView(gear: item)
-                } label: {
-                    QuiverGearRow(gear: item, snapshot: snapshots[item.key])
-                }
-                .buttonStyle(PressFeedbackButtonStyle())
-                .accessibilityIdentifier("quiver.row")
+                gearRow(item)
+                    .buttonStyle(PressFeedbackButtonStyle())
+                    .accessibilityIdentifier("quiver.row")
             }
         }
+    }
+
+    @ViewBuilder
+    private func gearRow(_ item: Gear) -> some View {
+        if usesSplitNavigation {
+            Button {
+                openedGear = PeakEntityRef(id: SessionIntentQueries.identifier(for: item))
+            } label: {
+                QuiverGearRow(gear: item, snapshot: snapshots[item.key])
+            }
+        } else {
+            NavigationLink {
+                GearDetailView(gear: item)
+            } label: {
+                QuiverGearRow(gear: item, snapshot: snapshots[item.key])
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func gearDetail(for ref: PeakEntityRef) -> some View {
+        if let item = gearMatching(ref) {
+            GearDetailView(gear: item)
+        }
+    }
+
+    private func gearMatching(_ ref: PeakEntityRef) -> Gear? {
+        gear.first { SessionIntentQueries.identifier(for: $0) == ref.id }
+    }
+
+    private func consumePendingGearIfNeeded() {
+        guard let id = navigation.pendingGearID else { return }
+        _ = navigation.consumePendingGear()
+        openedGear = PeakEntityRef(id: id)
     }
 
     private var visibleGear: [Gear] {

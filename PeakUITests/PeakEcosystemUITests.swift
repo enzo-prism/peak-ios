@@ -133,7 +133,38 @@ private extension PeakEcosystemUITests {
             }
             return
         }
+
+        // iPadOS / sidebar-adaptable tab chrome may not live inside an XCUI
+        // tabBars container. Fall through the same way PeakUISmokeTests does.
+        let predicate = NSPredicate(format: "label == %@", name)
+
+        if let element = firstHittable(in: app.buttons.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.cells.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.otherElements.matching(predicate)) {
+            element.tap()
+            return
+        }
+
         XCTFail("Missing tab: \(name)", file: file, line: line)
+    }
+
+    func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
+        let elements = query.allElementsBoundByIndex
+        if let hittable = elements.first(where: { $0.exists && $0.isHittable }) {
+            return hittable
+        }
+        if let first = elements.first, first.exists {
+            return first
+        }
+        return nil
     }
 
     /// Scrolls until `element`'s centre sits inside the scroll view, in whichever

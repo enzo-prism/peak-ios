@@ -10,6 +10,8 @@ enum SpotSortOption: String, CaseIterable, Identifiable {
 }
 
 struct SpotLibraryView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot]))
     private var sessions: [SurfSession]
@@ -17,8 +19,59 @@ struct SpotLibraryView: View {
     @State private var showEditor = false
     @State private var showLimitAlert = false
     @State private var snapshots: [String: UsageSnapshot] = [:]
+    @State private var openedSpot: PeakEntityRef?
+
+    private var usesSplitNavigation: Bool {
+        horizontalSizeClass == .regular
+    }
 
     var body: some View {
+        Group {
+            if usesSplitNavigation {
+                NavigationSplitView {
+                    spotsRoot
+                        .navigationTitle("Spots")
+                        .toolbar { spotsToolbar }
+                } detail: {
+                    if let ref = openedSpot, let spot = spotMatching(ref) {
+                        SpotDetailView(spot: spot)
+                    } else {
+                        ContentUnavailableView("Select a spot", systemImage: "mappin.and.ellipse")
+                    }
+                }
+            } else {
+                spotsRoot
+                    .navigationTitle("Spots")
+                    .toolbar { spotsToolbar }
+                    .navigationDestination(item: $openedSpot) { ref in
+                        spotDetail(for: ref)
+                    }
+            }
+        }
+        .sheet(isPresented: $showEditor) {
+            SpotEditorView(mode: .new)
+        }
+        .alert("Limit Reached", isPresented: $showLimitAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("You can save up to \(Spot.maxCount) surf breaks.")
+        }
+        .onAppear {
+            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+            consumePendingSpotIfNeeded()
+        }
+        .onChange(of: sessions) { _, _ in
+            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+        }
+        .onChange(of: navigation.pendingSpotID) { _, _ in
+            consumePendingSpotIfNeeded()
+        }
+        .onChange(of: navigation.selectedTab) { _, _ in
+            consumePendingSpotIfNeeded()
+        }
+    }
+
+    private var spotsRoot: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
@@ -45,58 +98,80 @@ struct SpotLibraryView: View {
                         )
                     } else {
                         ForEach(sortedSpots) { spot in
-                            NavigationLink {
-                                SpotDetailView(spot: spot)
-                            } label: {
-                                SpotRowView(spot: spot, snapshot: snapshots[spot.key])
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("spot.row")
+                            spotRow(spot)
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("spot.row")
                         }
                     }
                 }
                 .padding()
             }
         }
-        .navigationTitle("Spots")
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                NavigationLink {
-                    SpotsMapView()
-                } label: {
-                    Image(systemName: "map")
-                        .accessibilityLabel("Spot Map")
-                }
-                .accessibilityIdentifier("spot.library.map")
-                .disabled(spots.allSatisfy { $0.coordinate == nil })
+    }
+
+    @ToolbarContentBuilder
+    private var spotsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            NavigationLink {
+                SpotsMapView()
+            } label: {
+                Image(systemName: "map")
+                    .accessibilityLabel("Spot Map")
             }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button {
-                    if isLimitReached {
-                        showLimitAlert = true
-                    } else {
-                        showEditor = true
-                    }
-                } label: {
-                    Image(systemName: "plus")
+            .accessibilityIdentifier("spot.library.map")
+            .disabled(spots.allSatisfy { $0.coordinate == nil })
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                if isLimitReached {
+                    showLimitAlert = true
+                } else {
+                    showEditor = true
                 }
-                .accessibilityLabel("Add surf break")
-                .accessibilityIdentifier("spot.library.add")
+            } label: {
+                Image(systemName: "plus")
+            }
+            .accessibilityLabel("Add surf break")
+            .accessibilityIdentifier("spot.library.add")
+        }
+    }
+
+    @ViewBuilder
+    private func spotRow(_ spot: Spot) -> some View {
+        if usesSplitNavigation {
+            Button {
+                openedSpot = PeakEntityRef(id: SessionIntentQueries.identifier(for: spot))
+            } label: {
+                SpotRowView(spot: spot, snapshot: snapshots[spot.key])
+            }
+        } else {
+            NavigationLink {
+                SpotDetailView(spot: spot)
+            } label: {
+                SpotRowView(spot: spot, snapshot: snapshots[spot.key])
             }
         }
-        .sheet(isPresented: $showEditor) {
-            SpotEditorView(mode: .new)
+    }
+
+    @ViewBuilder
+    private func spotDetail(for ref: PeakEntityRef) -> some View {
+        if let spot = spotMatching(ref) {
+            SpotDetailView(spot: spot)
         }
-        .alert("Limit Reached", isPresented: $showLimitAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("You can save up to \(Spot.maxCount) surf breaks.")
-        }
-        .onAppear {
-            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
-        }
-        .onChange(of: sessions) { _, _ in
-            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
+    }
+
+    private func spotMatching(_ ref: PeakEntityRef) -> Spot? {
+        spots.first { SessionIntentQueries.identifier(for: $0) == ref.id }
+    }
+
+    /// iOS 18's Spots tab is always in the tab shell, so it owns the pending
+    /// id. On iOS 17 the coordinator lands on More and `MoreView` pushes.
+    private func consumePendingSpotIfNeeded() {
+        if #available(iOS 18.0, *) {
+            guard let id = navigation.pendingSpotID else { return }
+            _ = navigation.consumePendingSpot()
+            openedSpot = PeakEntityRef(id: id)
+            return
         }
     }
 

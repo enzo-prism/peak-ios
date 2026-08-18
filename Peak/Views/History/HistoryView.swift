@@ -2,7 +2,13 @@ import SwiftUI
 import SwiftData
 
 struct HistoryView: View {
+    /// iOS 18's dedicated Search tab reuses this list with a Search title.
+    /// Existing `HistoryView()` call sites stay valid.
+    var isDedicatedSearchTab: Bool = false
+
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies, \.media]))
     private var sessions: [SurfSession]
     @State private var filters = HistoryFilters()
@@ -17,56 +23,23 @@ struct HistoryView: View {
     @State private var editingSession: SurfSession?
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
+    /// Deep-link / split-column selection. Compact user taps still use
+    /// `NavigationLink` so iPhone UI tests that hit `history.row` keep working.
+    @State private var openedSession: PeakEntityRef?
+
+    /// Regular-width History gets a sidebar + detail. The dedicated Search tab
+    /// always stays a stack so it can host `.searchable` as its primary chrome.
+    private var usesSplitNavigation: Bool {
+        horizontalSizeClass == .regular && !isDedicatedSearchTab
+    }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
-
-                if sessions.isEmpty {
-                    EmptyStateView(
-                        title: "No sessions yet",
-                        message: "Log your first surf and your timeline will show up here.",
-                        systemImage: "wave.3.right"
-                    )
-                } else {
-                    VStack(spacing: 0) {
-                        if hasActiveCriteria {
-                            activeFiltersRow
-                        }
-
-                        if groupedSessions.isEmpty && hasActiveCriteria {
-                            Spacer()
-                            noMatchesState
-                            Spacer()
-                        } else {
-                            sessionList
-                        }
-                    }
-                }
+        Group {
+            if usesSplitNavigation {
+                splitView
+            } else {
+                stackView
             }
-            .navigationTitle("History")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        showFilters = true
-                    } label: {
-                        Label("Filters", systemImage: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        // Single presenter: ContentView owns the new-session
-                        // sheet so this can't race a system-initiated request.
-                        QuickLogCoordinator.shared.requestNewSession()
-                    } label: {
-                        Label("New Session", systemImage: "plus")
-                    }
-                }
-            }
-            .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
-            .searchMinimizeBehavior()
         }
         .sheet(isPresented: $showFilters) {
             HistoryFilterSheetView(filters: $filters)
@@ -108,6 +81,7 @@ struct HistoryView: View {
         }
         .onAppear {
             refreshResults()
+            consumePendingNavigation()
         }
         .onChange(of: sessionsStamp) { _, _ in
             refreshResults()
@@ -118,6 +92,99 @@ struct HistoryView: View {
         .onChange(of: debouncedSearchText) { _, _ in
             refreshResults()
         }
+        .onChange(of: navigation.pendingSessionID) { _, _ in
+            consumePendingSessionIfNeeded()
+        }
+        .onChange(of: navigation.pendingSearchQuery) { _, _ in
+            consumePendingSearchIfNeeded()
+        }
+        .onChange(of: navigation.selectedTab) { _, _ in
+            consumePendingNavigation()
+        }
+    }
+
+    // MARK: - Layout
+
+    private var stackView: some View {
+        NavigationStack {
+            historyRoot
+                .navigationTitle(navigationTitleText)
+                .toolbar { historyToolbar }
+                .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
+                .searchMinimizeBehavior()
+                .navigationDestination(item: $openedSession) { ref in
+                    sessionDetail(for: ref)
+                }
+        }
+    }
+
+    private var splitView: some View {
+        NavigationSplitView {
+            historyRoot
+                .navigationTitle(navigationTitleText)
+                .toolbar { historyToolbar }
+                .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
+                .searchMinimizeBehavior()
+        } detail: {
+            if let ref = openedSession, let session = sessionMatching(ref) {
+                SessionDetailView(session: session)
+            } else {
+                ContentUnavailableView("Select a session", systemImage: "clock.arrow.circlepath")
+            }
+        }
+    }
+
+    private var historyRoot: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+
+            if sessions.isEmpty {
+                EmptyStateView(
+                    title: "No sessions yet",
+                    message: "Log your first surf and your timeline will show up here.",
+                    systemImage: "wave.3.right"
+                )
+            } else {
+                VStack(spacing: 0) {
+                    if hasActiveCriteria {
+                        activeFiltersRow
+                    }
+
+                    if groupedSessions.isEmpty && hasActiveCriteria {
+                        Spacer()
+                        noMatchesState
+                        Spacer()
+                    } else {
+                        sessionList
+                    }
+                }
+            }
+        }
+    }
+
+    private var navigationTitleText: String {
+        isDedicatedSearchTab ? "Search" : "History"
+    }
+
+    @ToolbarContentBuilder
+    private var historyToolbar: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            Button {
+                showFilters = true
+            } label: {
+                Label("Filters", systemImage: filters.isActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                    .contentTransition(.symbolEffect(.replace))
+            }
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                // Single presenter: ContentView owns the new-session
+                // sheet so this can't race a system-initiated request.
+                QuickLogCoordinator.shared.requestNewSession()
+            } label: {
+                Label("New Session", systemImage: "plus")
+            }
+        }
     }
 
     // MARK: - List
@@ -127,42 +194,38 @@ struct HistoryView: View {
             ForEach(groupedSessions, id: \.key) { group in
                 Section {
                     ForEach(group.value) { session in
-                        NavigationLink {
-                            SessionDetailView(session: session)
-                        } label: {
-                            SessionRowView(session: session)
-                        }
-                        .accessibilityIdentifier(sessionRowIdentifier(for: session))
-                        .buttonStyle(PressFeedbackButtonStyle())
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .padding(.vertical, 6)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                sessionPendingDelete = session
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                        sessionRow(session)
+                            .accessibilityIdentifier(sessionRowIdentifier(for: session))
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .padding(.vertical, 6)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    sessionPendingDelete = session
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                Button {
+                                    editingSession = session
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(Color(uiColor: .systemGray))
                             }
-                            Button {
-                                editingSession = session
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
+                            .contextMenu {
+                                Button {
+                                    editingSession = session
+                                } label: {
+                                    Label("Edit Session", systemImage: "pencil")
+                                }
+                                Button(role: .destructive) {
+                                    sessionPendingDelete = session
+                                } label: {
+                                    Label("Delete Session", systemImage: "trash")
+                                }
                             }
-                            .tint(Color(uiColor: .systemGray))
-                        }
-                        .contextMenu {
-                            Button {
-                                editingSession = session
-                            } label: {
-                                Label("Edit Session", systemImage: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                sessionPendingDelete = session
-                            } label: {
-                                Label("Delete Session", systemImage: "trash")
-                            }
-                        }
                     }
                 } header: {
                     Text(group.key.monthTitle)
@@ -175,6 +238,67 @@ struct HistoryView: View {
         .scrollContentBackground(.hidden)
         .listRowSeparator(.hidden)
         .accessibilityIdentifier("history.list")
+    }
+
+    @ViewBuilder
+    private func sessionRow(_ session: SurfSession) -> some View {
+        if usesSplitNavigation {
+            Button {
+                openedSession = PeakEntityRef(id: SessionIntentQueries.identifier(for: session))
+            } label: {
+                SessionRowView(session: session)
+            }
+        } else {
+            NavigationLink {
+                SessionDetailView(session: session)
+            } label: {
+                SessionRowView(session: session)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sessionDetail(for ref: PeakEntityRef) -> some View {
+        if let session = sessionMatching(ref) {
+            SessionDetailView(session: session)
+        }
+    }
+
+    private func sessionMatching(_ ref: PeakEntityRef) -> SurfSession? {
+        sessions.first { SessionIntentQueries.identifier(for: $0) == ref.id }
+    }
+
+    // MARK: - Pending navigation
+
+    private func consumePendingNavigation() {
+        consumePendingSessionIfNeeded()
+        consumePendingSearchIfNeeded()
+    }
+
+    private func consumePendingSessionIfNeeded() {
+        guard !isDedicatedSearchTab else { return }
+        guard let id = navigation.pendingSessionID else { return }
+        _ = navigation.consumePendingSession()
+        openedSession = PeakEntityRef(id: id)
+    }
+
+    private func consumePendingSearchIfNeeded() {
+        // iOS 18's dedicated Search tab owns the query. Below that, History is
+        // the only surface that hosts `.searchable`.
+        if isDedicatedSearchTab {
+            applyPendingSearch()
+            return
+        }
+        if #available(iOS 18.0, *) {
+            return
+        }
+        applyPendingSearch()
+    }
+
+    private func applyPendingSearch() {
+        guard let query = navigation.pendingSearchQuery else { return }
+        _ = navigation.consumePendingSearch()
+        searchText = query
     }
 
     // MARK: - Active filter chips

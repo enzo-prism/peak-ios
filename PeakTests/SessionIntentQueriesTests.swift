@@ -37,6 +37,18 @@ final class SessionIntentQueriesTests: XCTestCase {
         XCTAssertEqual(SessionIntentQueries.identifier(for: spot), spot.key)
     }
 
+    /// Gear is `kind|normalized-name` — the same key the quiver already uses —
+    /// so an Open Gear intent keeps resolving after a rename-free edit.
+    func testGearIdentifierIsTheKindPipeNormalizedName() {
+        let gear = TestFixture.gear(name: "6'2\" Fish", kind: .board)
+
+        XCTAssertEqual(SessionIntentQueries.identifier(for: gear), gear.key)
+        XCTAssertEqual(
+            SessionIntentQueries.identifier(for: gear),
+            Gear.makeKey(name: "6'2\" Fish", kind: .board)
+        )
+    }
+
     // MARK: - Lookup
 
     func testSessionsLookupReturnsOnlyRequestedIdentifiers() {
@@ -72,6 +84,19 @@ final class SessionIntentQueriesTests: XCTestCase {
         XCTAssertEqual(found.map(\.name), ["Ocean Beach"])
     }
 
+    func testGearLookupByIdentifier() {
+        let fish = TestFixture.gear(name: "6'2\" Fish", kind: .board)
+        let steamer = TestFixture.gear(name: "3/2 Full", kind: .wetsuit)
+
+        let found = SessionIntentQueries.gearItems(
+            withIdentifiers: [SessionIntentQueries.identifier(for: fish)],
+            in: [fish, steamer]
+        )
+
+        XCTAssertEqual(found.map(\.name), ["6'2\" Fish"])
+        XCTAssertTrue(SessionIntentQueries.gearItems(withIdentifiers: ["nope"], in: [fish]).isEmpty)
+    }
+
     /// "…at ocean beach" has to resolve regardless of casing or diacritics, and
     /// a partial name should still find the spot.
     func testSpotStringMatchIsCaseAndDiacriticInsensitive() {
@@ -85,6 +110,19 @@ final class SessionIntentQueriesTests: XCTestCase {
         XCTAssertEqual(SessionIntentQueries.spots(matching: "Trestles", in: spots).map(\.name), ["Trestles"])
         XCTAssertEqual(SessionIntentQueries.spots(matching: "sao vicente", in: spots).map(\.name), ["São Vicente"])
         XCTAssertTrue(SessionIntentQueries.spots(matching: "Pipeline", in: spots).isEmpty)
+    }
+
+    /// "…on my fish" has to resolve regardless of casing, and a brand should
+    /// still find the board.
+    func testGearStringMatchIsCaseInsensitive() {
+        let fish = TestFixture.gear(name: "6'2\" Fish", kind: .board)
+        let steamer = TestFixture.gear(name: "3/2 Full", kind: .wetsuit, brand: "O'Neill")
+        let gear = [fish, steamer]
+
+        XCTAssertEqual(SessionIntentQueries.gearItems(matching: "fish", in: gear).map(\.name), ["6'2\" Fish"])
+        XCTAssertEqual(SessionIntentQueries.gearItems(matching: "FISH", in: gear).map(\.name), ["6'2\" Fish"])
+        XCTAssertEqual(SessionIntentQueries.gearItems(matching: "o'neill", in: gear).map(\.name), ["3/2 Full"])
+        XCTAssertTrue(SessionIntentQueries.gearItems(matching: "thruster", in: gear).isEmpty)
     }
 
     func testEmptySpotSearchTermReturnsEverythingAlphabetically() {
@@ -139,6 +177,29 @@ final class SessionIntentQueriesTests: XCTestCase {
         let ranked = SessionIntentQueries.frequentSpots(from: [unused, trestles], sessions: sessions)
 
         XCTAssertEqual(ranked.map(\.name), ["Trestles", "Aliso"])
+    }
+
+    /// Suggested gear leads with the pieces the surfer actually paddles; ties
+    /// fall back to alphabetical, and unused items still appear, last.
+    func testFrequentGearRanksByUsageThenName() {
+        let fish = TestFixture.gear(name: "Fish", kind: .board)
+        let egg = TestFixture.gear(name: "Egg", kind: .board)
+        let steamer = TestFixture.gear(name: "Steamer", kind: .wetsuit)
+        let unused = TestFixture.gear(name: "Alley", kind: .fins)
+        let sessions = [
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 1), gear: [fish, steamer]),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 2), gear: [fish]),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 3), gear: [fish]),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 4), gear: [egg]),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 5), gear: [steamer])
+        ]
+
+        let ranked = SessionIntentQueries.frequentGear(
+            from: [unused, egg, fish, steamer],
+            sessions: sessions
+        )
+
+        XCTAssertEqual(ranked.map(\.name), ["Fish", "Steamer", "Egg", "Alley"])
     }
 
     // MARK: - Intent answers
@@ -285,5 +346,27 @@ final class SessionIntentQueriesTests: XCTestCase {
             "A session at Trestles is already running."
         )
         XCTAssertEqual(StartSessionIntent.alreadyRunningDialog(spotName: nil), "A session is already running.")
+    }
+
+    // MARK: - Deep links
+
+    func testDeepLinkParsesSessionSpotGearAndSearch() {
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.session("1700000000000")), .session(id: "1700000000000"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.spot("trestles")), .spot(id: "trestles"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.gear("board|fish")), .gear(id: "board|fish"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.search("ocean beach")), .search(query: "ocean beach"))
+        XCTAssertEqual(
+            PeakDeepLink.parse(URL(string: "peak://session/1700000000000")!),
+            .session(id: "1700000000000")
+        )
+        XCTAssertEqual(PeakDeepLink.parse(URL(string: "peak://spot/trestles")!), .spot(id: "trestles"))
+    }
+
+    func testDeepLinkNewSessionStillRecognised() {
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.newSession), .newSession)
+        XCTAssertTrue(PeakDeepLink.isNewSession(PeakDeepLink.newSession))
+        XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak://new-session")!))
+        XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak:///new-session")!))
+        XCTAssertNil(PeakDeepLink.parse(URL(string: "peak://not-a-real-destination")!))
     }
 }

@@ -375,6 +375,48 @@ final class PeakWindowCardUITests: XCTestCase {
         }
     }
 
+    private func tapTab(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let tabButton = app.tabBars.buttons[name]
+        if tabButton.waitForExistence(timeout: 5) {
+            if tabButton.isHittable {
+                tabButton.tap()
+            } else {
+                tabButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            return
+        }
+
+        let predicate = NSPredicate(format: "label == %@", name)
+
+        if let element = firstHittableTab(in: app.buttons.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittableTab(in: app.cells.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittableTab(in: app.otherElements.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        XCTFail("Missing tab: \(name)", file: file, line: line)
+    }
+
+    private func firstHittableTab(in query: XCUIElementQuery) -> XCUIElement? {
+        let elements = query.allElementsBoundByIndex
+        if let hittable = elements.first(where: { $0.exists && $0.isHittable }) {
+            return hittable
+        }
+        if let first = elements.first, first.exists {
+            return first
+        }
+        return nil
+    }
+
     /// Addressed by label, not by an identifier on a wrapper: identifiers that sit
     /// on containers are not queryable as buttons.
     private var checkButton: XCUIElement {
@@ -539,9 +581,7 @@ final class PeakWindowCardUITests: XCTestCase {
     func testSettingsExposesTheAutoRefreshOptIn() {
         launch(windowScenario: nil)
 
-        let tab = app.tabBars.buttons["More"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 5))
-        tab.tap()
+        tapTab(named: "More")
 
         let settings = app.buttons["Settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
@@ -1042,9 +1082,49 @@ final class PeakInsightsUITests: XCTestCase {
     }
 
     private func openStats() {
-        let tab = app.tabBars.buttons["Stats"]
-        XCTAssertTrue(tab.waitForExistence(timeout: 10), "Stats tab never appeared")
-        tab.tap()
+        tapTab(named: "Stats")
+    }
+
+    private func tapTab(named name: String, file: StaticString = #filePath, line: UInt = #line) {
+        let tabButton = app.tabBars.buttons[name]
+        if tabButton.waitForExistence(timeout: 10) {
+            if tabButton.isHittable {
+                tabButton.tap()
+            } else {
+                tabButton.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            return
+        }
+
+        let predicate = NSPredicate(format: "label == %@", name)
+
+        if let element = firstHittable(in: app.buttons.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.cells.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        if let element = firstHittable(in: app.otherElements.matching(predicate)) {
+            element.tap()
+            return
+        }
+
+        XCTFail("Missing tab: \(name)", file: file, line: line)
+    }
+
+    private func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
+        let elements = query.allElementsBoundByIndex
+        if let hittable = elements.first(where: { $0.exists && $0.isHittable }) {
+            return hittable
+        }
+        if let first = elements.first, first.exists {
+            return first
+        }
+        return nil
     }
 
     func testMonthlyRecapRendersFromAggregatesWithoutAnyModel() {
@@ -1102,9 +1182,7 @@ final class PeakInsightsUITests: XCTestCase {
     func testYearInReviewAlwaysCarriesANarrativeParagraph() {
         launch()
 
-        let more = app.tabBars.buttons["More"]
-        XCTAssertTrue(more.waitForExistence(timeout: 10))
-        more.tap()
+        tapTab(named: "More")
 
         let entry = app.buttons["Year in Review"].firstMatch
         if entry.waitForExistence(timeout: 5) {
