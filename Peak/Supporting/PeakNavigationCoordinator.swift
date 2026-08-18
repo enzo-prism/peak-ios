@@ -7,7 +7,7 @@ import SwiftUI
 /// The five `phoneTabs` are the iPhone tab bar. `search`, `spots`, and `buddies`
 /// exist so iOS 18's sidebar-adaptable tab view can surface library destinations
 /// (and a dedicated search tab) without crowding the compact tab bar.
-enum PeakTab: String, Hashable, CaseIterable {
+nonisolated enum PeakTab: String, Hashable, Sendable, CaseIterable {
     case log
     case history
     case stats
@@ -50,7 +50,7 @@ enum PeakTab: String, Hashable, CaseIterable {
 /// Stable, store-free identifier wrapper so SwiftUI `navigationDestination(item:)`
 /// can push a session/spot/gear from a deep link or OpenIntent without requiring
 /// the `@Model` class itself to travel across the navigation path.
-struct PeakEntityRef: Identifiable, Hashable {
+nonisolated struct PeakEntityRef: Identifiable, Hashable, Sendable {
     let id: String
 }
 
@@ -78,14 +78,17 @@ final class PeakNavigationCoordinator {
             selectedTab = .history
             pendingSessionID = id
         case .spot(let id):
-            pendingSpotID = id
             selectedTab = sidebarLibraryTabAvailable ? .spots : .more
+            pendingSpotID = id
         case .gear(let id):
             selectedTab = .quiver
             pendingGearID = id
         case .search(let query):
+            // History always hosts `.searchable`. The iOS 18 Search tab is
+            // user-initiated chrome and does not always mount for `TabView`
+            // selection, so intents land here.
+            selectedTab = .history
             pendingSearchQuery = query
-            selectedTab = sidebarLibraryTabAvailable ? .search : .history
         }
     }
 

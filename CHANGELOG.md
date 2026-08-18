@@ -32,7 +32,8 @@ opt-in toggles. GPS from a Health route is never persisted.
   sidebar (Spots / Buddies hidden from the compact tab bar). History, Quiver, and
   Spots use `NavigationSplitView` on regular width. iOS 17 keeps the five-tab
   phone shell. (`Peak/ContentView.swift`, `PeakNavigationCoordinator.swift`,
-  History / Quiver / Spot library views)
+  History / Quiver / Spot library views). Sidebar-adaptable chrome is regular-width
+  only (UI tests keep the classic tab bar).
 - **Unlogged Watch surf on Log.** When Apple Health sync is on, the Log tab
   surfaces the latest unlogged surfing workout with one-tap import (spot guessed
   only from a nearby pin, never fabricated). An `HKObserverQuery` plus HealthKit

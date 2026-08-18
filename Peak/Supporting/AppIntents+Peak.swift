@@ -74,7 +74,7 @@ struct SessionsThisMonthIntent: AppIntent {
     }
 }
 
-/// The four intents Peak offers to Siri, Spotlight and the Action button.
+/// The intents Peak offers to Siri, Spotlight and the Action button.
 /// Phrases stay natural and always name the app, which is what the App Intents
 /// matcher requires.
 struct PeakAppShortcuts: AppShortcutsProvider {

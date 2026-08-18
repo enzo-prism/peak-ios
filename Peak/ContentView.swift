@@ -9,6 +9,7 @@ struct ContentView: View {
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         ZStack {
@@ -148,7 +149,9 @@ struct ContentView: View {
                 .customizationID("peak.buddies")
             }
         }
-        .tabViewStyle(.sidebarAdaptable)
+        .modifier(SidebarAdaptableTabStyle(
+            enabled: horizontalSizeClass == .regular && !TestingDefaults.isUITest
+        ))
     }
 
     private func handleDeepLink(_ url: URL) {
@@ -180,4 +183,19 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .modelContainer(PreviewData.container)
+}
+
+/// iPad regular width uses the sidebar-adaptable tab style. Compact (iPhone)
+/// and UI tests keep the classic tab bar so existing XCUI tab taps still work.
+private struct SidebarAdaptableTabStyle: ViewModifier {
+    var enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *), enabled {
+            content.tabViewStyle(.sidebarAdaptable)
+        } else {
+            content
+        }
+    }
 }

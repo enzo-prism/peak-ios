@@ -28,7 +28,7 @@ struct LastSessionWidget: Widget {
 
 /// Optional spot pin. Nil keeps overall-last-session behaviour; a value looks
 /// up that key in `PeakWidgetSnapshot.spotGlances`.
-struct LastSessionConfigurationIntent: WidgetConfigurationIntent {
+nonisolated struct LastSessionConfigurationIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Last Session"
     static var description = IntentDescription(
         "Show your most recent surf, or the last surf at a chosen spot."
@@ -47,7 +47,7 @@ struct LastSessionConfigurationIntent: WidgetConfigurationIntent {
 /// A spot the Last Session widget can pin. Identity is `PeakSpotGlance.key`,
 /// and suggestions come from the App Group snapshot — not SwiftData — so the
 /// extension never opens the store.
-struct WidgetSpotEntity: AppEntity {
+nonisolated struct WidgetSpotEntity: AppEntity {
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Spot")
     static let defaultQuery = WidgetSpotQuery()
 
@@ -68,10 +68,11 @@ struct WidgetSpotEntity: AppEntity {
     }
 }
 
-struct WidgetSpotQuery: EntityStringQuery {
+nonisolated struct WidgetSpotQuery: EntityStringQuery {
     func entities(for identifiers: [WidgetSpotEntity.ID]) async throws -> [WidgetSpotEntity] {
         let byKey = Dictionary(
-            uniqueKeysWithValues: glances().map { ($0.key, $0) }
+            glances().map { ($0.key, $0) },
+            uniquingKeysWith: { _, last in last }
         )
         return identifiers.map { id in
             if let glance = byKey[id] {
@@ -100,7 +101,7 @@ struct WidgetSpotQuery: EntityStringQuery {
     }
 }
 
-struct LastSessionProvider: AppIntentTimelineProvider {
+nonisolated struct LastSessionProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> PeakEntry {
         PeakEntry(date: .now, snapshot: .preview)
     }

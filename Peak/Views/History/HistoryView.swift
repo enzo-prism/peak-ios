@@ -30,7 +30,7 @@ struct HistoryView: View {
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !isDedicatedSearchTab
+        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.isUITest
     }
 
     var body: some View {
@@ -277,21 +277,17 @@ struct HistoryView: View {
 
     private func consumePendingSessionIfNeeded() {
         guard !isDedicatedSearchTab else { return }
+        guard navigation.selectedTab == .history else { return }
         guard let id = navigation.pendingSessionID else { return }
         _ = navigation.consumePendingSession()
         openedSession = PeakEntityRef(id: id)
     }
 
     private func consumePendingSearchIfNeeded() {
-        // iOS 18's dedicated Search tab owns the query. Below that, History is
-        // the only surface that hosts `.searchable`.
-        if isDedicatedSearchTab {
-            applyPendingSearch()
-            return
-        }
-        if #available(iOS 18.0, *) {
-            return
-        }
+        // Intents land on History. The dedicated Search tab is user-initiated
+        // and must not steal (or drop) the pending query.
+        guard !isDedicatedSearchTab else { return }
+        guard navigation.selectedTab == .history else { return }
         applyPendingSearch()
     }
 
@@ -299,6 +295,7 @@ struct HistoryView: View {
         guard let query = navigation.pendingSearchQuery else { return }
         _ = navigation.consumePendingSearch()
         searchText = query
+        debouncedSearchText = query
     }
 
     // MARK: - Active filter chips

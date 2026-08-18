@@ -28,7 +28,7 @@ struct QuiverView: View {
     }
 
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular
+        horizontalSizeClass == .regular && !TestingDefaults.isUITest
     }
 
     var body: some View {

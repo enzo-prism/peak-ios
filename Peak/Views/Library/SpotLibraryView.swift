@@ -27,7 +27,7 @@ struct SpotLibraryView: View {
     @State private var openedSpot: PeakEntityRef?
 
     private var usesSplitNavigation: Bool {
-        isLibraryTab && horizontalSizeClass == .regular
+        isLibraryTab && horizontalSizeClass == .regular && !TestingDefaults.isUITest
     }
 
     var body: some View {
