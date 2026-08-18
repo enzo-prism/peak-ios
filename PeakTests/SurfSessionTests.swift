@@ -355,4 +355,29 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertEqual(session.notes, "Imported from Apple Health")
         XCTAssertTrue(session.hasWaveStats)
     }
+
+    func testGuessSampleSkipsInvalidAccuracyAndPrefersMidRoute() {
+        func sample(lat: Double, lon: Double, accuracy: Double) -> RouteSample {
+            RouteSample(
+                timestamp: Date(),
+                latitude: lat,
+                longitude: lon,
+                horizontalAccuracyMeters: accuracy
+            )
+        }
+        let parking = sample(lat: 33.3900, lon: -117.5880, accuracy: 8)
+        let invalid = sample(lat: 33.3820, lon: -117.5880, accuracy: -1)
+        let inWater = sample(lat: 33.3825, lon: -117.5885, accuracy: 5)
+        let later = sample(lat: 33.3830, lon: -117.5890, accuracy: 6)
+
+        XCTAssertNil(SpotProximity.guessSample(from: [invalid]))
+        let guessed = SpotProximity.guessSample(from: [parking, invalid, inWater, later])
+        XCTAssertEqual(guessed?.latitude, inWater.latitude)
+        XCTAssertEqual(guessed?.longitude, inWater.longitude)
+
+        let trestles = TestFixture.spot(name: "Trestles", latitude: 33.3825, longitude: -117.5885)
+        let lot = TestFixture.spot(name: "The lot", latitude: 33.3900, longitude: -117.5880)
+        let picked = SpotProximity.nearest(to: [parking, invalid, inWater, later], in: [lot, trestles])
+        XCTAssertEqual(picked?.name, "Trestles")
+    }
 }

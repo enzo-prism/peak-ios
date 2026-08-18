@@ -2,6 +2,7 @@ import CoreLocation
 import Foundation
 import HealthKit
 import SwiftData
+import UIKit
 
 // MARK: - Pure logic (unit-testable without HKHealthStore)
 
@@ -268,10 +269,24 @@ final class HealthKitService {
             sampleType: HKObjectType.workoutType(),
             predicate: predicate
         ) { _, completionHandler, error in
-            completionHandler()
-            guard error == nil else { return }
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .peakUnloggedWorkoutsMayHaveChanged, object: nil)
+            guard error == nil else {
+                completionHandler()
+                return
+            }
+            // Apple's contract: finish the work, *then* tell HealthKit. Calling
+            // completionHandler first lets iOS suspend Peak before the local
+            // notification is posted.
+            Task {
+                let taskID = await MainActor.run {
+                    UIApplication.shared.beginBackgroundTask(withName: "PeakUnloggedSurf") {}
+                }
+                await UnloggedSurfNotification.handleObserverWake()
+                completionHandler()
+                await MainActor.run {
+                    if taskID != .invalid {
+                        UIApplication.shared.endBackgroundTask(taskID)
+                    }
+                }
             }
         }
         workoutObserver = query
@@ -280,7 +295,7 @@ final class HealthKitService {
         guard !didEnableBackgroundDelivery else { return }
         healthStore.enableBackgroundDelivery(
             for: HKObjectType.workoutType(),
-            frequency: .hourly
+            frequency: .immediate
         ) { [weak self] success, _ in
             if success {
                 self?.didEnableBackgroundDelivery = true
@@ -454,6 +469,20 @@ final class HealthKitService {
             HealthKitLogic.sessionWindow(date: $0.date, durationMinutes: $0.durationMinutes)
         }
         return HealthKitLogic.unloggedWorkouts(from: summaries, sessionWindows: windows)
+    }
+
+    /// One workout by UUID, mapped to the same summary import uses. Nil when
+    /// Health is off or the UUID is gone — the Log notification then no-ops.
+    func fetchSurfWorkoutSummary(id: UUID) async -> HealthKitLogic.WorkoutSummary? {
+        guard canRead else { return nil }
+        guard let workout = try? await workout(withID: id) else { return nil }
+        return HealthKitLogic.WorkoutSummary(
+            id: workout.uuid,
+            start: workout.startDate,
+            end: workout.endDate,
+            sourceName: workout.sourceRevision.source.name,
+            isFromPeak: workout.metadata?[HealthKitLogic.sessionKeyMetadataKey] != nil
+        )
     }
 
     // MARK: Route reads (3.0)

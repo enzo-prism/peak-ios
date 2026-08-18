@@ -38,8 +38,9 @@ opt-in toggles. GPS from a Health route is never persisted.
   only from a nearby pin, never fabricated). An `HKObserverQuery` plus HealthKit
   background delivery refreshes the card. A second Settings toggle (off by
   default) posts one local notification per workout UUID, with a Log action that
-  opens the Log tab; no banner while Peak is in the foreground.
-  (`UnloggedWorkoutCard.swift`, `HealthKitService.swift`, `SpotProximity.swift`)
+  imports that workout and opens the Log tab; no banner while Peak is in the
+  foreground. (`UnloggedWorkoutCard.swift`, `HealthKitService.swift`,
+  `SpotProximity.swift`)
 - **Session route map.** Session detail shows a transient MapKit overlay from
   the linked HealthKit workout UUID (full track + wave-segment polylines).
   Coordinates live only in memory. (`SessionRouteMapView.swift`)

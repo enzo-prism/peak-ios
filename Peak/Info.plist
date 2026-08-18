@@ -18,7 +18,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Peak uses your location to pin surf spots near you.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Peak reads your Apple Watch surf workouts, heart rate, and calories to enrich your logged sessions.</string>
+	<string>Peak reads Apple Watch surf workouts, heart rate, calories, and workout GPS routes to import sessions and estimate waves. Routes are not stored. If you opt in, Peak can notify you when a Watch surf is ready to log.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Peak saves your surf sessions to Apple Health as surfing workouts.</string>
 </dict>

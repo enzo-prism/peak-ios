@@ -59,4 +59,21 @@ enum SpotProximity {
         ) else { return nil }
         return spots.first { $0.key == key }
     }
+
+    /// Watch GPS often starts in a parking lot (`samples.first`). Invalid fixes
+    /// (`horizontalAccuracyMeters < 0`) are skipped; the mid-route valid sample
+    /// is the break, not the walk.
+    static func guessSample(from samples: [RouteSample]) -> RouteSample? {
+        let valid = samples.filter { sample in
+            sample.latitude.isFinite
+                && sample.longitude.isFinite
+                && sample.horizontalAccuracyMeters >= 0
+        }
+        guard !valid.isEmpty else { return nil }
+        return valid[valid.count / 2]
+    }
+
+    static func nearest(to samples: [RouteSample], in spots: [Spot]) -> Spot? {
+        nearest(to: guessSample(from: samples), in: spots)
+    }
 }

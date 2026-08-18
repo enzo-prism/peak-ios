@@ -56,19 +56,9 @@ struct ContentView: View {
                 Task {
                     await UnloggedSurfNotification.considerPosting(
                         sessions: sessions,
-                        spots: spots,
-                        scenePhase: newPhase
+                        spots: spots
                     )
                 }
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .peakUnloggedWorkoutsMayHaveChanged)) { _ in
-            Task {
-                await UnloggedSurfNotification.considerPosting(
-                    sessions: sessions,
-                    spots: spots,
-                    scenePhase: scenePhase
-                )
             }
         }
         .onOpenURL { url in

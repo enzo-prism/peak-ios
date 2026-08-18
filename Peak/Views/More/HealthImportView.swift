@@ -230,7 +230,7 @@ struct HealthImportView: View {
             if !TestingDefaults.isUITest,
                spots.contains(where: { $0.latitude != nil && $0.longitude != nil }) {
                 let samples = await HealthKitService.shared.routeSamples(forWorkoutID: workout.id)
-                spot = SpotProximity.nearest(to: samples.first, in: spots)
+                spot = SpotProximity.nearest(to: samples, in: spots)
             }
             let session = HealthKitLogic.importedSession(workout: workout, stats: stats, spot: spot)
             modelContext.insert(session)
