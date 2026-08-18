@@ -35,6 +35,9 @@ struct LogView: View {
                         // a deadline, and "on this day in 2023" is not.
                         BestWindowTodayCard(sessions: allSessions)
 
+                        UnloggedWorkoutCard(sessions: allSessions)
+                            .padding(.horizontal)
+
                         if let cachedMemory {
                             NavigationLink {
                                 SessionDetailView(session: cachedMemory.session)

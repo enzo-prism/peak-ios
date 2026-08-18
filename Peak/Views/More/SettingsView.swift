@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
+    @AppStorage(HealthKitService.notifyUnloggedWorkoutsKey) private var notifyUnloggedWorkouts = false
     @AppStorage(TodayWindowService.autoRefreshKey) private var windowAutoRefresh = false
     @AppStorage(MonthlyGoalCalculator.metricKey) private var goalMetricRaw = MonthlyGoalMetric.sessions.rawValue
     @AppStorage(MonthlyGoalCalculator.targetKey) private var goalTarget = MonthlyGoalCalculator.defaultTarget
@@ -153,6 +154,20 @@ struct SettingsView: View {
 
                             SettingsRow(title: "Sync Existing Sessions", systemImage: "arrow.triangle.2.circlepath", isDisabled: isWorking) {
                                 syncExistingToHealth()
+                            }
+
+                            Toggle(isOn: $notifyUnloggedWorkouts) {
+                                Label("Notify when a Watch surf is ready to log", systemImage: "bell")
+                                    .foregroundStyle(Theme.textPrimary)
+                            }
+                            .tint(Theme.textPrimary)
+                            .padding(12)
+                            .glassCard(cornerRadius: Theme.Radius.input, tint: Theme.glassDimTint, isInteractive: false)
+                            .listRowBackground(Color.clear)
+                            .accessibilityIdentifier("settings.health.notifyUnlogged")
+                            .onChange(of: notifyUnloggedWorkouts) { _, isOn in
+                                guard isOn else { return }
+                                Task { await UnloggedSurfNotification.requestAuthorization() }
                             }
                         }
 

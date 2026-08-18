@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppIntents
 import UIKit
 
 struct GearDetailView: View {
@@ -57,6 +58,15 @@ struct GearDetailView: View {
         }
         .navigationTitle("Gear")
         .navigationBarTitleDisplayMode(.inline)
+        .userActivity("com.designprism.peak.viewingGear") { activity in
+            activity.title = gear.name
+            activity.isEligibleForSearch = true
+            activity.isEligibleForPrediction = true
+            activity.isEligibleForHandoff = false
+            if #available(iOS 18.0, *) {
+                activity.appEntityIdentifier = EntityIdentifier(for: GearEntity(gear: gear))
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Edit") {

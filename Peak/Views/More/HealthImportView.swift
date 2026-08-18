@@ -9,6 +9,8 @@ struct HealthImportView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(SurfSession.sortedByDateDescending())
     private var sessions: [SurfSession]
+    @Query(sort: \Spot.name)
+    private var spots: [Spot]
 
     private enum LoadState {
         case loading
@@ -135,7 +137,7 @@ struct HealthImportView: View {
                     .accessibilityLabel("Imported")
             } else {
                 Button {
-                    importWorkout(workout, draft: draft)
+                    importWorkout(workout)
                 } label: {
                     Text("Import")
                         .font(.subheadline.weight(.semibold))
@@ -207,26 +209,34 @@ struct HealthImportView: View {
         return "\(start) – \(end)"
     }
 
-    private func importWorkout(_ workout: HealthKitLogic.WorkoutSummary, draft: HealthKitLogic.SessionDraftValues) {
+    private func importWorkout(_ workout: HealthKitLogic.WorkoutSummary) {
         // The workout came FROM Health (e.g. Apple Watch); create a matching
         // Peak session but do NOT write it back — that would duplicate the
-        // original workout.
-        let session = SurfSession(
-            date: draft.date,
-            spot: nil,
-            durationMinutes: draft.durationMinutes,
-            notes: "Imported from Apple Health"
-        )
-        // Carry the derived estimate across with the session, plus the workout id
-        // so the route can be re-read later without ever persisting coordinates.
-        if let stats = routePreviews[workout.id] ?? nil {
-            session.applyDerivedWaveStats(stats, workoutID: workout.id.uuidString)
-        } else {
-            session.linkedWorkoutID = workout.id.uuidString
+        // original workout. Spot is guessed from the route start when a pin
+        // is close enough; otherwise it stays nil for the surfer to set.
+        Task {
+            let stats: WaveStats?
+            if let cached = routePreviews[workout.id] {
+                stats = cached
+            } else if TestingDefaults.isUITest {
+                stats = nil
+            } else {
+                stats = await WaveStatsDeriver.stats(
+                    forWorkoutID: workout.id,
+                    provider: HealthKitService.shared
+                )
+            }
+            var spot: Spot?
+            if !TestingDefaults.isUITest,
+               spots.contains(where: { $0.latitude != nil && $0.longitude != nil }) {
+                let samples = await HealthKitService.shared.routeSamples(forWorkoutID: workout.id)
+                spot = SpotProximity.nearest(to: samples.first, in: spots)
+            }
+            let session = HealthKitLogic.importedSession(workout: workout, stats: stats, spot: spot)
+            modelContext.insert(session)
+            importedWorkoutIDs.insert(workout.id)
+            importFeedback += 1
         }
-        modelContext.insert(session)
-        importedWorkoutIDs.insert(workout.id)
-        importFeedback += 1
     }
 
     private func load() async {

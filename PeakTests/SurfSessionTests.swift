@@ -279,4 +279,80 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertTrue(other.hasSurfConditions)
         XCTAssertFalse(other.hasWaveStats)
     }
+
+    // MARK: - Spot proximity + import (Watch surf → Peak session)
+
+    func testSpotProximityPicksNearestWithinCap() {
+        let sample = RouteSample(
+            timestamp: Date(),
+            latitude: 33.3820,
+            longitude: -117.5880,
+            horizontalAccuracyMeters: 5
+        )
+        let near = TestFixture.spot(name: "Trestles", latitude: 33.3850, longitude: -117.5880)
+        let farther = TestFixture.spot(name: "San Onofre", latitude: 33.3950, longitude: -117.5880)
+
+        let picked = SpotProximity.nearest(to: sample, in: [farther, near])
+        XCTAssertEqual(picked?.name, "Trestles")
+    }
+
+    func testSpotProximityReturnsNilWhenTooFar() {
+        let sample = RouteSample(
+            timestamp: Date(),
+            latitude: 33.3820,
+            longitude: -117.5880,
+            horizontalAccuracyMeters: 5
+        )
+        let far = TestFixture.spot(name: "Pipeline", latitude: 21.6650, longitude: -158.0530)
+
+        XCTAssertNil(SpotProximity.nearest(to: sample, in: [far]))
+    }
+
+    func testSpotProximityIgnoresUnpinnedSpots() {
+        let sample = RouteSample(
+            timestamp: Date(),
+            latitude: 33.3820,
+            longitude: -117.5880,
+            horizontalAccuracyMeters: 5
+        )
+        let unpinned = TestFixture.spot(name: "Trestles")
+        XCTAssertNil(SpotProximity.nearest(to: sample, in: [unpinned]))
+
+        let pinned = TestFixture.spot(name: "Lower Trestles", latitude: 33.3825, longitude: -117.5885)
+        let picked = SpotProximity.nearest(to: sample, in: [unpinned, pinned])
+        XCTAssertEqual(picked?.name, "Lower Trestles")
+    }
+
+    func testImportedSessionLinksWorkoutAndAppliesStats() {
+        let workoutID = UUID()
+        let workout = HealthKitLogic.WorkoutSummary(
+            id: workoutID,
+            start: epoch(1_700_000_000),
+            end: epoch(1_700_000_000 + 90 * 60),
+            sourceName: "Apple Watch",
+            isFromPeak: false
+        )
+        let stats = WaveStats(
+            waveCount: 7,
+            topSpeedKph: 24,
+            longestRideSeconds: 14,
+            longestRideMeters: 70,
+            paddleDistanceMeters: 900,
+            totalDistanceMeters: 1_200,
+            waves: []
+        )
+        let spot = TestFixture.spot(name: "Trestles", latitude: 33.382, longitude: -117.588)
+        let session = HealthKitLogic.importedSession(workout: workout, stats: stats, spot: spot)
+
+        XCTAssertEqual(session.linkedWorkoutID, workoutID.uuidString)
+        XCTAssertEqual(session.spot?.name, "Trestles")
+        XCTAssertEqual(session.waveCount, 7)
+        XCTAssertEqual(session.topSpeedKph ?? 0, 24, accuracy: 0.0001)
+        XCTAssertEqual(session.longestRideSeconds ?? 0, 14, accuracy: 0.0001)
+        XCTAssertEqual(session.waveStats, .auto)
+        XCTAssertEqual(session.durationMinutes, 90)
+        XCTAssertEqual(session.date, epoch(1_700_000_000))
+        XCTAssertEqual(session.notes, "Imported from Apple Health")
+        XCTAssertTrue(session.hasWaveStats)
+    }
 }

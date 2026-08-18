@@ -1,4 +1,5 @@
 import AVKit
+import AppIntents
 import Foundation
 import SwiftData
 import SwiftUI
@@ -32,6 +33,10 @@ struct SessionDetailView: View {
                         heroCard
 
                         healthCard
+
+                        if healthSyncEnabled, let id = session.linkedWorkoutID {
+                            SessionRouteMapView(workoutID: id)
+                        }
 
                         if !surfReportRows.isEmpty {
                             detailDisclosureSection("Surf report", isExpanded: $showSurfReportSection) {
@@ -87,6 +92,15 @@ struct SessionDetailView: View {
             }
         }
         .navigationTitle("Session")
+        .userActivity("com.designprism.peak.viewingSession") { activity in
+            activity.title = session.spot?.name ?? "Surf session"
+            activity.isEligibleForSearch = true
+            activity.isEligibleForPrediction = true
+            activity.isEligibleForHandoff = false
+            if #available(iOS 18.0, *) {
+                activity.appEntityIdentifier = EntityIdentifier(for: SurfSessionEntity(session: session))
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 shareToolbarButton

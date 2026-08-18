@@ -1,6 +1,7 @@
 import MapKit
 import SwiftUI
 import SwiftData
+import AppIntents
 
 struct SpotDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -52,6 +53,15 @@ struct SpotDetailView: View {
         }
         .navigationTitle("Spot")
         .navigationBarTitleDisplayMode(.inline)
+        .userActivity("com.designprism.peak.viewingSpot") { activity in
+            activity.title = spot.name
+            activity.isEligibleForSearch = true
+            activity.isEligibleForPrediction = true
+            activity.isEligibleForHandoff = false
+            if #available(iOS 18.0, *) {
+                activity.appEntityIdentifier = EntityIdentifier(for: SpotEntity(spot: spot))
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button("Edit") { showEditor = true }
