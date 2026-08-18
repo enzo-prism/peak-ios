@@ -53,7 +53,7 @@ opt-in toggles. GPS from a Health route is never persisted.
   SwiftData. Adds `.systemExtraLarge`. (`PeakWidgets/LastSessionWidget.swift`,
   `Peak/WidgetSnapshot.swift`)
 
-## [Unreleased] — Audit fixes round 2: intents, widgets, restore integrity, HIG
+### Also still unreleased (audit round 2)
 
 A second HIG + engineering audit pass (Apple HIG / framework docs cross-referenced
 against the codebase), fixed and regression-tested (+5 tests, 510 unit total).
