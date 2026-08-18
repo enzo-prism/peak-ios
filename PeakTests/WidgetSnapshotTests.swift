@@ -21,6 +21,7 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.lastSessionSpotKey, spot.key)
         XCTAssertEqual(snapshot.lastSessionRating, 5)
         XCTAssertEqual(snapshot.lastSessionDate, TestCalendar.makeDate(year: 2026, month: 2, day: 16))
+        XCTAssertEqual(snapshot.lastSessionID, SessionIntentQueries.identifier(for: sessions[1]))
         XCTAssertEqual(snapshot.totalSessions, 2)
     }
 
@@ -97,7 +98,9 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.currentStreakWeeks, 0)
         XCTAssertNil(snapshot.lastSessionSpot)
         XCTAssertNil(snapshot.lastSessionSpotKey)
+        XCTAssertNil(snapshot.lastSessionID)
         XCTAssertNil(snapshot.daysSinceLastSession)
+        XCTAssertEqual(snapshot.spotGlances ?? [], [])
         XCTAssertEqual(snapshot.totalSessions, 0)
     }
 
@@ -115,6 +118,8 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.totalSessions, 7)
         XCTAssertNil(snapshot.lastSessionSpotKey)
         XCTAssertNil(snapshot.lastSessionSpot)
+        XCTAssertNil(snapshot.lastSessionID)
+        XCTAssertNil(snapshot.spotGlances)
     }
 
     // MARK: - Time adjustment between app runs
@@ -202,10 +207,91 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak:///new-session")!))
     }
 
+    /// Last Session widget taps must reopen that session, not a blank editor.
+    /// The URL is built from the snapshot's `lastSessionID` (the same identifier
+    /// Siri and Spotlight use), so a missing parse here would send the surfer
+    /// into the new-session sheet.
+    func testLastSessionDeepLinkUsesSessionIdentifier() throws {
+        let last = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 16),
+            spot: TestFixture.spot(name: "Ocean Beach"),
+            rating: 5
+        )
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: [last], now: now, calendar: TestCalendar.gmt)
+        let id = try XCTUnwrap(snapshot.lastSessionID)
+
+        XCTAssertEqual(id, SessionIntentQueries.identifier(for: last))
+        let url = PeakDeepLink.session(id)
+        XCTAssertEqual(PeakDeepLink.parse(url), .session(id: id))
+        XCTAssertNotEqual(PeakDeepLink.parse(url), .newSession)
+        XCTAssertFalse(PeakDeepLink.isNewSession(url))
+    }
+
+    func testParseSessionSpotGearAndSearchURLs() {
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.session("abc-123")), .session(id: "abc-123"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.spot("ocean-beach")), .spot(id: "ocean-beach"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.gear("board|fish")), .gear(id: "board|fish"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.search("trestles")), .search(query: "trestles"))
+        XCTAssertEqual(PeakDeepLink.parse(URL(string: "peak://session?id=abc")!), .session(id: "abc"))
+        XCTAssertEqual(PeakDeepLink.parse(URL(string: "peak://search?q=foo")!), .search(query: "foo"))
+        XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.search("")), .search(query: ""))
+        XCTAssertNil(PeakDeepLink.parse(URL(string: "peak://session")!))
+    }
+
     func testUnrelatedURLsAreIgnored() {
         XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "peak://stats")!))
         XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "https://new-session")!))
         XCTAssertFalse(PeakDeepLink.isNewSession(URL(string: "peak://")!))
+    }
+
+    func testSnapshotCapturesLastSessionID() {
+        let last = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 16),
+            spot: TestFixture.spot(name: "Ocean Beach"),
+            rating: 5
+        )
+        let earlier = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 10),
+            spot: TestFixture.spot(name: "Trestles"),
+            rating: 3
+        )
+
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: [earlier, last], now: now, calendar: TestCalendar.gmt)
+
+        XCTAssertEqual(snapshot.lastSessionID, SessionIntentQueries.identifier(for: last))
+        XCTAssertNotEqual(snapshot.lastSessionID, SessionIntentQueries.identifier(for: earlier))
+    }
+
+    /// Frequent spots, most-logged first, so a configurable Last Session widget
+    /// has something to pick without the extension querying SwiftData. Tied
+    /// spots sort by name.
+    func testSnapshotBuildsSpotGlancesMostLoggedFirst() {
+        let trestles = TestFixture.spot(name: "Trestles")
+        let malibu = TestFixture.spot(name: "Malibu")
+        let pipeline = TestFixture.spot(name: "Pipeline")
+        let latestTrestles = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 16),
+            spot: trestles,
+            rating: 5
+        )
+        let sessions = [
+            latestTrestles,
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 14), spot: trestles, rating: 4),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 10), spot: trestles, rating: 3),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 12), spot: malibu, rating: 2),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 8), spot: malibu, rating: 1),
+            TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 4), spot: pipeline, rating: 4)
+        ]
+
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: TestCalendar.gmt)
+        let glances = snapshot.spotGlances ?? []
+
+        XCTAssertEqual(glances.map(\.name), ["Trestles", "Malibu", "Pipeline"])
+        XCTAssertEqual(glances.map(\.sessionCount), [3, 2, 1])
+        XCTAssertEqual(glances[0].key, trestles.key)
+        XCTAssertEqual(glances[0].lastSessionID, SessionIntentQueries.identifier(for: latestTrestles))
+        XCTAssertEqual(glances[0].lastSessionDate, latestTrestles.date)
+        XCTAssertEqual(glances[0].lastSessionRating, 5)
     }
 
     func testSnapshotRoundTripsThroughJSON() throws {
@@ -217,7 +303,19 @@ final class WidgetSnapshotTests: XCTestCase {
             lastSessionSpotKey: "trestles",
             lastSessionDate: now,
             lastSessionRating: 4,
+            lastSessionWaveCount: 11,
+            lastSessionID: "preview-session",
             daysSinceLastSession: 0,
+            spotGlances: [
+                PeakSpotGlance(
+                    key: "trestles",
+                    name: "Trestles",
+                    lastSessionID: "preview-session",
+                    lastSessionDate: now,
+                    lastSessionRating: 4,
+                    sessionCount: 12
+                )
+            ],
             generatedAt: now
         )
 
@@ -225,6 +323,8 @@ final class WidgetSnapshotTests: XCTestCase {
         let decoded = try JSONDecoder().decode(PeakWidgetSnapshot.self, from: data)
 
         XCTAssertEqual(decoded, original)
+        XCTAssertEqual(decoded.lastSessionID, "preview-session")
+        XCTAssertEqual(decoded.spotGlances?.first?.key, "trestles")
     }
 
     // MARK: - Wave stats (3.0)
