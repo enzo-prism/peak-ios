@@ -28,6 +28,11 @@ enum SessionIntentQueries {
         spot.key
     }
 
+    /// Gear already carries a unique `kind|normalized-name` key.
+    static func identifier(for gear: Gear) -> String {
+        gear.key
+    }
+
     // MARK: - Lookup
 
     static func sessions(withIdentifiers identifiers: [String], in sessions: [SurfSession]) -> [SurfSession] {
@@ -59,6 +64,45 @@ enum SessionIntentQueries {
         return orderedSpots(matches)
     }
 
+    static func gearItems(withIdentifiers identifiers: [String], in gear: [Gear]) -> [Gear] {
+        let wanted = Set(identifiers)
+        guard !wanted.isEmpty else { return [] }
+        return gear.filter { wanted.contains(identifier(for: $0)) }
+    }
+
+    /// Free-text gear matching for "…on my fish" style phrasing.
+    static func gearItems(matching term: String, in gear: [Gear]) -> [Gear] {
+        guard let cleaned = term.trimmedNonEmpty else { return orderedGear(gear) }
+        let folded = cleaned.searchFolded
+        let matches = gear.filter { item in
+            item.key.contains(cleaned.normalizedKey) ||
+            item.name.searchFolded.contains(folded) ||
+            (item.brand?.searchFolded.contains(folded) ?? false)
+        }
+        return orderedGear(matches)
+    }
+
+    /// Most-used gear first, then alphabetical. Unused items still appear, last.
+    static func frequentGear(
+        from gear: [Gear],
+        sessions: [SurfSession],
+        limit: Int = suggestionLimit
+    ) -> [Gear] {
+        var counts: [String: Int] = [:]
+        for session in sessions {
+            for item in session.gear {
+                counts[item.key, default: 0] += 1
+            }
+        }
+        let ordered = gear.sorted { lhs, rhs in
+            let lhsCount = counts[lhs.key] ?? 0
+            let rhsCount = counts[rhs.key] ?? 0
+            if lhsCount != rhsCount { return lhsCount > rhsCount }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        return Array(ordered.prefix(max(0, limit)))
+    }
+
     /// Most recent first — the order a surfer thinks in.
     static func recentSessions(from sessions: [SurfSession], limit: Int = suggestionLimit) -> [SurfSession] {
         Array(sessions.sorted { $0.date > $1.date }.prefix(max(0, limit)))
@@ -87,6 +131,10 @@ enum SessionIntentQueries {
 
     private static func orderedSpots(_ spots: [Spot]) -> [Spot] {
         spots.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private static func orderedGear(_ gear: [Gear]) -> [Gear] {
+        gear.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     // MARK: - Intent answers

@@ -233,6 +233,10 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.gear("board|fish")), .gear(id: "board|fish"))
         XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.search("trestles")), .search(query: "trestles"))
         XCTAssertEqual(PeakDeepLink.parse(URL(string: "peak://session?id=abc")!), .session(id: "abc"))
+        XCTAssertEqual(
+            PeakDeepLink.parse(URL(string: "peak://session?id=%20abc%20")!),
+            .session(id: "abc")
+        )
         XCTAssertEqual(PeakDeepLink.parse(URL(string: "peak://search?q=foo")!), .search(query: "foo"))
         XCTAssertEqual(PeakDeepLink.parse(PeakDeepLink.search("")), .search(query: ""))
         XCTAssertNil(PeakDeepLink.parse(URL(string: "peak://session")!))

@@ -5,6 +5,19 @@ import WidgetKit
 /// the widget can render without touching the SwiftData store (the store stays
 /// in the app's own container — no risky App Group store migration). The app
 /// recomputes and rewrites this whenever its data changes; the widget only reads.
+/// Per-spot glance the Last Session widget can be configured to show, derived
+/// in the app and stored on the snapshot so the extension never opens SwiftData.
+nonisolated struct PeakSpotGlance: Codable, Equatable, Hashable, Identifiable {
+    var key: String
+    var name: String
+    var lastSessionID: String?
+    var lastSessionDate: Date?
+    var lastSessionRating: Int?
+    var sessionCount: Int
+
+    var id: String { key }
+}
+
 nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
     var currentStreakWeeks: Int
     var totalSessions: Int
@@ -19,7 +32,13 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
     /// sessions carry no wave stats at all, and a widget must never print "0
     /// waves" for a session that simply was not tracked.
     var lastSessionWaveCount: Int?
+    /// Stable session identifier (`SessionIntentQueries.identifier`) so a Last
+    /// Session widget tap can open *that* session, not a blank editor.
+    var lastSessionID: String?
     var daysSinceLastSession: Int?
+    /// Frequent spots, most-logged first, so a configurable widget can pick one
+    /// without the extension querying the store. Capped by the writer.
+    var spotGlances: [PeakSpotGlance]?
     var generatedAt: Date
 
     init(
@@ -31,7 +50,9 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         lastSessionDate: Date? = nil,
         lastSessionRating: Int? = nil,
         lastSessionWaveCount: Int? = nil,
+        lastSessionID: String? = nil,
         daysSinceLastSession: Int? = nil,
+        spotGlances: [PeakSpotGlance]? = nil,
         generatedAt: Date
     ) {
         self.currentStreakWeeks = currentStreakWeeks
@@ -42,7 +63,9 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         self.lastSessionDate = lastSessionDate
         self.lastSessionRating = lastSessionRating
         self.lastSessionWaveCount = lastSessionWaveCount
+        self.lastSessionID = lastSessionID
         self.daysSinceLastSession = daysSinceLastSession
+        self.spotGlances = spotGlances
         self.generatedAt = generatedAt
     }
 
@@ -106,14 +129,94 @@ nonisolated enum PeakWidgetRefresh {
 /// the app. Shared so the writer of the link and the reader of the link can
 /// never drift apart.
 nonisolated enum PeakDeepLink {
+    static let scheme = "peak"
+
     /// Opens Peak straight into the new-session sheet.
     static let newSession = URL(string: "peak://new-session")!
 
+    enum Destination: Equatable {
+        case newSession
+        case session(id: String)
+        case spot(id: String)
+        case gear(id: String)
+        case search(query: String)
+    }
+
     static func isNewSession(_ url: URL) -> Bool {
-        guard url.scheme == newSession.scheme else { return false }
-        // Widgets hand back `peak://new-session` (host), but a link built with a
-        // trailing slash lands the same word in `path` — accept both.
-        return url.host == "new-session" || url.path == "/new-session"
+        parse(url) == .newSession
+    }
+
+    static func session(_ id: String) -> URL {
+        make(host: "session", id: id)
+    }
+
+    static func spot(_ id: String) -> URL {
+        make(host: "spot", id: id)
+    }
+
+    static func gear(_ id: String) -> URL {
+        make(host: "gear", id: id)
+    }
+
+    static func search(_ query: String) -> URL {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = "search"
+        if !query.isEmpty {
+            components.queryItems = [URLQueryItem(name: "q", value: query)]
+        }
+        return components.url ?? URL(string: "peak://search")!
+    }
+
+    static func parse(_ url: URL) -> Destination? {
+        guard url.scheme == scheme else { return nil }
+        let host = (url.host ?? "").lowercased()
+        let pathTrimmed = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let queryID = components?.queryItems?.first(where: { $0.name == "id" })?.value
+        let queryQ = components?.queryItems?.first(where: { $0.name == "q" })?.value
+
+        func entityID() -> String? {
+            if let queryID {
+                let trimmed = queryID.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            }
+            let trimmedPath = pathTrimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedPath.isEmpty {
+                return trimmedPath.removingPercentEncoding ?? trimmedPath
+            }
+            return nil
+        }
+
+        switch host {
+        case "new-session":
+            return .newSession
+        case "session":
+            guard let id = entityID() else { return nil }
+            return .session(id: id)
+        case "spot":
+            guard let id = entityID() else { return nil }
+            return .spot(id: id)
+        case "gear":
+            guard let id = entityID() else { return nil }
+            return .gear(id: id)
+        case "search":
+            return .search(query: queryQ ?? "")
+        case "":
+            // `peak:///new-session` puts the host in the path.
+            if pathTrimmed == "new-session" { return .newSession }
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func make(host: String, id: String) -> URL {
+        var components = URLComponents()
+        components.scheme = scheme
+        components.host = host
+        components.queryItems = [URLQueryItem(name: "id", value: id)]
+        return components.url ?? URL(string: "peak://\(host)")!
     }
 }
 

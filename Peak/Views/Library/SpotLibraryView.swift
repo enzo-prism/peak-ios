@@ -10,6 +10,11 @@ enum SpotSortOption: String, CaseIterable, Identifiable {
 }
 
 struct SpotLibraryView: View {
+    /// True when this view is the iOS 18 Spots tab, so it owns the navigation
+    /// stack / split and the pending Open Spot deep link. False when pushed
+    /// from More, where the parent stack already exists.
+    var isLibraryTab: Bool = false
+
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Spot.name) private var spots: [Spot]
@@ -22,7 +27,7 @@ struct SpotLibraryView: View {
     @State private var openedSpot: PeakEntityRef?
 
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular
+        isLibraryTab && horizontalSizeClass == .regular
     }
 
     var body: some View {
@@ -38,6 +43,15 @@ struct SpotLibraryView: View {
                     } else {
                         ContentUnavailableView("Select a spot", systemImage: "mappin.and.ellipse")
                     }
+                }
+            } else if isLibraryTab {
+                NavigationStack {
+                    spotsRoot
+                        .navigationTitle("Spots")
+                        .toolbar { spotsToolbar }
+                        .navigationDestination(item: $openedSpot) { ref in
+                            spotDetail(for: ref)
+                        }
                 }
             } else {
                 spotsRoot
@@ -164,10 +178,12 @@ struct SpotLibraryView: View {
         spots.first { SessionIntentQueries.identifier(for: $0) == ref.id }
     }
 
-    /// iOS 18's Spots tab is always in the tab shell, so it owns the pending
-    /// id. On iOS 17 the coordinator lands on More and `MoreView` pushes.
+    /// iOS 18's Spots tab owns the pending id. On iOS 17 the coordinator lands
+    /// on More and `MoreView` pushes. A SpotLibraryView pushed from More must
+    /// not steal the pending id from the tab instance.
     private func consumePendingSpotIfNeeded() {
         if #available(iOS 18.0, *) {
+            guard isLibraryTab else { return }
             guard let id = navigation.pendingSpotID else { return }
             _ = navigation.consumePendingSpot()
             openedSpot = PeakEntityRef(id: id)

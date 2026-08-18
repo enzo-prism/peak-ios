@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 import UIKit
+import UserNotifications
 
 @main
 struct PeakApp: App {
@@ -27,6 +28,10 @@ struct PeakApp: App {
         // this container rather than opening a second one.
         PeakIntentStore.register(container)
         PeakTips.configure()
+
+        if !isUITest {
+            UNUserNotificationCenter.current().delegate = PeakNotificationDelegate.shared
+        }
 
         if isUITest {
             // A UI-test run must never inherit an in-progress or ended-but-

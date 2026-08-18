@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import SwiftUI
 
 /// Read-only intents that answer questions about the logbook, plus the app's
 /// shortcut phrases. These run in the app process (they need SwiftData), so
@@ -17,13 +18,43 @@ struct LastSessionIntent: AppIntent {
     static let openAppWhenRun = false
 
     @MainActor
-    func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<SurfSessionEntity?> {
+    func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<SurfSessionEntity?> & ShowsSnippetView {
         let session = SessionIntentQueries.lastSession(in: PeakIntentStore.sessions())
         let dialog = SessionIntentQueries.lastSessionDialog(for: session)
+        let entity = session.map(SurfSessionEntity.init(session:))
         return .result(
-            value: session.map(SurfSessionEntity.init(session:)),
-            dialog: IntentDialog(stringLiteral: dialog)
+            value: entity,
+            dialog: IntentDialog(stringLiteral: dialog),
+            view: LastSessionSnippetView(entity: entity)
         )
+    }
+}
+
+/// Compact result shown with "When did I last surf?" so the surfer can tap
+/// through to the session instead of only hearing a sentence.
+private struct LastSessionSnippetView: View {
+    let entity: SurfSessionEntity?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entity?.spotName ?? "No sessions yet")
+                .font(.headline)
+            if let entity {
+                Text(SurfSessionEntity.subtitle(
+                    date: entity.date,
+                    rating: entity.rating,
+                    durationMinutes: entity.durationMinutes
+                ))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            } else {
+                Text("Log a surf to see it here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
     }
 }
 
@@ -97,6 +128,16 @@ struct PeakAppShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Sessions This Month",
             systemImageName: "chart.bar.xaxis"
+        )
+        AppShortcut(
+            intent: SearchPeakIntent(),
+            phrases: [
+                "Search \(.applicationName)",
+                "Find a session in \(.applicationName)",
+                "Search my surfs in \(.applicationName)"
+            ],
+            shortTitle: "Search Peak",
+            systemImageName: "magnifyingglass"
         )
     }
 }

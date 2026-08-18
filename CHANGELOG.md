@@ -12,6 +12,47 @@ Status at a glance:
 - **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds.
 - **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything on `main` through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
+## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
+
+Five Apple-platform improvements, no schema change, local-only. HealthKit
+background delivery and Watch-surf notifications stay behind existing / new
+opt-in toggles. GPS from a Health route is never persisted.
+
+### Added
+
+- **Spotlight / Siri completeness.** Sessions, spots, and gear are `IndexedEntity`
+  types donated to a named on-device index (`PeakLogbook`). `OpenSessionIntent`,
+  `OpenSpotIntent`, and `OpenGearIntent` (`OpenIntent`, iOS 18) open the matching
+  detail. On-screen `NSUserActivity` carries `appEntityIdentifier`. "When did I
+  last surf?" returns a tappable snippet. `SearchPeakIntent` is an App Shortcut.
+  (`Peak/Supporting/AppIntentsEntities.swift`, `SpotlightIndexer.swift`,
+  `SessionIntentQueries.swift`)
+- **iPad-class navigation.** iOS 18 uses the `Tab` API with
+  `.tabViewStyle(.sidebarAdaptable)`, a `TabRole.search` tab, and a Library
+  sidebar (Spots / Buddies hidden from the compact tab bar). History, Quiver, and
+  Spots use `NavigationSplitView` on regular width. iOS 17 keeps the five-tab
+  phone shell. (`Peak/ContentView.swift`, `PeakNavigationCoordinator.swift`,
+  History / Quiver / Spot library views)
+- **Unlogged Watch surf on Log.** When Apple Health sync is on, the Log tab
+  surfaces the latest unlogged surfing workout with one-tap import (spot guessed
+  only from a nearby pin, never fabricated). An `HKObserverQuery` plus HealthKit
+  background delivery refreshes the card. A second Settings toggle (off by
+  default) posts one local notification per workout UUID, with a Log action that
+  opens the Log tab; no banner while Peak is in the foreground.
+  (`UnloggedWorkoutCard.swift`, `HealthKitService.swift`, `SpotProximity.swift`)
+- **Session route map.** Session detail shows a transient MapKit overlay from
+  the linked HealthKit workout UUID (full track + wave-segment polylines).
+  Coordinates live only in memory. (`SessionRouteMapView.swift`)
+
+### Changed
+
+- **Last Session widget does work.** Tapping opens that session
+  (`peak://session?id=`), not a blank editor. Empty state still uses
+  `peak://new-session`. Medium and extra-large include Start Session.
+  Configurable spot comes from snapshot glances so the extension never opens
+  SwiftData. Adds `.systemExtraLarge`. (`PeakWidgets/LastSessionWidget.swift`,
+  `Peak/WidgetSnapshot.swift`)
+
 ## [Unreleased] — Audit fixes round 2: intents, widgets, restore integrity, HIG
 
 A second HIG + engineering audit pass (Apple HIG / framework docs cross-referenced

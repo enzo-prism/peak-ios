@@ -11,7 +11,6 @@ struct UnloggedWorkoutCard: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Spot.name) private var spots: [Spot]
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
-    @AppStorage(HealthKitService.notifyUnloggedWorkoutsKey) private var notifyUnlogged = false
 
     @State private var workout: HealthKitLogic.WorkoutSummary?
     @State private var isLogging = false
@@ -109,32 +108,16 @@ struct UnloggedWorkoutCard: View {
             let latest = workouts.first
             workout = latest
             if let latest {
-                await maybeNotify(latest)
+                await UnloggedSurfNotification.postIfNeeded(
+                    workout: latest,
+                    spots: spots,
+                    scenePhase: scenePhase
+                )
             }
         } catch {
             guard !Task.isCancelled else { return }
             workout = nil
         }
-    }
-
-    /// Posts at most one local notification per workout UUID, and only while
-    /// Peak is backgrounded with the opt-in toggle on. Never under UI tests.
-    private func maybeNotify(_ workout: HealthKitLogic.WorkoutSummary) async {
-        guard notifyUnlogged,
-              scenePhase == .background,
-              !TestingDefaults.isUITest else { return }
-        let id = workout.id.uuidString
-        guard UserDefaults.standard.string(forKey: UnloggedSurfNotification.lastNotifiedWorkoutIDKey) != id else {
-            return
-        }
-        UserDefaults.standard.set(id, forKey: UnloggedSurfNotification.lastNotifiedWorkoutIDKey)
-
-        var spotName: String?
-        if spots.contains(where: { $0.latitude != nil && $0.longitude != nil }) {
-            let samples = await HealthKitService.shared.routeSamples(forWorkoutID: workout.id)
-            spotName = SpotProximity.nearest(to: samples.first, in: spots)?.name
-        }
-        UnloggedSurfNotification.post(workout: workout, spotName: spotName)
     }
 
     private func log(_ workout: HealthKitLogic.WorkoutSummary) async {
@@ -183,6 +166,53 @@ enum UnloggedSurfNotification {
         registerCategory()
     }
 
+    /// Used when HealthKit wakes Peak in the background — the Log-tab card may
+    /// not be on screen yet, so ContentView calls this after the observer fires.
+    @MainActor
+    static func considerPosting(
+        sessions: [SurfSession],
+        spots: [Spot],
+        scenePhase: ScenePhase
+    ) async {
+        guard shouldPost(scenePhase: scenePhase) else { return }
+        let workouts: [HealthKitLogic.WorkoutSummary]
+        do {
+            workouts = try await HealthKitService.shared.fetchUnloggedSurfWorkouts(
+                existingSessions: sessions
+            )
+        } catch {
+            return
+        }
+        guard let workout = workouts.first else { return }
+        await postIfNeeded(workout: workout, spots: spots, scenePhase: scenePhase)
+    }
+
+    @MainActor
+    static func postIfNeeded(
+        workout: HealthKitLogic.WorkoutSummary,
+        spots: [Spot],
+        scenePhase: ScenePhase
+    ) async {
+        guard shouldPost(scenePhase: scenePhase) else { return }
+        let id = workout.id.uuidString
+        guard UserDefaults.standard.string(forKey: lastNotifiedWorkoutIDKey) != id else { return }
+        UserDefaults.standard.set(id, forKey: lastNotifiedWorkoutIDKey)
+
+        var spotName: String?
+        if spots.contains(where: { $0.latitude != nil && $0.longitude != nil }) {
+            let samples = await HealthKitService.shared.routeSamples(forWorkoutID: workout.id)
+            spotName = SpotProximity.nearest(to: samples.first, in: spots)?.name
+        }
+        post(workout: workout, spotName: spotName)
+    }
+
+    private static func shouldPost(scenePhase: ScenePhase) -> Bool {
+        UserDefaults.standard.bool(forKey: HealthKitService.notifyUnloggedWorkoutsKey)
+            && UserDefaults.standard.bool(forKey: HealthKitService.healthSyncEnabledKey)
+            && scenePhase == .background
+            && !TestingDefaults.isUITest
+    }
+
     static func post(workout: HealthKitLogic.WorkoutSummary, spotName: String?) {
         guard !TestingDefaults.isUITest else { return }
         registerCategory()
@@ -202,5 +232,30 @@ enum UnloggedSurfNotification {
             trigger: nil
         )
         UNUserNotificationCenter.current().add(request)
+    }
+}
+
+/// Tapping the notification (or its Log action) opens Peak on the Log tab,
+/// where the unlogged-workout card is the in-app surface. Banners are suppressed
+/// while Peak is foregrounded — the card is already visible then.
+final class PeakNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = PeakNotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        []
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let category = response.notification.request.content.categoryIdentifier
+        guard category == UnloggedSurfNotification.categoryIdentifier else { return }
+        await MainActor.run {
+            PeakNavigationCoordinator.shared.selectedTab = .log
+        }
     }
 }

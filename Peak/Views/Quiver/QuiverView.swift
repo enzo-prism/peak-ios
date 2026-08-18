@@ -48,14 +48,16 @@ struct QuiverView: View {
                     }
                 }
             } else {
-                quiverRoot
-                    .navigationTitle("Quiver")
-                    .toolbar { quiverToolbar }
-                    .searchable(text: $searchText, prompt: "Search gear")
-                    .searchMinimizeBehavior()
-                    .navigationDestination(item: $openedGear) { ref in
-                        gearDetail(for: ref)
-                    }
+                NavigationStack {
+                    quiverRoot
+                        .navigationTitle("Quiver")
+                        .toolbar { quiverToolbar }
+                        .searchable(text: $searchText, prompt: "Search gear")
+                        .searchMinimizeBehavior()
+                        .navigationDestination(item: $openedGear) { ref in
+                            gearDetail(for: ref)
+                        }
+                }
             }
         }
         .sheet(isPresented: $showEditor) {

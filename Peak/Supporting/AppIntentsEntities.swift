@@ -1,6 +1,8 @@
 import AppIntents
+import CoreSpotlight
 import Foundation
 import SwiftData
+import UniformTypeIdentifiers
 
 /// Gives App Intents a way into the SwiftData store. Intents can run while the
 /// app is already up (Action button, Control Center, in-app shortcut) or cold
@@ -39,6 +41,10 @@ enum PeakIntentStore {
 
     static func spots() -> [Spot] {
         fetch(FetchDescriptor<Spot>(sortBy: [SortDescriptor(\.name)]))
+    }
+
+    static func gear() -> [Gear] {
+        fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)]))
     }
 
     private static func fetch<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> [T] {
@@ -95,6 +101,19 @@ struct SurfSessionEntity: AppEntity {
     }
 }
 
+@available(iOS 18.0, *)
+extension SurfSessionEntity: IndexedEntity {
+    var attributeSet: CSSearchableItemAttributeSet {
+        let attributes = CSSearchableItemAttributeSet(contentType: UTType.item)
+        attributes.title = spotName ?? "Surf session"
+        attributes.contentDescription = Self.subtitle(date: date, rating: rating, durationMinutes: durationMinutes)
+        attributes.startDate = date
+        attributes.namedLocation = spotName
+        attributes.keywords = ["surf", "session", spotName].compactMap { $0 }
+        return attributes
+    }
+}
+
 struct SurfSessionEntityQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [SurfSessionEntity] {
         await MainActor.run {
@@ -146,6 +165,18 @@ struct SpotEntity: AppEntity {
     }
 }
 
+@available(iOS 18.0, *)
+extension SpotEntity: IndexedEntity {
+    var attributeSet: CSSearchableItemAttributeSet {
+        let attributes = CSSearchableItemAttributeSet(contentType: UTType.item)
+        attributes.title = name
+        attributes.namedLocation = locationName ?? name
+        attributes.keywords = ["surf", "spot", name, locationName].compactMap { $0 }
+        attributes.supportsNavigation = true
+        return attributes
+    }
+}
+
 /// `EntityStringQuery` so phrasing like "…at Ocean Beach" resolves by name and
 /// not just by a picker selection.
 struct SpotEntityQuery: EntityStringQuery {
@@ -171,5 +202,136 @@ struct SpotEntityQuery: EntityStringQuery {
                 .frequentSpots(from: PeakIntentStore.spots(), sessions: PeakIntentStore.sessions())
                 .map(SpotEntity.init(spot:))
         }
+    }
+}
+
+// MARK: - Gear
+
+/// A quiver item. Backed by `Gear.key` (`kind|normalized-name`), which is unique.
+struct GearEntity: AppEntity {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(
+        name: "Gear",
+        numericFormat: "\(placeholder: .int) pieces of gear"
+    )
+    static let defaultQuery = GearEntityQuery()
+
+    let id: String
+    let name: String
+    let kindLabel: String
+
+    init(gear: Gear) {
+        self.id = SessionIntentQueries.identifier(for: gear)
+        self.name = gear.name
+        self.kindLabel = gear.kind.label
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        DisplayRepresentation(
+            title: "\(name)",
+            subtitle: "\(kindLabel)",
+            image: .init(systemName: "surfboard")
+        )
+    }
+}
+
+@available(iOS 18.0, *)
+extension GearEntity: IndexedEntity {
+    var attributeSet: CSSearchableItemAttributeSet {
+        let attributes = CSSearchableItemAttributeSet(contentType: UTType.item)
+        attributes.title = name
+        attributes.contentDescription = kindLabel
+        attributes.keywords = ["surf", "gear", name, kindLabel]
+        return attributes
+    }
+}
+
+struct GearEntityQuery: EntityStringQuery {
+    func entities(for identifiers: [String]) async throws -> [GearEntity] {
+        await MainActor.run {
+            SessionIntentQueries
+                .gearItems(withIdentifiers: identifiers, in: PeakIntentStore.gear())
+                .map(GearEntity.init(gear:))
+        }
+    }
+
+    func entities(matching string: String) async throws -> [GearEntity] {
+        await MainActor.run {
+            SessionIntentQueries
+                .gearItems(matching: string, in: PeakIntentStore.gear())
+                .map(GearEntity.init(gear:))
+        }
+    }
+
+    func suggestedEntities() async throws -> [GearEntity] {
+        await MainActor.run {
+            SessionIntentQueries
+                .frequentGear(from: PeakIntentStore.gear(), sessions: PeakIntentStore.sessions())
+                .map(GearEntity.init(gear:))
+        }
+    }
+}
+
+// MARK: - Open from Spotlight / Siri
+
+@available(iOS 18.0, *)
+struct OpenSessionIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Surf Session"
+    static let description = IntentDescription("Opens a logged surf session in Peak.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Session")
+    var target: SurfSessionEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        PeakNavigationCoordinator.shared.handle(.session(id: target.id))
+        return .result()
+    }
+}
+
+@available(iOS 18.0, *)
+struct OpenSpotIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Surf Spot"
+    static let description = IntentDescription("Opens a saved surf break in Peak.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Spot")
+    var target: SpotEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        PeakNavigationCoordinator.shared.handle(.spot(id: target.id))
+        return .result()
+    }
+}
+
+@available(iOS 18.0, *)
+struct OpenGearIntent: OpenIntent {
+    static let title: LocalizedStringResource = "Open Gear"
+    static let description = IntentDescription("Opens a quiver item in Peak.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Gear")
+    var target: GearEntity
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        PeakNavigationCoordinator.shared.handle(.gear(id: target.id))
+        return .result()
+    }
+}
+
+struct SearchPeakIntent: AppIntent {
+    static let title: LocalizedStringResource = "Search Peak"
+    static let description = IntentDescription("Searches logged sessions in Peak.")
+    static let openAppWhenRun = true
+
+    @Parameter(title: "Search")
+    var query: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        PeakNavigationCoordinator.shared.handle(.search(query: query))
+        return .result()
     }
 }

@@ -85,6 +85,34 @@ enum HealthKitLogic {
             durationMinutes: SurfSession.normalizedDuration(rawMinutes)
         )
     }
+
+    /// Builds the Peak session an import should insert. Does not write back to
+    /// Health — the workout already exists there (Watch / Workout app).
+    static func importedSession(
+        workout: WorkoutSummary,
+        stats: WaveStats?,
+        spot: Spot?
+    ) -> SurfSession {
+        let draft = draftValues(workoutStart: workout.start, workoutEnd: workout.end)
+        let session = SurfSession(
+            date: draft.date,
+            spot: spot,
+            durationMinutes: draft.durationMinutes,
+            notes: "Imported from Apple Health"
+        )
+        if let stats {
+            session.applyDerivedWaveStats(stats, workoutID: workout.id.uuidString)
+        } else {
+            session.linkedWorkoutID = workout.id.uuidString
+        }
+        return session
+    }
+}
+
+extension Notification.Name {
+    /// Posted when HealthKit reports a new or deleted workout. The Log-tab
+    /// unlogged-workout card refreshes; it is not a user-visible notification.
+    static let peakUnloggedWorkoutsMayHaveChanged = Notification.Name("peakUnloggedWorkoutsMayHaveChanged")
 }
 
 // MARK: - Fetched stats
@@ -165,11 +193,17 @@ final class HealthKitService {
     /// AppStorage/UserDefaults key for the Settings toggle.
     static let healthSyncEnabledKey = "healthSyncEnabled"
 
+    /// Opt-in: post a system notification when a Watch surf is ready to log.
+    /// Off by default; never requested until the surfer flips this toggle.
+    static let notifyUnloggedWorkoutsKey = "notifyUnloggedSurfWorkouts"
+
     static var isHealthDataAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
     }
 
     private let healthStore = HKHealthStore()
+    private var workoutObserver: HKObserverQuery?
+    nonisolated(unsafe) private var didEnableBackgroundDelivery = false
 
     private init() {}
 
@@ -214,6 +248,55 @@ final class HealthKitService {
             HKSeriesType.workoutRoute()
         ]
         try await healthStore.requestAuthorization(toShare: share, read: read)
+        startObservingUnloggedWorkouts()
+    }
+
+    // MARK: Unlogged-workout observer
+
+    /// Long-running observer so the Log-tab card (and optional notification)
+    /// notice a Watch surf without the surfer opening Import from Health.
+    /// Quiet no-op when Health sync is off, unavailable, or under UI tests.
+    func startObservingUnloggedWorkouts() {
+        guard canRead, !TestingDefaults.isUITest else {
+            stopObservingUnloggedWorkouts()
+            return
+        }
+        guard workoutObserver == nil else { return }
+
+        let predicate = HKQuery.predicateForWorkouts(with: .surfingSports)
+        let query = HKObserverQuery(
+            sampleType: HKObjectType.workoutType(),
+            predicate: predicate
+        ) { _, completionHandler, error in
+            completionHandler()
+            guard error == nil else { return }
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .peakUnloggedWorkoutsMayHaveChanged, object: nil)
+            }
+        }
+        workoutObserver = query
+        healthStore.execute(query)
+
+        guard !didEnableBackgroundDelivery else { return }
+        healthStore.enableBackgroundDelivery(
+            for: HKObjectType.workoutType(),
+            frequency: .hourly
+        ) { [weak self] success, _ in
+            if success {
+                self?.didEnableBackgroundDelivery = true
+            }
+        }
+    }
+
+    func stopObservingUnloggedWorkouts() {
+        if let workoutObserver {
+            healthStore.stop(workoutObserver)
+            self.workoutObserver = nil
+        }
+        guard didEnableBackgroundDelivery else { return }
+        healthStore.disableBackgroundDelivery(for: HKObjectType.workoutType()) { [weak self] _, _ in
+            self?.didEnableBackgroundDelivery = false
+        }
     }
 
     // MARK: Write hooks (fire-and-forget, safe as one-line call sites)

@@ -38,7 +38,7 @@ struct SessionRouteMapView: View {
                         .stroke(Theme.surfGreen, lineWidth: 4)
                 }
             }
-            .mapStyle(.standard(elevation: .flat, emphasis: .muted))
+            .mapStyle(.standard(elevation: .flat))
             .frame(height: 220)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
