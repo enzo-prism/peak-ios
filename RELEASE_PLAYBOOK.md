@@ -1,20 +1,37 @@
 # Peak iOS Release Playbook
 
-## Current state (as of July 29, 2026)
+## Current state (as of August 18, 2026)
 - App: `peak.surf` (`com.designprism.peak`)
 - App ID: `6757644027` · Team: `L49MKXGVM4`
-- **App Store (live):** `2.0` (`READY_FOR_SALE`, since June 11, 2026)
-- **TestFlight (beta):** `3.2` — build 1, uploaded 2026-07-29, `VALID`,
+- **App Store (live):** `2.6`
+- **App Store (in review):** `3.2` build **1** (submitted 2026-07-29,
+  `WAITING_FOR_REVIEW`, phased release armed). First public 3.x since 2.6.
+  There is **no `prod` git branch** — production is this App Store train.
+- **`main` (unreleased):** 3.3 system integration (Spotlight, iPad navigation,
+  Health loop, widgets, route map). Does **not** replace the in-review 3.2
+  binary. `MARKETING_VERSION` stays **`3.2`** until a Mac cuts the next store
+  train. Cursor Cloud is Linux — do not archive or `asc builds upload` from it.
+- **TestFlight:** `3.2` — build 1, uploaded 2026-07-29, `VALID`,
   encryption-exempt. Cut from `main` at the audit-round-2 commit; carries every
   formerly-unshipped train (`2.7`–`3.0`, `3.2`) plus both audit-fix rounds.
-  Previous: `3.0` builds 2–3 (2026-07-21, cut off-machine), `2.6` builds 1–2.
-- Versions `2.1`+ have shipped to **TestFlight only**; the public App Store
-  listing is still `2.0`. See `CHANGELOG.md` for what each build contains.
+  Previous: `3.0` builds 2–3 (2026-07-21), `2.6` builds 1–2.
 - `MARKETING_VERSION` in `project.pbxproj` is **`3.2`**, `CURRENT_PROJECT_VERSION`
   **1**, aligned across app and widget targets; Release configs use **manual
   signing** (see the resolved-blocker note below).
-- **Suite baseline on `main`: 510 unit tests, 54 UI tests** (8 iPad UI failures
+- **Suite baseline on `main`:** 525 unit tests, 54 UI tests (8 iPad UI failures
   are pre-existing — see AGENTS.md).
+
+> ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
+> was created in the Developer portal and associated with both
+> `com.designprism.peak` and `com.designprism.peak.PeakWidgets`. The `3.2` build 1
+> archive was cut the same day with **manual signing** — App Store distribution
+> profiles "Peak App Store 3.2" / "Peak Widgets App Store 3.2" (created via
+> `asc profiles create`, cert `9M47KCWLU8`), wired into the Release build configs
+> as `PROVISIONING_PROFILE_SPECIFIER`. Note: on this Mac, Xcode has no Apple ID
+> and `xcodebuild -allowProvisioningUpdates` rejects the API key, so manual
+> profiles are the working path; the export options for manual signing live at
+> `.asc/artifacts/ExportOptions-3.2-1.plist` (gitignored — recreate per build).
+> The section below is kept for history.
 
 > ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
 > was created in the Developer portal and associated with both
@@ -37,11 +54,15 @@
 >   testing to validate the `WaveAnalyzer` constants. Do not list watchOS support in
 >   any release note, App Store metadata, or screenshot set.
 
-## App Group registration (blocks widgets, Live Activity, and every 2.7+ archive)
+## App Group registration (historical — resolved 2026-07-29)
+
+> **Done.** `group.com.designprism.peak` exists in the Developer portal and is
+> associated with both bundle IDs. The notes below are kept so nobody re-learns
+> that the App Store Connect API cannot create App Groups.
 
 `group.com.designprism.peak` is declared in both entitlements files
-(`Peak/Peak.entitlements`, `PeakWidgets/PeakWidgets.entitlements`) but is **still
-unregistered in the Developer portal**. Until it exists:
+(`Peak/Peak.entitlements`, `PeakWidgets/PeakWidgets.entitlements`). Before it
+existed in the portal:
 
 - simulator builds and the full test suite are fine (code signing is disabled there);
 - **any device build or `asc xcode archive` of `Peak` or `PeakWidgets` fails to sign.**
@@ -56,6 +77,12 @@ What remains, and it is human-only:
 - **The App Store Connect API cannot create App Groups.** Neither `asc` nor
   `-allowProvisioningUpdates` can do this — it is portal UI or the Xcode
   Signing & Capabilities GUI, nothing else. Do not spend time scripting around it.
+
+## Historical snapshot (as of July 15, 2026 — superseded)
+The August 18 current-state block at the top of this file is the live picture.
+The July 15 snapshot below is kept for the 2.6 submit commands that still work
+as examples (swap version numbers).
+
 ## Current state (as of July 15, 2026)
 - App: `peak.surf` (`com.designprism.peak`)
 - App ID: `6757644027` · Team: `L49MKXGVM4`
@@ -155,8 +182,9 @@ When taking a train from TestFlight to the public listing:
 - `./scripts/test.sh` green (or the targeted UI tests for the touched surface),
   **run one at a time** — the simulator is a shared resource and concurrent
   `xcodebuild` runs produce false passes and false failures. See `AGENTS.md`.
-- Test counts reconciled against the baseline (434 unit / 51 UI). A smaller count
-  with no failures means a stale test runner, not a green suite.
+- Test counts reconciled against the baseline (525 unit / 54 UI on `main` after
+  the 3.3 system-integration train). A smaller count with no failures means a
+  stale test runner, not a green suite.
 - `./scripts/design-check.sh` for any UI change.
 - For `2.7`+: App Group registered, or the archive will not sign.
 - `MARKETING_VERSION` bumped in **both** build configs, app and widget target aligned.

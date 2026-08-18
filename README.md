@@ -5,49 +5,37 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 ## Current state
 
 - **App Store (live):** `2.6`
-- **TestFlight (next build):** `3.0` (build 1) — carries five releases at once:
-  `2.7` (widgets, App Intents, Live Activity), `2.8` (tide + Best Window Today),
-  `2.9` (quiver analytics, memory layer, first run), `3.0` (wave stats from
-  HealthKit routes) and `3.2` (on-device insights). `CHANGELOG.md` has the
-  per-release detail.
+- **App Store (in review):** `3.2` build **1** (submitted 2026-07-29) — first public
+  release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds.
+- **`main` (unreleased):** 3.3 system integration on top of 3.2 — Spotlight/`OpenIntent`,
+  iPad sidebar + split navigation, unlogged Watch-surf Log card, Last Session
+  widget deep links, session route map. No schema change. See `CHANGELOG.md`.
+  Does not replace the in-review 3.2 App Store binary.
 - **Not merged, not shipped:** the `3.1` watchOS companion lives on
   `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
   it has never recorded a real surf; it stays off `main` until it passes real-device
   ocean testing.
-- **Test baseline on `main`:** 510 unit, 54 UI (iPhone; 8 of the 54 currently fail on the iPad leg of `design-check.sh` — pre-existing breakage, see AGENTS.md).
-- **Known blocker:** the App Group `group.com.designprism.peak` is still
-  unregistered in the Developer portal. The `APP_GROUPS` capability is enabled on
-  both bundle IDs, but the group identifier itself can only be created in the
-  portal or Xcode GUI — the App Store Connect API cannot. Until it exists, a device
-  build or archive containing the widget/Live Activity targets will fail to sign.
-  See `RELEASE_PLAYBOOK.md`.
+- **Test baseline on `main`:** 525 unit, 54 UI (iPhone; 8 of the 54 currently fail on the iPad leg of `design-check.sh` — pre-existing breakage, see AGENTS.md).
+- **App Group** `group.com.designprism.peak` is registered (2026-07-29). Device
+  archives use manual signing — see `RELEASE_PLAYBOOK.md`.
 
 ## Product scope
-- Offline-first, on-device storage only
-- No accounts, social features, or analytics
-- Quick session logging (date + spot required)
-- Optional wind, wave height, and tide conditions
-- Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
-- Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
-- Photo and video attachments per session
-- History timeline with filters (spot, gear, buddy) and search
-- Stats: totals, top spots, most-used gear, streaks, consistency heatmap, personal records
-- Spot library with optional pinned locations (a pin unlocks maps + conditions auto-fill; name-only spots are fine)
-- Home/Lock Screen widgets, Siri/Shortcuts intents, Control Center control, and a Live Activity session timer
-- Wave stats (count, top speed, longest ride, paddle distance) estimated from Apple Watch workout routes — always editable
-- Board Report, On This Day, Year in Review, and opt-in monthly goals
-- Optional on-device narrative insights (Apple Intelligence devices only), where every figure is still computed by Peak
-- JSON + CSV export, JSON import (merge or replace), full `.peakbackup` archive including media
-- No accounts or social features
+- Offline-first, on-device storage only — no accounts, social features, or analytics
 - Quick session logging (date + spot required; location/pin optional)
-- Optional wind and wave height conditions
+- Optional wind, wave height, and tide conditions
 - Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
 - Quick-start session scaffolding in New Session (use last session setup, recent spots, and recent gear)
 - Photo and video attachments per session
 - History timeline with search + filters (spot, gear, buddy, rating, date range)
 - Stats 2.0 (time in water, streaks, heatmap, monthly bars, spot mix, conditions insights)
 - Spot library + map of pinned breaks (name-only spots are fine)
-- Optional Apple Health (save surfing workouts; import Watch HR/calories) — iPhone, opt-in
+- Home/Lock Screen widgets, Siri/Shortcuts intents, Control Center control, and a Live Activity session timer
+- Wave stats (count, top speed, longest ride, paddle distance) estimated from Apple Watch workout routes — always editable
+- Board Report, On This Day, Year in Review, and opt-in monthly goals
+- Optional on-device narrative insights (Apple Intelligence devices only), where every figure is still computed by Peak
+- Optional Apple Health (save surfing workouts; import Watch HR/calories/routes; Log-tab card for an unlogged Watch surf; optional local notify) — iPhone, opt-in
+- Session GPS overlay on detail (transient HealthKit route; coordinates never stored)
+- iPad sidebar + split views (iOS 18); Spotlight search for sessions, spots, and gear
 - JSON + CSV export; full `.peakbackup` with media; JSON/backup restore (merge or replace)
 - Session share card
 
@@ -55,7 +43,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - Requires a session start time, duration, and a surf break with a pinned location.
 - Pulls marine + wind data from Open-Meteo, averages across the session window, and stores the source + fetch time.
 - Also records tide: `sea_level_height_msl` relative to mean sea level plus a rising / high / falling / low trend, read from the hourly curve either side of the session.
-- For US spots with a NOAA gauge nearby, `TideService` adds station-accurate CO-OPS high/low predictions (free, no key). Spots outside US coverage silently keep the Open-Meteo curve — that is not an error.
+- `TideService` (NOAA CO-OPS, US stations) is built and unit-tested but **not yet wired** into auto-fill. Every tide reading on screen today is the Open-Meteo modelled curve. Wiring the station layer is open work — see `ARCHITECTURE.md`.
 - Never runs automatically; it only fires when the user taps **Auto-fill Conditions**.
 
 ## Best Window Today
@@ -78,15 +66,16 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - No network call was added. Inference is on-device.
 
 ## Widgets, Siri & Live Activity
-- **Widgets**: *Surf Streak* and *Last Session*, small/medium plus accessory families, both deep-linking to a new session via `peak://new-session`.
+- **Widgets**: *Surf Streak* (opens a new session) and *Last Session* (opens **that** session via `peak://session?id=`; empty state still uses `peak://new-session`). Last Session supports small/medium/extra-large plus accessory, a configurable spot from snapshot glances, and Start Session on medium and extra-large.
 - Widgets never open the SwiftData store. The app derives a small `PeakWidgetSnapshot` and publishes it to the shared App Group container.
-- **App Intents**: `SurfSessionEntity` and `SpotEntity` put the logbook in the Spotlight semantic index; Log / Start / End / Last Session / Sessions This Month ship with Siri phrases.
+- **App Intents**: `SurfSessionEntity`, `SpotEntity`, and `GearEntity` are donated to an on-device Spotlight index (`PeakLogbook`). Log / Start / End / Last Session / Sessions This Month / Search ship with Siri phrases; iOS 18 `OpenIntent`s open the matching detail.
 - **Live Activity**: a session timer on the Lock Screen and in the Dynamic Island, drawn with `Text(timerInterval:)` so Peak sends no push updates and holds no push token.
 - The in-progress session lives in App-Group `UserDefaults`, **not** SwiftData.
 
 ## Architecture overview
-- **UI**: SwiftUI tabs (`Log`, `History`, `Stats`, `Quiver`, `More`) with shared glass styling in `Peak/Supporting/Theme.swift`.
+- **UI**: SwiftUI tabs (`Log`, `History`, `Stats`, `Quiver`, `More`) with shared glass styling in `Peak/Supporting/Theme.swift`. iOS 18 adds a Search tab and a Library sidebar (Spots / Buddies) via `.sidebarAdaptable` on regular width.
 - **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage, currently at schema **V10**.
+- **Navigation**: `PeakNavigationCoordinator` routes widget, Spotlight, and Siri opens (`peak://session`, `spot`, `gear`, `search`, `new-session`).
 - **Editing**: `SessionDraft` stages changes before saving to a `SurfSession`.
 - **Media**: Photos stored inline; videos stored in `Application Support/SessionMedia` and referenced by filename.
 - **Conditions**: `SurfConditionsService` calls Open-Meteo marine + weather endpoints when auto-fill is tapped; `TideService` adds optional NOAA CO-OPS precision for US spots.
@@ -109,7 +98,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 - See `ARCHITECTURE.md` for a full overview of the app structure, data model, and key flows.
 
 ## Platform decisions
-- Minimum iOS: 17.0 (SwiftData) — unchanged by every release through 3.2
+- Platform: Minimum iOS: 17.0 (SwiftData) — unchanged by every release through 3.3
 - Data store: SwiftData (local only), schema V10
 - UI: SwiftUI
 - Targets: `Peak` (app), `PeakWidgets` (widget extension: widgets, Control Center control, Live Activity), `PeakTests`, `PeakUITests`
@@ -176,7 +165,7 @@ Optional overrides:
 
 ## Testing
 
-Current suite on `main`: **510 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
+Current suite on `main`: **525 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See
@@ -201,7 +190,7 @@ Current suite on `main`: **510 unit tests** (`PeakTests`) and **54 UI tests** (`
 - Support contact: `SUPPORT.md`
 - Data stays on-device; no accounts or analytics. Optional Open-Meteo and NOAA CO-OPS requests are made only when you use Auto-fill Conditions or Best Window Today.
 - On-device insight generation adds no network call; inference runs on the phone.
-- HealthKit reads (workouts and workout routes) are behind the `healthSyncEnabled` opt-in and are a quiet no-op when it is off.
+- HealthKit reads (workouts and workout routes) are behind the `healthSyncEnabled` opt-in and are a quiet no-op when it is off. Optional Watch-surf notifications are a second toggle, off by default. Spotlight indexing is on-device.
 
 ## Acceptance criteria
 - Users can log a session in under 60 seconds

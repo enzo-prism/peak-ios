@@ -1,0 +1,22 @@
+Peak 3.3 is a system-integration release on top of 3.2. Private by default. No accounts.
+
+Find your sessions from Search
+• Sessions, spots, and gear appear in Spotlight on iOS 18
+• Open a session, break, or board from Siri or Search
+• Ask “When did I last surf?” and jump straight to that session
+
+iPad
+• A sidebar on iPad with Search, plus Spots and Buddies in the Library
+• History, Quiver, and Spots use a split view on a wide screen
+
+Apple Health, one tap from Log
+• When Health sync is on, the Log tab offers the latest unlogged Apple Watch surf
+• Optional local notification when a Watch surf is ready to log (off by default)
+• Session detail can show a map of that workout’s GPS route. Coordinates are never saved.
+
+Widgets that go where you expect
+• Last Session opens that session, not a blank log
+• Start Session on the medium and extra-large Last Session widgets
+• Extra-large Last Session, and a configurable spot, from the snapshot Peak already publishes
+
+Wave stats stay estimates, and your edits still win. Nothing leaves the device.

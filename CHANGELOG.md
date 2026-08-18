@@ -7,10 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Status at a glance:
 
-- **App Store (live):** `2.4`
-- **App Store (pending review):** `2.6` — Stats 2.0, Apple Health, full backup, History search, spots map, HIG polish
-- **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds.
-- **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything on `main` through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
+- **App Store (live):** `2.6`
+- **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds. This binary is **not** replaced by the work on `main`.
+- **`main` (unreleased):** 3.3 system integration — Spotlight, iPad navigation, Health loop, widgets, route map. No schema change. Expect **525 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
+- **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
 
@@ -45,6 +45,14 @@ opt-in toggles. GPS from a Health route is never persisted.
 - **Session route map.** Session detail shows a transient MapKit overlay from
   the linked HealthKit workout UUID (full track + wave-segment polylines).
   Coordinates live only in memory. (`SessionRouteMapView.swift`)
+- **Tests.** Fifteen cases folded into existing PeakTests files (new files are
+  invisible until registered). Named ones include
+  `testGearIdentifierIsTheKindPipeNormalizedName`,
+  `testLastSessionDeepLinkUsesSessionIdentifier`,
+  `testSpotProximityPicksNearestWithinCap`,
+  `testImportedSessionLinksWorkoutAndAppliesStats`,
+  `testGuessSampleSkipsInvalidAccuracyAndPrefersMidRoute`. Expect **525 unit /
+  54 UI** (`./scripts/test.sh` on a Mac). This Cloud VM cannot run `xcodebuild`.
 
 ### Changed
 

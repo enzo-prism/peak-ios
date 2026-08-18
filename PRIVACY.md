@@ -21,9 +21,13 @@ If you choose **Use My Location** or pin a spot on the map, Peak uses location *
 ### Apple Health (optional, iPhone)
 If you enable Apple Health in Settings:
 - Peak can **save** logged surf sessions as surfing workouts.
-- Peak can **read** Apple Watch surf workouts, heart rate, and active calories to enrich sessions or offer import.
+- Peak can **read** Apple Watch surf workouts, heart rate, active calories, and GPS routes to enrich sessions or offer import.
+- Peak can observe new surfing workouts in the background so the Log tab can offer an unlogged Watch surf. GPS from a route is used in memory (spot guess, wave estimates, session map) and is **never stored**.
 
-Health access is system-gated (you can revoke it in iOS Settings). Peak does not upload Health data to any Peak server (there is none).
+A second Settings toggle, off by default, can post a local notification when a Watch surf is ready to log. Peak does not send push notifications. Health access is system-gated (you can revoke it in iOS Settings). Peak does not upload Health data to any Peak server (there is none).
+
+### Spotlight (on-device)
+On iOS 18+, Peak can donate session, spot, and gear names to the on-device Spotlight index so you can find them from Search. Nothing is uploaded.
 
 ### Photos & videos
 You may attach photos/videos via the system photo picker. Media stays on-device unless you export a full backup or share a session yourself.
@@ -37,4 +41,4 @@ If you email support, you may share device details or screenshots in your messag
 ## Changes
 If this policy changes, we update this file and the in-app Privacy document.
 
-Last updated: 2026-07-15
+Last updated: 2026-08-18

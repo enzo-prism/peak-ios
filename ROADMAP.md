@@ -1,4 +1,4 @@
-# Peak Roadmap — 2.7 → 3.2 (drafted 2026-07-20)
+# Peak Roadmap — 2.7 → 3.3 (drafted 2026-07-20; 3.3 added 2026-08-18)
 
 Implementation plan for the five-pillar improvement program: (1) ecosystem unlock (widgets + App Intents + Live Activity), (2) wave stats via HealthKit route mining → watchOS app, (3) "Best Window Today" + tide, (4) quiver analytics, (5) memory layer + first-run + on-device AI insights.
 
@@ -139,8 +139,8 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 - `HealthImportView`: shows derived estimates as a preview before import.
 - Widget/share card: wave count joins the last-session snapshot.
 
-### 4. Stretch (include only if schedule holds): session map replay
-`SessionRouteMapView` in detail — MapKit polyline of the route with wave segments highlighted. This is the emotional payoff competitors charge for. Requires storing the route reference (fetch live from HealthKit by workout UUID — store `linkedWorkoutID: String?` in V10 rather than persisting coordinates).
+### 4. Stretch: session map replay — **shipped in 3.3 (unreleased on `main`)**
+`SessionRouteMapView` in detail — MapKit polyline of the route with wave segments highlighted. Route is fetched live from HealthKit by workout UUID (`linkedWorkoutID`); coordinates are never persisted. iPhone-only; watchOS still waits on ocean testing.
 
 **Acceptance**: importing a real surf workout yields wave stats within "plausibly right" of a manual count on the two recorded fixture sessions; every value correctable in ≤2 taps; sessions without workouts unaffected.
 
@@ -155,7 +155,7 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 1. **Provisioning first** (the 2.5 lesson): create watch bundle id via `asc bundle-ids create` (`com.designprism.peak.watchkitapp`), enable HealthKit + App Group capabilities via asc, **before** any archive. Watch target team `L49MKXGVM4`.
 2. **MVP scope** (deliberately no on-watch wave detection): `HKWorkoutSession` + `HKLiveWorkoutBuilder`, `.surfingSports` — start/pause/end on watch; auto Water Lock (comes free with water activity types); live elapsed/HR/distance; save to HealthKit on end. HealthKit syncs the workout + route to iPhone automatically → existing import + `WaveAnalyzer` produce the stats. Fully independent of the phone (phone stays on the beach).
 3. **Mirrored session → Live Activity**: `startMirroringToCompanionDevice()` hands off into the 2.7 Live Activity (10 s launch window). Known ~5% silent data-channel failure → final-session-data fallback via WatchConnectivity `transferFile`; the HealthKit save is the source of truth either way.
-4. **Post-session nudge**: when a new surf workout appears (HealthKit observer added in this release, still opt-in), prompt on iPhone: "Log Saturday's 1 h 12 m session at ~Trestles?" (spot guessed by nearest saved spot to route start; user confirms).
+4. **Post-session nudge (iPhone side shipped in 3.3):** when a new surf workout appears, the Log tab offers one-tap import (`UnloggedWorkoutCard`). An `HKObserverQuery` plus optional local notify (`notifyUnloggedSurfWorkouts`, off by default) keep the card fresh. Spot is guessed only from a nearby pinned break via `SpotProximity` (never fabricated). The watchOS companion that *creates* the workout is still gated on ocean testing.
 5. **Ocean-testing protocol** (the real work): TestFlight to Enzo's watch; ≥5 real sessions; compare analyzer output vs manual wave counts; tune `WaveAnalyzer` constants; only then widen the TestFlight group.
 6. watchOS 26 Smart Stack relevance (`RelevanceKit`, POI category *beach*) on the watch widget: "Log your surf" surfaces when standing on the sand.
 
@@ -177,6 +177,21 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 
 ---
 
+## Release 3.3 — System integration (unreleased on `main`, 2026-08-18)
+
+Apple-platform completeness on top of the in-review 3.2 binary. **No schema change. Does not replace 3.2 in App Review.** There is no `prod` git branch — production is App Store Connect.
+
+Shipped on `main`:
+
+- iPad: sidebar-adaptable tabs, Search tab role, Library sidebar, split views on History / Quiver / Spots (regular width; off under UI tests).
+- Spotlight / App Intents: `IndexedEntity` + Open intents + in-app search results; Last Session snippet; named index `PeakLogbook`.
+- Widgets: Last Session opens that session; Start Session on medium / extraLarge; configurable spot from snapshot glances; extraLarge family.
+- Health: unlogged-workout card, observer + optional notify, session route map. GPS never persisted.
+
+Does **not** include watchOS, CloudKit, or wiring `TideService` into auto-fill. Cut the store train on a Mac after `./scripts/test.sh` (expect 525 unit / 54 UI). Keep `MARKETING_VERSION` at 3.2 until that Mac cut; landing on `main` is not a store submit.
+
+---
+
 ## Explicitly out of scope (revisit after 3.1)
 
 - **CloudKit/SwiftData sync**: requires stripping `.unique` keys + all-optional fields (major migration), dedup logic, append-only production schema, and video-as-loose-files rework. Medium user value for a mostly-single-device app. Reconsider when iPad usage warrants it.
@@ -195,5 +210,6 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 | 3.0 | Wave stats from HealthKit routes | 6–9 d | Real-session GPS fixtures; Schema V10 |
 | 3.1 | watchOS app MVP | ~2 wk | Physical watch + ocean testing |
 | 3.2 | Foundation Models insights | 4–5 d | Apple-Intelligence device |
+| 3.3 | Spotlight, iPad, Health loop, widgets, route map | landed on `main` | Mac `./scripts/test.sh` (525/54) before the next store train |
 
 Each release ships independently to TestFlight; nothing later blocks anything earlier. 2.7 → 2.8 → 2.9 are pure iPhone software and could compress into a fast train; 3.0's analyzer is the deliberate de-risking step before committing to the watch target.

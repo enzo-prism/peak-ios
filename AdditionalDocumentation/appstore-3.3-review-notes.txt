@@ -1,0 +1,25 @@
+Peak 3.3 is the next train after 3.2 (already in review). Do not attach this binary to the 3.2 version in App Store Connect.
+
+NO SIGN-IN. No account system, no server, no demo credentials. Everything is stored locally with SwiftData.
+
+WHAT 3.3 ADDS ON TOP OF 3.2
+- Spotlight / Siri: sessions, spots, and gear are IndexedEntity types; Open intents; SearchPeakIntent lands on History.
+- iPad: sidebar-adaptable tabs (regular width), Search tab, Library sidebar, NavigationSplitView on History / Quiver / Spots. Compact iPhone keeps the five-tab shell. Sidebar/split are off under UI tests.
+- Health: Log-tab UnloggedWorkoutCard; HKObserverQuery + immediate background delivery behind healthSyncEnabled; optional notifyUnloggedSurfWorkouts (off by default). Session route map from linkedWorkoutID; GPS never persisted.
+- Widgets: Last Session deep-links to peak://session?id=; Start Session on medium/extraLarge; configurable spot from snapshot glances; extraLarge family.
+
+APPLE HEALTH - SAME OPT-IN, PLUS ONE MORE
+More > Settings > Apple Health. Still off by default.
+A second toggle, "Notify when a Watch surf is ready to log", is also off by default. Peak posts a local notification only — no push token, no remote notifications.
+
+SAMPLE DATA / MAIN FLOW
+Unchanged from 3.2. A fresh install starts empty. Log tab > Log Session > type a spot name > Save.
+
+NETWORKING
+Unchanged: Open-Meteo / NOAA only on explicit tap (or the existing Best Window auto-refresh opt-in). Spotlight indexing is on-device.
+
+LOCATION
+Unchanged for pins. Route GPS is read from HealthKit in memory for wave estimates, a nearby-spot guess, and the session map. Coordinates are never written to SwiftData.
+
+PRIVATE BY DEFAULT
+No accounts. No analytics SDK. No backend.

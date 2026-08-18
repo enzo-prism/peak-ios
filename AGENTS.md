@@ -38,7 +38,10 @@ No social/sharing, accounts, or backend for now.
   never leave the phone, and no route coordinates are persisted (only a workout
   UUID). Do not introduce a server-side model, ever.
 - HealthKit reads stay behind the `healthSyncEnabled` opt-in and must be a quiet
-  no-op when it is off or denied.
+  no-op when it is off or denied. Background workout delivery uses the HealthKit
+  background-delivery entitlement and is still gated on that same toggle. Local
+  Watch-surf notifications are a **second** opt-in (`notifyUnloggedSurfWorkouts`),
+  off by default.
 - Keep `PrivacyInfo.xcprivacy` accurate if anything privacy-related changes.
 
 ### Honesty about derived numbers
@@ -84,7 +87,7 @@ No social/sharing, accounts, or backend for now.
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
 - Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
 - **Report the test counts you observed**, and reconcile them against the baseline
-  (510 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
+  (525 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
   concurrent run, not a pass.
 - If you added tests, name one in your summary and confirm you saw it in the output.
 - No new warnings or broken builds.
@@ -196,7 +199,7 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 - iPhone UI tests: `./scripts/test-ui.sh`
 - iPhone + iPad UI/design check: `./scripts/design-check.sh`
 
-Baseline on `main`: **510 unit tests, 54 UI tests.** If your run reports fewer,
+Baseline on `main`: **525 unit tests, 54 UI tests.** If your run reports fewer,
 re-read rules 1 and 2 before you believe it.
 
 **Marketing screenshots.** `PeakMarketingCaptureTests` lives at the end of
@@ -359,24 +362,24 @@ migrate in as `nil`.
 ## Repo Map (quick reference)
 
 - App entry: `Peak/PeakApp.swift`
-- Tabs/shell: `Peak/ContentView.swift`
+- Tabs/shell: `Peak/ContentView.swift`, `Peak/Supporting/PeakNavigationCoordinator.swift`
 - Models: `Peak/Models/*`
 - Schema/helpers: `Peak/Supporting/ModelSchema.swift`, `Peak/Supporting/ModelContext+Helpers.swift`
-- Log flow: `Peak/Views/Log/*`
-- History: `Peak/Views/History/*`
+- Log flow: `Peak/Views/Log/*` (`UnloggedWorkoutCard.swift` for Watch-surf import)
+- History: `Peak/Views/History/*` (`SessionRouteMapView.swift` for HealthKit GPS overlay)
 - Stats: `Peak/Views/Stats/*`, `Peak/Supporting/StatsCalculator.swift`
 - More/Settings/Docs: `Peak/Views/More/*`
 - Design system: `Peak/Supporting/Theme.swift`, `Peak/Supporting/GlassHelpers.swift`
 - Components: `Peak/Views/Components/*`
 - Conditions/tide: `Peak/Supporting/SurfConditionsService.swift`, `TideService.swift`
 - Best Window Today: `Peak/Supporting/WindowScorer.swift`, `TodayWindowService.swift`, `Peak/Views/Today/*`
-- Wave stats: `Peak/Supporting/WaveAnalyzer.swift`, `WaveStatsCalculator.swift`, `HealthKitService.swift`
+- Wave stats: `Peak/Supporting/WaveAnalyzer.swift`, `WaveStatsCalculator.swift`, `HealthKitService.swift`, `SpotProximity.swift`
 - Insights: `Peak/Supporting/InsightsEngine.swift`, `FoundationModelsInsights.swift`
 - Memory/goals: `Peak/Supporting/GearInsightsCalculator.swift`, `OnThisDayProvider.swift`, `YearInReviewCalculator.swift`, `MonthlyGoalCalculator.swift`
 - First run/tips: `Peak/Views/Onboarding/WelcomeView.swift`, `Peak/Supporting/PeakTips.swift`
 - Widget extension: `PeakWidgets/*` (widgets, Control Center control, Live Activity)
 - App-Group shared state: `Peak/WidgetSnapshot.swift`, `Peak/Supporting/WidgetSnapshotWriter.swift`, `Peak/ActiveSession.swift`
-- App Intents: `Peak/Supporting/AppIntentsEntities.swift`, `AppIntents+Peak.swift`, `SessionIntentQueries.swift`, `QuickLogIntents.swift`
+- App Intents / Spotlight: `Peak/Supporting/AppIntentsEntities.swift`, `AppIntents+Peak.swift`, `SessionIntentQueries.swift`, `QuickLogIntents.swift`, `SpotlightIndexer.swift`
 - Tests: `PeakTests/*`, `PeakUITests/*`
 - CI: `.github/workflows/ci.yml`
 - In-app docs: `Peak/Resources/Privacy.md`, `Peak/Resources/Support.md`
@@ -385,14 +388,30 @@ migrate in as `nil`.
 ### Targets and branches
 
 - Shipping targets: `Peak`, `PeakWidgets`, `PeakTests`, `PeakUITests`.
-- App Group `group.com.designprism.peak` is shared by `Peak` and `PeakWidgets`. It
-  is **not yet registered in the Developer portal**, which blocks device builds and
-  archives of those targets — see `RELEASE_PLAYBOOK.md`.
+- App Group `group.com.designprism.peak` is shared by `Peak` and `PeakWidgets`.
+  It was registered in the Developer portal on 2026-07-29 — see `RELEASE_PLAYBOOK.md`.
 - The `3.1` watchOS companion (`PeakWatch`, `PeakWatchWidgets`, `PeakShared`) is
   **code-complete on `feature/3.1-watchos` and deliberately not merged**. It has
   never recorded a real surf. Do not merge it, ship it, or describe it as shipped;
   it lands only after real-device ocean testing validates the `WaveAnalyzer`
   constants against hand-counted sessions.
+
+---
+
+## Cursor Cloud specific instructions
+
+Cursor Cloud agents for this repo currently boot a **Linux** VM. There is no
+Xcode, no iOS Simulator, and no `xcodebuild`.
+
+- Read, edit, commit, and push as usual.
+- Do **not** treat a missing `./scripts/test.sh` run as a pass. The Definition of
+  Done still requires `./scripts/test.sh` (and UI/design scripts when applicable)
+  on a Mac host with Xcode, one `xcodebuild` at a time.
+- Expected suite after the system-integration train: **525 unit / 54 UI**.
+- Do not archive, notarize, or upload to App Store Connect from Cloud. Cut
+  TestFlight / App Store builds on a Mac per `RELEASE_PLAYBOOK.md`.
+- `gh` in this environment is read-only. Use git + the pull-request tool to
+  land branches; do not call `gh pr merge`.
 
 ---
 

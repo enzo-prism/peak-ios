@@ -11,10 +11,10 @@ This document describes the runtime structure, data model, and key flows in Peak
 
 **App Shell & Navigation**
 - Entry point: `Peak/PeakApp.swift`
-- Tabs and routes: `Peak/ContentView.swift`
-- Tabs: Log, History, Stats, Quiver, More
+- Tabs and routes: `Peak/ContentView.swift`, coordinated by `Peak/Supporting/PeakNavigationCoordinator.swift`
+- Compact tabs: Log, History, Stats, Quiver, More. iOS 18 adds a Search tab (`TabRole.search`) and a Library sidebar (Spots, Buddies, hidden from the compact tab bar) with `.tabViewStyle(.sidebarAdaptable)` on regular width. History, Quiver, and Spots use `NavigationSplitView` on regular width (skipped under UI tests so XCUI tab-bar taps still work).
 - Styling: `Peak/Supporting/Theme.swift` and `Peak/Supporting/GlassHelpers.swift`
-- Deep links: widgets and the Live Activity hand back `peak://new-session`, resolved in `ContentView.onOpenURL` (`Peak/WidgetSnapshot.swift` owns the URL constants and the host/path normalization)
+- Deep links: `Peak/WidgetSnapshot.swift` (`PeakDeepLink`) parses `peak://new-session`, `peak://session?id=`, `peak://spot?id=`, `peak://gear?id=`, and `peak://search?q=`. `ContentView.onOpenURL` hands them to the coordinator. Last Session widget taps open **that** session; empty widgets and Streak still use `new-session`.
 
 **Data Model & Storage**
 - SwiftData models: `Peak/Models/SurfSession.swift`, `Peak/Models/Spot.swift`, `Peak/Models/Gear.swift`, `Peak/Models/Buddy.swift`, `Peak/Models/SessionMedia.swift`
@@ -36,7 +36,7 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Required input: a spot (a spot itself only requires a name — location/pin are optional and can be added later)
 - Optional inputs: duration, rating, notes, gear, buddies, media, wind/wave (menu pickers), tide, wave stats
 - The Log hero also carries **Start Session** beside Log Session, and shows a running timer with End Session while a session is in progress
-- The Log tab additionally hosts the Best Window Today, On This Day, and (in December) Year in Review cards, so it queries the full session history — the recents list stays limited to three
+- The Log tab additionally hosts Best Window Today, the unlogged Watch-surf card (`UnloggedWorkoutCard`, Health sync on only), On This Day, and (in December) Year in Review, so it queries the full session history — the recents list stays limited to three
 - First launch shows `WelcomeView` before any of this, once, behind `@AppStorage("hasSeenWelcome")`
 
 **Surf Conditions Auto-Fill**
@@ -69,8 +69,9 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Display: `Peak/Views/History/SessionDetailView.swift`, `Peak/Views/Components/SessionMediaThumbnailView.swift`
 
 **History & Detail Views**
-- History list: `Peak/Views/History/HistoryView.swift`
+- History list: `Peak/Views/History/HistoryView.swift` (split on regular width; Search intents fill this list immediately, skipping debounce)
 - Session detail: `Peak/Views/History/SessionDetailView.swift`
+- Transient route map: `Peak/Views/History/SessionRouteMapView.swift` — MapKit polyline + wave-segment overlay from `linkedWorkoutID`. Coordinates live only in memory; never written to the store.
 - Filters for spot, gear, and buddy are applied in History
 
 **Stats & Trends**
@@ -82,8 +83,9 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Analyzer: `Peak/Supporting/WaveAnalyzer.swift` — turns a gappy, noisy wrist-GPS track into wave count, top speed, ride lengths and paddle distance. Accuracy-gated fixes, a least-squares speed fit de-biased for the fixes' own noise floor, rolling-median spike rejection, hysteresis thresholds with a sustained-evidence rule, distance integrated from speed rather than summed from positions, and a distance-weighted heading-consistency test.
 - It is **CoreLocation-free**: the app maps `CLLocation` to the analyzer's `RouteSample` at the `HealthKitService` boundary. That is what lets the whole suite run on synthetic routes with no device, no entitlement and no ocean (`PeakTests/WaveAnalyzerTests.swift`, `PeakTests/WaveRouteGenerator.swift`).
 - All tuning constants live in one struct so they can be re-fitted against real recordings. They are physically reasoned, **not yet ocean-validated** — that is a 3.1 gate.
-- Route access: `Peak/Supporting/HealthKitService.swift` adds `HKSeriesType.workoutRoute()` to the read set and streams a workout's locations. Behind the existing `healthSyncEnabled` opt-in; a quiet no-op when off, denied, or the workout has no route.
-- Surfaces: `Peak/Views/Components/WaveStatsEditor.swift` (all values editable; wave count uses explicit +/- buttons for 44pt targets rather than a `Stepper`), the session-detail hero, `Peak/Views/More/HealthImportView.swift` preview, `Peak/Supporting/WaveStatsCalculator.swift` + `WaveRecordsCard` for personal records, plus the widget snapshot and share card.
+- Route access: `Peak/Supporting/HealthKitService.swift` adds `HKSeriesType.workoutRoute()` to the read set and streams a workout's locations. Behind the existing `healthSyncEnabled` opt-in; a quiet no-op when off, denied, or the workout has no route. An `HKObserverQuery` plus HealthKit background delivery (immediate frequency) refreshes the Log-tab unlogged-workout card; `disableBackgroundDelivery` runs when sync is turned off.
+- Spot guess: `Peak/Supporting/SpotProximity.swift` — nearest pinned break within 2.5 km of a **mid-route** valid GPS sample (parking-lot starts and invalid accuracy are skipped). Nil rather than a distant fabrication.
+- Surfaces: `Peak/Views/Components/WaveStatsEditor.swift` (all values editable; wave count uses explicit +/- buttons for 44pt targets rather than a `Stepper`), the session-detail hero and route map, `Peak/Views/More/HealthImportView.swift` preview, `Peak/Views/Log/UnloggedWorkoutCard.swift` (one-tap import + optional local notification with a Log action that imports), `Peak/Supporting/WaveStatsCalculator.swift` + `WaveRecordsCard` for personal records, plus the widget snapshot and share card.
 - **Provenance rules.** `waveStatsSource` is `auto` / `edited` / `manual`; a human's number outranks a GPS trace, so re-importing never overwrites an edited or hand-entered session. Zero is data (a skunked session), absent is not (a session that was never tracked shows nothing).
 - Analysis is `@concurrent` — it walks tens of thousands of fixes and `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` would otherwise pin it to the UI.
 
@@ -105,17 +107,17 @@ This document describes the runtime structure, data model, and key flows in Peak
 - `FoundationModelsInsightsGenerator.draft` is `@concurrent`, not merely `nonisolated`: under `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` a nonisolated async function inherits its caller's actor, and inference takes seconds. Figures render synchronously; prose arrives later and only ever replaces prose.
 
 **Widget Extension, App Intents & Live Activity**
-- Extension target: `PeakWidgets/` — `StreakWidget` and `LastSessionWidget` (small/medium plus accessory families), `StartSessionControl` (Control Center, iOS 18+), and `SessionLiveActivity`.
-- **The App-Group boundary is the whole design.** The widget never opens the SwiftData store. The app derives a small `PeakWidgetSnapshot` (`Peak/WidgetSnapshot.swift`) and `WidgetSnapshotWriter` publishes it to the App Group container `group.com.designprism.peak`; the extension only ever reads that value. Consequences: no store migration, no risk to the library, and no schema version cost for anything the widget shows.
+- Extension target: `PeakWidgets/` — `StreakWidget` and `LastSessionWidget` (small/medium/extra-large plus accessory families), `StartSessionControl` (Control Center, iOS 18+), and `SessionLiveActivity`. Widget configuration types are `nonisolated` (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`).
+- **The App-Group boundary is the whole design.** The widget never opens the SwiftData store. The app derives a small `PeakWidgetSnapshot` (`Peak/WidgetSnapshot.swift`) and `WidgetSnapshotWriter` publishes it to the App Group container `group.com.designprism.peak`; the extension only ever reads that value. `spotGlances` on the snapshot lets Last Session pin a frequent spot without SwiftData. Consequences: no store migration, no risk to the library, and no schema version cost for anything the widget shows.
 - Snapshot refresh points: launch, every session save/delete, backup restore, and each foreground return, each followed by `WidgetCenter.reloadAllTimelines()`. Timeline reloads are skipped under UI test.
 - **In-progress session state also lives in App-Group `UserDefaults`, not SwiftData** (`Peak/ActiveSession.swift`). It survives relaunch, the extension can read it, and "session in progress" costs no schema version. `ActiveSessionState` is compiled into both targets, so everything in it is explicitly `nonisolated` — the two targets do not share a default actor isolation setting. The real `SurfSession` is created only when the surfer ends the session and saves the prefilled editor.
 - Live Activity: `Peak/SessionActivityController.swift` + `Peak/SessionActivityIntents.swift`. The elapsed timer is drawn with `Text(timerInterval:)`, so Peak sends no push updates and holds no push token. ActivityKit is disabled under UI tests so the suite never depends on Live Activity chrome.
-- App Intents: `Peak/Supporting/AppIntentsEntities.swift` (`SurfSessionEntity`, `SpotEntity` — stable identifiers and display representations, which is what puts the logbook in the Spotlight semantic index), `AppIntents+Peak.swift` (Log / Start / End / Last Session / Sessions This Month, with Siri phrases), `SessionIntentQueries.swift`, `QuickLogIntents.swift`.
+- App Intents: `Peak/Supporting/AppIntentsEntities.swift` (`SurfSessionEntity`, `SpotEntity`, `GearEntity` — `IndexedEntity` on iOS 18, donated via `SpotlightIndexer` to named index `PeakLogbook`), `OpenSessionIntent` / `OpenSpotIntent` / `OpenGearIntent`, `SearchPeakIntent` (`ShowInAppSearchResultsIntent`), `AppIntents+Peak.swift` (Log / Start / End / Last Session / Sessions This Month, with Siri phrases; Last Session returns a snippet), `SessionIntentQueries.swift`, `QuickLogIntents.swift`. On-screen `NSUserActivity` carries `appEntityIdentifier`.
 - Ending a session opens `SessionEditorView(mode: .new)` with a prefilled draft: start time, duration rounded to the nearest 5 minutes, and the spot.
-- **Deployment gate:** the App Group must be registered in the Developer portal before any device build or archive of these targets. See `RELEASE_PLAYBOOK.md`.
+- **Deployment gate:** the App Group is registered; archives still use manual signing. See `RELEASE_PLAYBOOK.md`.
 
 **Spots, Buddies & Quiver**
-- Spots and Buddies are reached from the More tab; Quiver is a top-level tab
+- Spots and Buddies are reached from the More tab on iPhone; iOS 18 also lists them in the Library sidebar. Quiver is a top-level tab.
 - Spot editor (optional pin location): `Peak/Views/Library/SpotEditorView.swift`
 - Quiver (gear): `Peak/Views/Quiver/QuiverView.swift` and related gear views
 - Spots map + "Use My Location": `Peak/Views/Spots/SpotsMapView.swift`, `Peak/Supporting/LocationService.swift`
@@ -130,12 +132,12 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Network calls are made only when the user triggers auto-fill, taps "Check conditions", or opts into the Best Window Today auto-refresh toggle. The endpoints are Open-Meteo and NOAA CO-OPS; nothing else is contacted.
 - Widgets, App Intents, and the Live Activity render local data only.
 - Language-model inference is on-device and adds no network call. Route analysis is on-device and persists no coordinates.
-- HealthKit reads are behind the `healthSyncEnabled` opt-in.
+- HealthKit reads are behind the `healthSyncEnabled` opt-in. Background workout delivery is the same toggle plus the HealthKit background-delivery entitlement. Local Watch-surf notifications are a second opt-in, off by default. Spotlight donation is on-device (`PeakLogbook`).
 - No analytics, accounts, or background sync
 - Keep `Peak/PrivacyInfo.xcprivacy` accurate when anything privacy-relevant changes
 
 **Testing**
-- Unit tests: `PeakTests/*` — **510 tests** on `main`
+- Unit tests: `PeakTests/*` — **525 tests** on `main` (510 + 15 from the system-integration train)
 - UI layout tests: `PeakUITests/*` — **54 tests** on `main`
 - Standard commands: `./scripts/build-sim.sh`, `./scripts/test.sh`
 - **Run one `xcodebuild` at a time.** The simulator is a single shared resource; concurrent runs produce false failures. See `AGENTS.md`.
