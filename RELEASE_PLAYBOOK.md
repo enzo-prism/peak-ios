@@ -18,7 +18,7 @@
 - `MARKETING_VERSION` in `project.pbxproj` is **`3.2`**, `CURRENT_PROJECT_VERSION`
   **1**, aligned across app and widget targets; Release configs use **manual
   signing** (see the resolved-blocker note below).
-- **Suite baseline on `main`:** 525 unit tests, 54 UI tests (8 iPad UI failures
+- **Suite baseline on `main`:** 542 unit tests, 54 UI tests (8 iPad UI failures
   are pre-existing — see AGENTS.md).
 
 > ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
@@ -182,8 +182,8 @@ When taking a train from TestFlight to the public listing:
 - `./scripts/test.sh` green (or the targeted UI tests for the touched surface),
   **run one at a time** — the simulator is a shared resource and concurrent
   `xcodebuild` runs produce false passes and false failures. See `AGENTS.md`.
-- Test counts reconciled against the baseline (525 unit / 54 UI on `main` after
-  the 3.3 system-integration train). A smaller count with no failures means a
+- Test counts reconciled against the baseline (542 unit / 54 UI on `main` after
+  the performance pass). A smaller count with no failures means a
   stale test runner, not a green suite.
 - `./scripts/design-check.sh` for any UI change.
 - For `2.7`+: App Group registered, or the archive will not sign.

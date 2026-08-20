@@ -87,7 +87,7 @@ No social/sharing, accounts, or backend for now.
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
 - Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
 - **Report the test counts you observed**, and reconcile them against the baseline
-  (525 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
+  (542 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
   concurrent run, not a pass.
 - If you added tests, name one in your summary and confirm you saw it in the output.
 - No new warnings or broken builds.
@@ -199,7 +199,7 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 - iPhone UI tests: `./scripts/test-ui.sh`
 - iPhone + iPad UI/design check: `./scripts/design-check.sh`
 
-Baseline on `main`: **525 unit tests, 54 UI tests.** If your run reports fewer,
+Baseline on `main`: **542 unit tests, 54 UI tests.** If your run reports fewer,
 re-read rules 1 and 2 before you believe it.
 
 **Marketing screenshots.** `PeakMarketingCaptureTests` lives at the end of
@@ -407,7 +407,7 @@ Xcode, no iOS Simulator, and no `xcodebuild`.
 - Do **not** treat a missing `./scripts/test.sh` run as a pass. The Definition of
   Done still requires `./scripts/test.sh` (and UI/design scripts when applicable)
   on a Mac host with Xcode, one `xcodebuild` at a time.
-- Expected suite after the system-integration train: **525 unit / 54 UI**.
+- Expected suite after the performance pass: **542 unit / 54 UI**.
 - Do not archive, notarize, or upload to App Store Connect from Cloud. Cut
   TestFlight / App Store builds on a Mac per `RELEASE_PLAYBOOK.md`.
 - `gh` in this environment is read-only. Use git + the pull-request tool to
