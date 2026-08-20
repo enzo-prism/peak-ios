@@ -390,6 +390,10 @@ migrate in as `nil`.
 - Shipping targets: `Peak`, `PeakWidgets`, `PeakTests`, `PeakUITests`.
 - App Group `group.com.designprism.peak` is shared by `Peak` and `PeakWidgets`.
   It was registered in the Developer portal on 2026-07-29 — see `RELEASE_PLAYBOOK.md`.
+- **`main`** is the development trunk. **`prod`** is a fast-forward-only git
+  snapshot of the same SHA (App Store candidate ref). Pushing `prod` is not an
+  App Store submit; store production remains App Store Connect. Never force-push
+  either branch.
 - The `3.1` watchOS companion (`PeakWatch`, `PeakWatchWidgets`, `PeakShared`) is
   **code-complete on `feature/3.1-watchos` and deliberately not merged**. It has
   never recorded a real surf. Do not merge it, ship it, or describe it as shipped;
@@ -410,6 +414,8 @@ Xcode, no iOS Simulator, and no `xcodebuild`.
 - Expected suite after the performance and library-UX passes: **546 unit / 54 UI**.
 - Do not archive, notarize, or upload to App Store Connect from Cloud. Cut
   TestFlight / App Store builds on a Mac per `RELEASE_PLAYBOOK.md`.
+- When asked to push to production, fast-forward `origin/prod` to the same SHA
+  as `origin/main`. Do not force-push. Do not invent a deploy pipeline.
 - `gh` in this environment is read-only. Use git + the pull-request tool to
   land branches; do not call `gh pr merge`.
 

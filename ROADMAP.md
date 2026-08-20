@@ -1,4 +1,4 @@
-# Peak Roadmap — 2.7 → 3.3 (drafted 2026-07-20; 3.3 added 2026-08-18)
+# Peak Roadmap — 2.7 → 3.3 (drafted 2026-07-20; 3.3 added 2026-08-18; `prod` snapshot 2026-08-20)
 
 Implementation plan for the five-pillar improvement program: (1) ecosystem unlock (widgets + App Intents + Live Activity), (2) wave stats via HealthKit route mining → watchOS app, (3) "Best Window Today" + tide, (4) quiver analytics, (5) memory layer + first-run + on-device AI insights.
 
@@ -177,18 +177,20 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 
 ---
 
-## Release 3.3 — System integration (unreleased on `main`, 2026-08-18)
+## Release 3.3 — System integration (unreleased on `main` / `prod`, 2026-08-20)
 
-Apple-platform completeness on top of the in-review 3.2 binary. **No schema change. Does not replace 3.2 in App Review.** There is no `prod` git branch — production is App Store Connect.
+Apple-platform completeness on top of the in-review 3.2 binary. **No schema change. Does not replace 3.2 in App Review.** `prod` fast-forwards to the same SHA as `main` as a git snapshot. App Store production remains App Store Connect (`3.2` in review).
 
-Shipped on `main`:
+Shipped on `main` / `prod`:
 
 - iPad: sidebar-adaptable tabs, Search tab role, Library sidebar, split views on History / Quiver / Spots (regular width; off under UI tests).
 - Spotlight / App Intents: `IndexedEntity` + Open intents + in-app search results; Last Session snippet; named index `PeakLogbook`.
 - Widgets: Last Session opens that session; Start Session on medium / extraLarge; configurable spot from snapshot glances; extraLarge family.
 - Health: unlogged-workout card, observer + optional notify, session route map. GPS never persisted.
+- Performance: `#Predicate` library-detail fetches, Search History mount-on-select, widget skip, one-pass calculators, ImageIO thumbs.
+- Library / Search UX: session-style heroes, progressive disclosure, Open in Maps, dedicated Search prompt (not a second History).
 
-Does **not** include watchOS, CloudKit, or wiring `TideService` into auto-fill. Cut the store train on a Mac after `./scripts/test.sh` (expect 546 unit / 54 UI). Keep `MARKETING_VERSION` at 3.2 until that Mac cut; landing on `main` is not a store submit.
+Does **not** include watchOS, CloudKit, or wiring `TideService` into auto-fill. Cut the store train on a Mac after `./scripts/test.sh` (expect 546 unit / 54 UI). Keep `MARKETING_VERSION` at 3.2 until that Mac cut; landing on `main` / `prod` is not a store submit.
 
 ---
 
@@ -210,6 +212,6 @@ Does **not** include watchOS, CloudKit, or wiring `TideService` into auto-fill. 
 | 3.0 | Wave stats from HealthKit routes | 6–9 d | Real-session GPS fixtures; Schema V10 |
 | 3.1 | watchOS app MVP | ~2 wk | Physical watch + ocean testing |
 | 3.2 | Foundation Models insights | 4–5 d | Apple-Intelligence device |
-| 3.3 | Spotlight, iPad, Health loop, widgets, route map | landed on `main` | Mac `./scripts/test.sh` (546/54) before the next store train |
+| 3.3 | Spotlight, iPad, Health loop, widgets, route map, library UX | landed on `main` / `prod` | Mac `./scripts/test.sh` (546/54) before the next store train |
 
 Each release ships independently to TestFlight; nothing later blocks anything earlier. 2.7 → 2.8 → 2.9 are pure iPhone software and could compress into a fast train; 3.0's analyzer is the deliberate de-risking step before committing to the watch target.

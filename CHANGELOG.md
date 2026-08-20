@@ -9,7 +9,7 @@ Status at a glance:
 
 - **App Store (live):** `2.6`
 - **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds. This binary is **not** replaced by the work on `main`.
-- **`main` (unreleased):** 3.3 system integration plus a performance/HIG pass — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists. No schema change. Expect **546 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
+- **`main` / `prod` (unreleased):** 3.3 system integration plus performance and library-UX passes — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail. No schema change. Expect **546 unit / 54 UI** on a Mac. `prod` is a git snapshot of the same SHA; App Store production remains the in-review `3.2` train. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
 - **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map

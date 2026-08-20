@@ -138,8 +138,8 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Keep `Peak/PrivacyInfo.xcprivacy` accurate when anything privacy-relevant changes
 
 **Testing**
-- Unit tests: `PeakTests/*` — **546 tests** on `main` (525 system-integration baseline + 21 from the performance and library-UX passes)
-- UI layout tests: `PeakUITests/*` — **54 tests** on `main`
+- Unit tests: `PeakTests/*` — **546 tests** on `main` / `prod` (525 system-integration baseline + 21 from the performance and library-UX passes)
+- UI layout tests: `PeakUITests/*` — **54 tests** on `main` / `prod`
 - Standard commands: `./scripts/build-sim.sh`, `./scripts/test.sh`
 - **Run one `xcodebuild` at a time.** The simulator is a single shared resource; concurrent runs produce false failures. See `AGENTS.md`.
 - Only the `Peak` folder is a file-system-synchronized group. New files in `PeakTests`, `PeakUITests`, or `PeakWidgets` need explicit `project.pbxproj` registration before the build can see them.

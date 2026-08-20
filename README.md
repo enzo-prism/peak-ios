@@ -9,8 +9,13 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
   release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds.
 - **`main` (unreleased):** 3.3 system integration on top of 3.2 — Spotlight/`OpenIntent`,
   iPad sidebar + split navigation, unlogged Watch-surf Log card, Last Session
-  widget deep links, session route map. No schema change. See `CHANGELOG.md`.
-  Does not replace the in-review 3.2 App Store binary.
+  widget deep links, session route map, plus the performance and library-UX
+  passes (predicate library fetches, dedicated Search prompt, HIG detail chrome).
+  No schema change. See `CHANGELOG.md`. Does not replace the in-review 3.2 App
+  Store binary.
+- **`prod`:** git snapshot at the same SHA as `main`. App Store production remains
+  the in-review `3.2` train; pushing `prod` is not a store submit. See
+  `RELEASE_PLAYBOOK.md`.
 - **Not merged, not shipped:** the `3.1` watchOS companion lives on
   `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
   it has never recorded a real surf; it stays off `main` until it passes real-device
@@ -165,7 +170,7 @@ Optional overrides:
 
 ## Testing
 
-Current suite on `main`: **546 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
+Current suite on `main` / `prod`: **546 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See

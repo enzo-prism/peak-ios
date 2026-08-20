@@ -1,16 +1,20 @@
 # Peak iOS Release Playbook
 
-## Current state (as of August 18, 2026)
+## Current state (as of August 20, 2026)
 - App: `peak.surf` (`com.designprism.peak`)
 - App ID: `6757644027` · Team: `L49MKXGVM4`
 - **App Store (live):** `2.6`
 - **App Store (in review):** `3.2` build **1** (submitted 2026-07-29,
   `WAITING_FOR_REVIEW`, phased release armed). First public 3.x since 2.6.
-  There is **no `prod` git branch** — production is this App Store train.
-- **`main` (unreleased):** 3.3 system integration (Spotlight, iPad navigation,
-  Health loop, widgets, route map). Does **not** replace the in-review 3.2
+  Store production is this App Store train — not a deploy from git.
+- **`main` (unreleased):** 3.3 system integration plus performance and library-UX
+  passes (Spotlight, iPad navigation, Health loop, widgets, route map, predicate
+  library fetches, dedicated Search). Does **not** replace the in-review 3.2
   binary. `MARKETING_VERSION` stays **`3.2`** until a Mac cuts the next store
   train. Cursor Cloud is Linux — do not archive or `asc builds upload` from it.
+- **`prod`:** fast-forward-only git snapshot of `main`. When a release-ready
+  train lands on `main`, fast-forward `prod` to the same SHA. There is no
+  automatic App Store deploy from `prod`.
 - **TestFlight:** `3.2` — build 1, uploaded 2026-07-29, `VALID`,
   encryption-exempt. Cut from `main` at the audit-round-2 commit; carries every
   formerly-unshipped train (`2.7`–`3.0`, `3.2`) plus both audit-fix rounds.
@@ -45,8 +49,11 @@
 > `.asc/artifacts/ExportOptions-3.2-1.plist` (gitignored — recreate per build).
 > The section below is kept for history.
 
-> ⚠️ **Branch strategy.** `main` is the active trunk. Land every fix on a short
-> branch off `main`, PR it, and merge.
+> ⚠️ **Branch strategy.** `main` is the active trunk. `prod` is a
+> fast-forward-only snapshot of the same SHA (App Store candidate git ref).
+> Land every fix on a short branch off `main`, PR it, and merge; then
+> fast-forward `prod` to match `main` when asked to push production. Never
+> force-push `main` or `prod`.
 > - **`feature/streamlined-log-session` is a STALE divergent branch (pre-2.0
 >   design) — do NOT ship from it or merge it into `main`; it would regress the trunk.**
 > - **`feature/3.1-watchos` is code-complete but must NOT be merged or shipped.**
@@ -79,7 +86,7 @@ What remains, and it is human-only:
   Signing & Capabilities GUI, nothing else. Do not spend time scripting around it.
 
 ## Historical snapshot (as of July 15, 2026 — superseded)
-The August 18 current-state block at the top of this file is the live picture.
+The August 20 current-state block at the top of this file is the live picture.
 The July 15 snapshot below is kept for the 2.6 submit commands that still work
 as examples (swap version numbers).
 
