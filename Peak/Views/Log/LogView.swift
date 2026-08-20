@@ -5,8 +5,10 @@ struct LogView: View {
     @Query(SurfSession.sortedByDateDescending(limit: 3, prefetch: [\.spot, \.gear, \.buddies, \.media]))
     private var sessions: [SurfSession]
     /// The memory layer needs the whole history — an anniversary lives years
-    /// back, well outside the three-session recents window above.
-    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.media]))
+    /// back, well outside the three-session recents window above. Spots are
+    /// prefetched for Best Window / On This Day; media stays lazy so this
+    /// second query does not fault every photo in the logbook.
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot]))
     private var allSessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme

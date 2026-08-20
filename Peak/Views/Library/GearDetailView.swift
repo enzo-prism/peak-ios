@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import AppIntents
-import UIKit
 
 struct GearDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -29,7 +28,7 @@ struct GearDetailView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     headerCard
 
                     usageSummarySection(summary: cachedSummary)
@@ -147,10 +146,8 @@ struct GearDetailView: View {
 
     private var gearImage: some View {
         ZStack {
-            if let data = gear.photoData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+            if let data = gear.photoData {
+                SessionMediaThumbnailView(imageData: data, isVideo: false)
             } else {
                 Image(systemName: gear.kind.systemImage)
                     .font(.title.weight(.semibold))

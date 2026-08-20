@@ -34,7 +34,7 @@ struct ConditionsInsightsCard: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
                     .accessibilityAddTraits(.isHeader)
-                Text("Every rated session with a measured wave height")
+                Text("Rated sessions with a measured wave height")
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)
             }

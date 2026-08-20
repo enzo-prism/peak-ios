@@ -1,7 +1,6 @@
 import PhotosUI
 import SwiftUI
 import SwiftData
-import UIKit
 
 enum GearEditorMode {
     case new
@@ -123,10 +122,8 @@ struct GearEditorView: View {
                         }
 
                         editorSection("Photo") {
-                            if let data = photoData, let image = UIImage(data: data) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
+                            if let data = photoData {
+                                SessionMediaThumbnailView(imageData: data, isVideo: false)
                                     .frame(height: 200)
                                     .frame(maxWidth: .infinity)
                                     .clipped()
@@ -285,12 +282,7 @@ struct GearEditorView: View {
 
     private func loadPhoto(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-        photoData = compressedPhotoData(from: data)
-    }
-
-    private func compressedPhotoData(from data: Data) -> Data {
-        guard let image = UIImage(data: data) else { return data }
-        return image.jpegData(compressionQuality: 0.85) ?? data
+        photoData = await SessionMediaStore.processedPhoto(from: data).photoData
     }
 }
 

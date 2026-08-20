@@ -24,7 +24,7 @@ struct SpotDetailView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     headerCard(metrics: metrics)
 
                     summarySection(metrics: metrics)

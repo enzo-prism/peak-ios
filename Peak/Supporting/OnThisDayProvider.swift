@@ -40,7 +40,7 @@ enum OnThisDayProvider {
               let lastDay = calendar.date(byAdding: .day, value: windowDays, to: today),
               // Half-open upper bound so the final day counts in full.
               let windowEnd = calendar.date(byAdding: .day, value: 1, to: lastDay),
-              let earliest = sessions.map(\.date).min()
+              let earliest = sessions.min(by: { $0.date < $1.date })?.date
         else { return [] }
 
         // Walk the *window* back a year at a time instead of projecting each
@@ -50,40 +50,49 @@ enum OnThisDayProvider {
         let yearSpan = calendar.dateComponents([.year], from: earliest, to: referenceDate).year ?? 0
         let maxYearsBack = max(yearSpan, 0) + 1
 
+        // Closest years always rank first, so once a closer year has filled
+        // `limit` we can stop — Log only asks for 1. Previously every year
+        // rescanned the whole array (O(years × sessions)).
         var memories: [OnThisDayMemory] = []
+        memories.reserveCapacity(min(limit, sessions.count))
         for yearsAgo in 1...maxYearsBack {
             guard let start = calendar.date(byAdding: .year, value: -yearsAgo, to: windowStart),
                   let end = calendar.date(byAdding: .year, value: -yearsAgo, to: windowEnd),
                   let anniversary = calendar.date(byAdding: .year, value: -yearsAgo, to: today)
             else { continue }
 
+            var yearMatches: [OnThisDayMemory] = []
             for session in sessions where session.date >= start && session.date < end {
-                memories.append(OnThisDayMemory(
+                yearMatches.append(OnThisDayMemory(
                     session: session,
                     yearsAgo: yearsAgo,
                     isExactAnniversary: calendar.isDate(session.date, inSameDayAs: anniversary)
                 ))
             }
+            guard !yearMatches.isEmpty else { continue }
+
+            yearMatches.sort(by: Self.ranksHigher)
+            memories.append(contentsOf: yearMatches)
+            if memories.count >= limit { break }
         }
 
+        if memories.count > limit {
+            memories.removeLast(memories.count - limit)
+        }
         return memories
-            .sorted { lhs, rhs in
-                if lhs.yearsAgo != rhs.yearsAgo {
-                    return lhs.yearsAgo < rhs.yearsAgo
-                }
-                // The card leads with a photo when it has one, so a memory with
-                // media makes the better hero.
-                let lhsHasMedia = !lhs.session.media.isEmpty
-                let rhsHasMedia = !rhs.session.media.isEmpty
-                if lhsHasMedia != rhsHasMedia {
-                    return lhsHasMedia
-                }
-                if lhs.session.rating != rhs.session.rating {
-                    return lhs.session.rating > rhs.session.rating
-                }
-                return lhs.session.date > rhs.session.date
-            }
-            .prefix(limit)
-            .map { $0 }
+    }
+
+    /// Same intra-year order the previous global sort used: photo, then rating,
+    /// then recency. Across years the walk already emits closest first.
+    private static func ranksHigher(_ lhs: OnThisDayMemory, _ rhs: OnThisDayMemory) -> Bool {
+        let lhsHasMedia = !lhs.session.media.isEmpty
+        let rhsHasMedia = !rhs.session.media.isEmpty
+        if lhsHasMedia != rhsHasMedia {
+            return lhsHasMedia
+        }
+        if lhs.session.rating != rhs.session.rating {
+            return lhs.session.rating > rhs.session.rating
+        }
+        return lhs.session.date > rhs.session.date
     }
 }

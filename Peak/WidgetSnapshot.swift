@@ -111,6 +111,24 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
 
         return adjusted
     }
+
+    /// WidgetKit reloads are expensive; skip a rewrite when the payload the
+    /// widgets actually render is unchanged. `generatedAt` is bookkeeping for
+    /// `adjusted(for:)` and must not force a reload on its own. `.empty`'s
+    /// distant-past timestamp means "no snapshot on disk yet".
+    func hasSameWidgetPayload(as other: PeakWidgetSnapshot) -> Bool {
+        currentStreakWeeks == other.currentStreakWeeks
+            && totalSessions == other.totalSessions
+            && sessionsThisMonth == other.sessionsThisMonth
+            && lastSessionSpot == other.lastSessionSpot
+            && lastSessionSpotKey == other.lastSessionSpotKey
+            && lastSessionDate == other.lastSessionDate
+            && lastSessionRating == other.lastSessionRating
+            && lastSessionWaveCount == other.lastSessionWaveCount
+            && lastSessionID == other.lastSessionID
+            && daysSinceLastSession == other.daysSinceLastSession
+            && spotGlances == other.spotGlances
+    }
 }
 
 /// One place to ask WidgetKit for a refresh, so the test gate is stated once.

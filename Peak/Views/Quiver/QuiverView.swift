@@ -83,7 +83,7 @@ struct QuiverView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                LazyVStack(alignment: .leading, spacing: 16) {
                     filterCard
 
                     if visibleGear.isEmpty {
@@ -93,11 +93,8 @@ struct QuiverView: View {
                         systemImage: "surfboard"
                     )
                     } else {
-                        ForEach(GearKind.allCases) { kind in
-                            let items = sortedGear(for: kind)
-                            if !items.isEmpty {
-                                gearSection(kind: kind, items: items)
-                            }
+                        ForEach(gearSections, id: \.kind) { section in
+                            gearSection(kind: section.kind, items: section.items)
                         }
                     }
                 }
@@ -194,6 +191,15 @@ struct QuiverView: View {
         }
     }
 
+    /// Pre-filtered so the lazy stack's ForEach is a stable 1:1 of sections
+    /// (WWDC26: don't hide ForEach children with `if`).
+    private var gearSections: [(kind: GearKind, items: [Gear])] {
+        GearKind.allCases.compactMap { kind in
+            let items = sortedGear(for: kind)
+            return items.isEmpty ? nil : (kind, items)
+        }
+    }
+
     private func sortedGear(for kind: GearKind) -> [Gear] {
         let items = visibleGear.filter { $0.kind == kind }
         switch sortOption {
@@ -277,7 +283,7 @@ private struct QuiverGearRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Theme.Spacing.l)
-        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("quiver.row")
     }

@@ -166,7 +166,9 @@ enum SessionMediaStore {
         return directory
     }
 
-    nonisolated private static func downsampledImage(from data: Data, maxDimension: CGFloat) -> UIImage? {
+    /// ImageIO thumbnail at `maxDimension` so the full-resolution bitmap is
+    /// never decoded into memory (WWDC: `kCGImageSourceThumbnailMaxPixelSize`).
+    nonisolated static func downsampledImage(from data: Data, maxDimension: CGFloat) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
         let thumbnailOptions = [

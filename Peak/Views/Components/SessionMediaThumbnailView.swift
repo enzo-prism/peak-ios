@@ -47,6 +47,10 @@ struct SessionMediaThumbnailView: View {
 final class ThumbnailImageCache {
     static let shared = ThumbnailImageCache()
 
+    /// Longest pixel edge for list/grid thumbs. Covers 2x/3x 40–88 pt cells
+    /// without decoding a 2048px session photo into a 40pt chip.
+    static let displayMaxPixelSize: CGFloat = 256
+
     private let cache = NSCache<ThumbnailCacheKey, UIImage>()
 
     init() {
@@ -64,8 +68,13 @@ final class ThumbnailImageCache {
         if let cached = cache.object(forKey: key) {
             return cached
         }
+        let maxPixel = Self.displayMaxPixelSize
         let decoded = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-            guard let image = UIImage(data: data) else { return nil }
+            // ImageIO downsample first (never a full-res bitmap), then the
+            // normalized crop still applies because it is fraction-based.
+            guard let image = SessionMediaStore.downsampledImage(from: data, maxDimension: maxPixel) else {
+                return nil
+            }
             let cropped = image.cropped(toNormalized: crop)
             return cropped.preparingForDisplay() ?? cropped
         }.value
@@ -80,26 +89,34 @@ final class ThumbnailImageCache {
 private final class ThumbnailCacheKey: NSObject {
     let data: NSData
     let crop: CGRect
+    private let fingerprint: Int
 
     init(data: Data, crop: CGRect) {
         self.data = data as NSData
         self.crop = crop
-        super.init()
-    }
-
-    override var hash: Int {
+        // Hash length + ends only. `isEqual` still compares the full bytes, so
+        // a collision can never show the wrong thumb — it just falls through
+        // to NSData equality. Walking every JPEG byte on every cache lookup
+        // was the cost we were paying on scroll.
         var hasher = Hasher()
-        hasher.combine(data)
+        hasher.combine(data.count)
         hasher.combine(crop.origin.x)
         hasher.combine(crop.origin.y)
         hasher.combine(crop.size.width)
         hasher.combine(crop.size.height)
-        return hasher.finalize()
+        if !data.isEmpty {
+            hasher.combine(Data(data.prefix(16)))
+            hasher.combine(Data(data.suffix(16)))
+        }
+        self.fingerprint = hasher.finalize()
+        super.init()
     }
+
+    override var hash: Int { fingerprint }
 
     override func isEqual(_ object: Any?) -> Bool {
         guard let other = object as? ThumbnailCacheKey else { return false }
-        return data.isEqual(other.data) && crop == other.crop
+        return fingerprint == other.fingerprint && data.isEqual(other.data) && crop == other.crop
     }
 }
 

@@ -99,6 +99,16 @@ enum GearInsightsCalculator {
         let related = sessions.filter { session in
             session.gear.contains { $0.key == gear.key }
         }
+        return report(for: gear, relatedSessions: related, minimumBucketSessions: minimumBucketSessions)
+    }
+
+    /// Same report, when the caller already isolated this board's sessions
+    /// (one pass over the logbook in `reports(for:sessions:)`).
+    private static func report(
+        for gear: Gear,
+        relatedSessions related: [SurfSession],
+        minimumBucketSessions: Int
+    ) -> GearReport {
         let rated = related.filter { $0.rating > 0 }
 
         var heightRatings: [WaveHeight: [Int]] = [:]
@@ -164,15 +174,31 @@ enum GearInsightsCalculator {
         sessions: [SurfSession],
         minimumBucketSessions: Int = minimumBucketSessions
     ) -> [GearReport] {
-        gear
-            .map { report(for: $0, sessions: sessions, minimumBucketSessions: minimumBucketSessions) }
-            .filter { $0.sessionCount > 0 }
-            .sorted { lhs, rhs in
-                if lhs.sessionCount != rhs.sessionCount {
-                    return lhs.sessionCount > rhs.sessionCount
-                }
-                return lhs.gearName < rhs.gearName
+        var relatedByKey: [String: [SurfSession]] = [:]
+        relatedByKey.reserveCapacity(gear.count)
+        for session in sessions {
+            // A session on two boards belongs to both reports, matching the
+            // per-gear `filter` the single-item path uses.
+            var seen = Set<String>()
+            for item in session.gear where seen.insert(item.key).inserted {
+                relatedByKey[item.key, default: []].append(session)
             }
+        }
+
+        return gear.compactMap { item -> GearReport? in
+            guard let related = relatedByKey[item.key], !related.isEmpty else { return nil }
+            return report(
+                for: item,
+                relatedSessions: related,
+                minimumBucketSessions: minimumBucketSessions
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.sessionCount != rhs.sessionCount {
+                return lhs.sessionCount > rhs.sessionCount
+            }
+            return lhs.gearName < rhs.gearName
+        }
     }
 
     /// Categorical size for a session: the logged band when there is one, else

@@ -13,6 +13,9 @@ enum SpotlightIndexer {
     static let indexName = "PeakLogbook"
 
     @MainActor
+    private static var donateTask: Task<Void, Never>?
+
+    @MainActor
     static func donate(
         sessions: [SurfSession],
         spots: [Spot],
@@ -26,7 +29,11 @@ enum SpotlightIndexer {
         let spotEntities = spots.map(SpotEntity.init(spot:))
         let gearEntities = gear.map(GearEntity.init(gear:))
 
-        Task {
+        // A burst of session edits used to stack overlapping index jobs. Cancel
+        // the in-flight donate so Core Spotlight only sees the latest snapshot.
+        donateTask?.cancel()
+        donateTask = Task {
+            guard !Task.isCancelled else { return }
             await donateEntities(sessions: sessionEntities, spots: spotEntities, gear: gearEntities)
         }
     }

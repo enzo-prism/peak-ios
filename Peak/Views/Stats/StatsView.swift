@@ -63,7 +63,7 @@ struct StatsView: View {
                     )
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
+                        LazyVStack(alignment: .leading, spacing: 20) {
                             StatsMetricsRow(
                                 yearSummary: yearSummary,
                                 timeSummary: cachedTimeSummary,

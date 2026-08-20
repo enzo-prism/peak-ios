@@ -7,14 +7,30 @@ import SwiftData
 enum WidgetSnapshotWriter {
     static func update(from sessions: [SurfSession], now: Date = Date(), calendar: Calendar = .current) {
         let snapshot = makeSnapshot(from: sessions, now: now, calendar: calendar)
+        let existing = PeakWidgetStore.read()
+        guard shouldPublish(snapshot, replacing: existing) else { return }
         PeakWidgetStore.write(snapshot)
         PeakWidgetRefresh.reloadTimelines()
     }
 
+    /// `PeakWidgetSnapshot.empty` is the stand-in for a missing file, so the
+    /// first write of a genuinely empty logbook still lands. After that, skip
+    /// the App Group write and `WidgetCenter.reloadAllTimelines()` when the
+    /// widgets would render the same payload (Apple: reload only when timelines
+    /// change).
+    static func shouldPublish(
+        _ snapshot: PeakWidgetSnapshot,
+        replacing existing: PeakWidgetSnapshot
+    ) -> Bool {
+        if existing.generatedAt == .distantPast { return true }
+        return !existing.hasSameWidgetPayload(as: snapshot)
+    }
+
     /// Pure, testable derivation of the snapshot.
     static func makeSnapshot(from sessions: [SurfSession], now: Date = Date(), calendar: Calendar = .current) -> PeakWidgetSnapshot {
-        let sorted = sessions.sorted { $0.date > $1.date }
-        let last = sorted.first
+        // One O(n) pass for "latest" — no extra sorted copy. Ties keep the
+        // first maximum, matching a stable reverse-date sort.
+        let last = sessions.max { $0.date < $1.date }
         let lastID = last.map(SessionIntentQueries.identifier(for:))
 
         // Same definition as `SessionIntentQueries.sessionsThisMonth`, so the

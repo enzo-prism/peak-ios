@@ -5,7 +5,11 @@ struct ContentView: View {
     @Bindable private var quickLog = QuickLogCoordinator.shared
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Environment(\.scenePhase) private var scenePhase
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    /// Prefetch spots only: the widget snapshot and Spotlight entities read
+    /// `session.spot`. Media blobs are unused here and must not be pulled in
+    /// (Apple: prefetch relationships you will read, not every relationship).
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot]))
+    private var sessions: [SurfSession]
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false

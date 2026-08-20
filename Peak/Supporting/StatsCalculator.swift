@@ -61,31 +61,38 @@ struct CountedItem: Identifiable {
 
 enum StatsCalculator {
     static func summarize(sessions: [SurfSession], topLimit: Int = 3) -> StatsSummary {
-        let totalSessions = sessions.count
-        let ratings = sessions.map { $0.rating }.filter { $0 > 0 }
-        let averageRating = ratings.isEmpty ? 0 : Double(ratings.reduce(0, +)) / Double(ratings.count)
+        var ratingSum = 0
+        var ratingCount = 0
+        var spotItems: [(key: String, name: String, detail: String?)] = []
+        var gearItems: [(key: String, name: String, detail: String?)] = []
+        var buddyItems: [(key: String, name: String, detail: String?)] = []
+        spotItems.reserveCapacity(sessions.count)
+        gearItems.reserveCapacity(sessions.count)
+        buddyItems.reserveCapacity(sessions.count)
 
-        let topSpots = topCounted(
-            items: sessions.compactMap { $0.spot }.map { (key: $0.key, name: $0.name, detail: nil) },
-            topLimit: topLimit
-        )
+        for session in sessions {
+            if session.rating > 0 {
+                ratingSum += session.rating
+                ratingCount += 1
+            }
+            if let spot = session.spot {
+                spotItems.append((spot.key, spot.name, nil))
+            }
+            for item in session.gear {
+                gearItems.append((item.key, item.name, item.kind.label))
+            }
+            for buddy in session.buddies {
+                buddyItems.append((buddy.key, buddy.name, nil))
+            }
+        }
 
-        let topGear = topCounted(
-            items: sessions.flatMap { $0.gear }.map { (key: $0.key, name: $0.name, detail: $0.kind.label) },
-            topLimit: topLimit
-        )
-
-        let topBuddies = topCounted(
-            items: sessions.flatMap { $0.buddies }.map { (key: $0.key, name: $0.name, detail: nil) },
-            topLimit: topLimit
-        )
-
+        let averageRating = ratingCount == 0 ? 0 : Double(ratingSum) / Double(ratingCount)
         return StatsSummary(
-            totalSessions: totalSessions,
+            totalSessions: sessions.count,
             averageRating: averageRating,
-            topSpots: topSpots,
-            topGear: topGear,
-            topBuddies: topBuddies
+            topSpots: topCounted(items: spotItems, topLimit: topLimit),
+            topGear: topCounted(items: gearItems, topLimit: topLimit),
+            topBuddies: topCounted(items: buddyItems, topLimit: topLimit)
         )
     }
 
@@ -285,18 +292,30 @@ enum StatsCalculator {
     }
 
     /// Rated sessions that also carry a measured wave height, oldest first.
-    static func waveHeightRatingSamples(sessions: [SurfSession]) -> [WaveRatingSample] {
-        sessions
-            .filter { $0.rating > 0 && $0.waveHeightMeters != nil }
-            .sorted { $0.date < $1.date }
-            .enumerated()
-            .map { index, session in
-                WaveRatingSample(
-                    id: index,
-                    waveHeightMeters: session.waveHeightMeters ?? 0,
-                    rating: session.rating
-                )
-            }
+    /// Caps at `limit` most-recent samples so Swift Charts is not asked to
+    /// plot an unbounded PointMark set (WWDC: keep mark counts in the
+    /// hundreds, not the thousands).
+    static let maxWaveHeightRatingSamples = 200
+
+    static func waveHeightRatingSamples(
+        sessions: [SurfSession],
+        limit: Int = maxWaveHeightRatingSamples
+    ) -> [WaveRatingSample] {
+        let eligible = sessions.filter { $0.rating > 0 && $0.waveHeightMeters != nil }
+        let trimmed: [SurfSession]
+        if eligible.count <= limit {
+            trimmed = eligible.sorted { $0.date < $1.date }
+        } else {
+            trimmed = Array(eligible.sorted { $0.date > $1.date }.prefix(limit))
+                .sorted { $0.date < $1.date }
+        }
+        return trimmed.enumerated().map { index, session in
+            WaveRatingSample(
+                id: index,
+                waveHeightMeters: session.waveHeightMeters ?? 0,
+                rating: session.rating
+            )
+        }
     }
 
     /// Buckets rated sessions by swell period and wind condition and returns
@@ -377,26 +396,22 @@ enum StatsCalculator {
         items: [(key: String, name: String, detail: String?)],
         topLimit: Int
     ) -> [CountedItem] {
-        var counts: [String: CountedItem] = [:]
+        var counts: [String: Int] = [:]
+        var meta: [String: (name: String, detail: String?)] = [:]
+        counts.reserveCapacity(items.count)
         for item in items {
-            if let existing = counts[item.key] {
-                counts[item.key] = CountedItem(
-                    key: existing.key,
-                    name: existing.name,
-                    detail: existing.detail,
-                    count: existing.count + 1
-                )
-            } else {
-                counts[item.key] = CountedItem(
-                    key: item.key,
-                    name: item.name,
-                    detail: item.detail,
-                    count: 1
-                )
+            counts[item.key, default: 0] += 1
+            if meta[item.key] == nil {
+                meta[item.key] = (item.name, item.detail)
             }
         }
 
-        return counts.values.sorted { lhs, rhs in
+        let counted = counts.compactMap { key, count -> CountedItem? in
+            guard let info = meta[key] else { return nil }
+            return CountedItem(key: key, name: info.name, detail: info.detail, count: count)
+        }
+
+        return counted.sorted { lhs, rhs in
             if lhs.count == rhs.count {
                 // Final `key` tiebreak keeps ordering stable when two items
                 // share both a count and a display name (e.g. duplicate names).

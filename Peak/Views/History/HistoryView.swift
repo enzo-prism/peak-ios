@@ -314,7 +314,7 @@ struct HistoryView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textInverse)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
+                        .frame(minHeight: 44)
                         .glassCapsule(tint: Theme.glassStrongTint, isInteractive: true)
                 }
                 .buttonStyle(PressFeedbackButtonStyle())
@@ -371,7 +371,7 @@ struct HistoryView: View {
             }
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .frame(minHeight: 44)
             .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
             .contentShape(Capsule())
         }

@@ -27,6 +27,9 @@ struct GlassContainer<Content: View>: View {
 extension View {
     @ViewBuilder
     func glassCard(cornerRadius: CGFloat = Theme.Radius.card, tint: Color = Theme.glassTint, isInteractive: Bool = false) -> some View {
+        // Interactive glass is for controls (Apple: `.interactive()` reacts to
+        // touch). Scrolling rows use `false` — the press style lives on the
+        // NavigationLink, and the interactive material is the expensive path.
         #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 let glass = isInteractive ? Glass.regular.tint(tint).interactive() : Glass.regular.tint(tint)

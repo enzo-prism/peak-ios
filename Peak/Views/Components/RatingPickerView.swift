@@ -26,7 +26,7 @@ struct RatingPickerView: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                        .frame(minHeight: 44)
                         .glassCapsule(tint: Theme.glassDimTint, isInteractive: true)
                 }
                 .buttonStyle(PressFeedbackButtonStyle())

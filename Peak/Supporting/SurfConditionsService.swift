@@ -167,19 +167,43 @@ enum SurfConditionsService {
         levels: [Double?]?,
         around date: Date
     ) -> TideTrend? {
+        guard let series = tideSeries(times: times, levels: levels) else { return nil }
+        return deriveTideTrend(from: series, around: date)
+    }
+
+    /// Paired, sorted tide samples plus the amplitude extrema. Built once per
+    /// marine series so Best Window doesn't rebuild the curve for every hour.
+    nonisolated struct TideSampleSeries: Sendable {
+        let samples: [(date: Date, level: Double)]
+        let highest: Double
+        let lowest: Double
+    }
+
+    nonisolated static func tideSeries(times: [Date], levels: [Double?]?) -> TideSampleSeries? {
         guard let levels else { return nil }
 
         // Pair up and drop anything unusable. Sea level is legitimately negative,
         // so only non-finite values are rejected.
         var samples: [(date: Date, level: Double)] = []
+        samples.reserveCapacity(min(times.count, levels.count))
         for (index, time) in times.enumerated() {
             guard levels.indices.contains(index), let level = levels[index], level.isFinite else { continue }
             samples.append((time, level))
         }
         samples.sort { $0.date < $1.date }
-        guard samples.count >= 2 else { return nil }
+        guard samples.count >= 2,
+              let highest = samples.map(\.level).max(),
+              let lowest = samples.map(\.level).min()
+        else { return nil }
+        return TideSampleSeries(samples: samples, highest: highest, lowest: lowest)
+    }
 
-        guard let pivot = nearestIndex(for: date, in: samples.map(\.date)) else { return nil }
+    nonisolated static func deriveTideTrend(
+        from series: TideSampleSeries,
+        around date: Date
+    ) -> TideTrend? {
+        let samples = series.samples
+        guard let pivot = nearestSortedSampleIndex(for: date, in: samples) else { return nil }
 
         // Central difference where possible; one-sided at the ends. Slope is per
         // hour so the threshold below is in metres-per-hour.
@@ -191,8 +215,8 @@ enum SurfConditionsService {
         let slope = (samples[upper].level - samples[lower].level) / hours
         guard slope.isFinite else { return nil }
 
-        let levelsOnly = samples.map(\.level)
-        guard let highest = levelsOnly.max(), let lowest = levelsOnly.min() else { return nil }
+        let highest = series.highest
+        let lowest = series.lowest
         let amplitude = (highest - lowest) / 2
         // A dead-flat series carries no tide signal at all; claiming a trend from
         // it would be inventing one.
@@ -202,6 +226,30 @@ enum SurfConditionsService {
             return samples[pivot].level >= (highest + lowest) / 2 ? .high : .low
         }
         return slope > 0 ? .rising : .falling
+    }
+
+    /// Closest sample in a date-sorted series. Ties keep the earlier index,
+    /// matching `nearestIndex(for:in:)`.
+    nonisolated static func nearestSortedSampleIndex(
+        for date: Date,
+        in samples: [(date: Date, level: Double)]
+    ) -> Int? {
+        guard !samples.isEmpty else { return nil }
+        var lo = 0
+        var hi = samples.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if samples[mid].date < date {
+                lo = mid + 1
+            } else {
+                hi = mid
+            }
+        }
+        if lo == 0 { return 0 }
+        if lo == samples.count { return samples.count - 1 }
+        let beforeDistance = abs(samples[lo - 1].date.timeIntervalSince(date))
+        let afterDistance = abs(samples[lo].date.timeIntervalSince(date))
+        return beforeDistance <= afterDistance ? lo - 1 : lo
     }
 
     private static func mockSnapshot(
@@ -389,12 +437,14 @@ extension SurfConditionsService {
         guard !times.isEmpty else { throw SurfConditionsError.noMatchingHours }
 
         let hourly = response.hourly
+        let series = tideSeries(times: times, levels: hourly.sea_level_height_msl)
         var out: [Date: MarineSample] = [:]
+        out.reserveCapacity(times.count)
         for (index, time) in times.enumerated() {
             // Trend is per hour here, unlike the session snapshot: "when today?"
             // is largely a tide question, so each hour needs its own answer,
-            // derived from the same full series.
-            let trend = deriveTideTrend(times: times, levels: hourly.sea_level_height_msl, around: time)
+            // derived from the same full series (built once above).
+            let trend = series.flatMap { deriveTideTrend(from: $0, around: time) }
             out[time] = MarineSample(
                 waveHeightMeters: value(hourly.wave_height, at: index),
                 swellWaveHeightMeters: value(hourly.swell_wave_height, at: index),
