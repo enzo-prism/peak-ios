@@ -9,7 +9,7 @@ Status at a glance:
 
 - **App Store (live):** `2.6`
 - **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds. This binary is **not** replaced by the work on `main`.
-- **`main` (unreleased):** 3.3 system integration plus a performance/HIG pass — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists. No schema change. Expect **537 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
+- **`main` (unreleased):** 3.3 system integration plus a performance/HIG pass — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists. No schema change. Expect **542 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
 - **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
@@ -56,27 +56,36 @@ opt-in toggles. GPS from a Health route is never persisted.
   `testLimitPrefersCloserYearOverAHigherOlderRating`,
   `testWaveHeightRatingSamplesKeepChronologyAndCapToMostRecent`,
   `testDownsampledImageCapsTheLongestEdge`,
-  `testMaxPointsCapsADenseTrack` (folded into existing files). Expect **537 unit /
+  `testMaxPointsCapsADenseTrack`,
+  `testMatchingSpotKeyFetchReturnsOnlyThatSpotNewestFirst`,
+  `testMatchingGearKeyFetchIncludesATwoBoardSessionOncePerBoard`,
+  `testMatchingBuddyKeyFetchExcludesUnrelatedSessions`,
+  `testSessionQueryStampChangesWhenUpdatedAtChanges` (folded into existing files). Expect **542 unit /
   54 UI** (`./scripts/test.sh` on a Mac). This Cloud VM cannot run `xcodebuild`.
 
 ### Changed
 
 - **Log, History, Stats, and widgets stay lighter as the logbook grows.** Session
   queries prefetch only the relationships those screens read (spots/gear/buddies;
-  media stays lazy except the three Log recents). WidgetKit
-  `reloadAllTimelines()` and the App Group snapshot rewrite are skipped when the
-  payload is unchanged, including same-day foreground returns. Spotlight donate
-  cancels the in-flight job so a burst of edits does not stack index work.
-  Calculators that used to walk the library many times now do one pass
+  media stays lazy except the three Log recents). Spot / Gear / Buddy detail
+  `@Query` with a `#Predicate` on `spot.key` / `gear.key` / `buddies.key` instead
+  of loading the whole logbook. The iOS 18 Search tab mounts History only while
+  that tab is selected, so the unused sibling no longer runs a second media-prefetch
+  query. WidgetKit `reloadAllTimelines()` and the App Group snapshot rewrite are
+  skipped when the payload is unchanged, including same-day foreground returns.
+  Spotlight donate cancels the in-flight job so a burst of edits does not stack
+  index work. Calculators that used to walk the library many times now do one pass
   (On This Day, board reports, wave records, stats totals, tide-trend series).
   List/grid thumbs decode through ImageIO downsample (`kCGImageSourceThumbnailMaxPixelSize`)
   instead of a full `UIImage(data:)`. Stats scatter plots cap at 200 recent
   points. The session route map simplifies GPS overlays for MapKit while
   analysis still uses the full track. Library and Stats scrolls use `LazyVStack`.
+  Stats, Quiver, and library lists refresh from `SessionQueryStamp` (`updatedAt`)
+  so in-place edits (rating, gear, notes) update memoized summaries.
   (`ContentView`, `LogView`, `WidgetSnapshotWriter`, `SpotlightIndexer`,
   `OnThisDayProvider`, `GearInsightsCalculator`, `WaveStatsCalculator`,
   `StatsCalculator`, `SurfConditionsService`, `SessionMediaThumbnailView`,
-  `SessionRouteMapView`, library/Stats views)
+  `SessionRouteMapView`, `ModelContext+Helpers`, library/Stats views)
 
 - **Last Session widget does work.** Tapping opens that session
   (`peak://session?id=`), not a blank editor. Empty state still uses

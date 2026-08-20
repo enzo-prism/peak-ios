@@ -18,12 +18,74 @@ extension SurfSession {
     /// round trip) per row while scrolling or aggregating.
     static func sortedByDateDescending(
         limit: Int? = nil,
-        prefetch: [PartialKeyPath<SurfSession>] = []
+        prefetch: [PartialKeyPath<SurfSession>] = [],
+        predicate: Predicate<SurfSession>? = nil
     ) -> FetchDescriptor<SurfSession> {
-        var descriptor = FetchDescriptor<SurfSession>(sortBy: [SortDescriptor(\.date, order: .reverse)])
+        var descriptor = FetchDescriptor<SurfSession>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
         descriptor.fetchLimit = limit
         descriptor.relationshipKeyPathsForPrefetching = prefetch
         return descriptor
+    }
+
+    /// Spot detail: SQLite filter on the to-one `spot.key` instead of loading
+    /// the whole logbook and matching `persistentModelID` in memory.
+    static func sortedByDateDescending(
+        matchingSpotKey spotKey: String,
+        prefetch: [PartialKeyPath<SurfSession>] = []
+    ) -> FetchDescriptor<SurfSession> {
+        let key = spotKey
+        return sortedByDateDescending(
+            prefetch: prefetch,
+            predicate: #Predicate<SurfSession> { session in
+                session.spot?.key == key
+            }
+        )
+    }
+
+    /// Gear detail: to-many `contains` on `gear.key`. A two-board session
+    /// matches each board independently.
+    static func sortedByDateDescending(
+        matchingGearKey gearKey: String,
+        prefetch: [PartialKeyPath<SurfSession>] = []
+    ) -> FetchDescriptor<SurfSession> {
+        let key = gearKey
+        return sortedByDateDescending(
+            prefetch: prefetch,
+            predicate: #Predicate<SurfSession> { session in
+                session.gear.contains { $0.key == key }
+            }
+        )
+    }
+
+    /// Buddy detail: to-many `contains` on `buddies.key`.
+    static func sortedByDateDescending(
+        matchingBuddyKey buddyKey: String,
+        prefetch: [PartialKeyPath<SurfSession>] = []
+    ) -> FetchDescriptor<SurfSession> {
+        let key = buddyKey
+        return sortedByDateDescending(
+            prefetch: prefetch,
+            predicate: #Predicate<SurfSession> { session in
+                session.buddies.contains { $0.key == key }
+            }
+        )
+    }
+}
+
+/// Cheap `@Query` change signature. SwiftData array identity does not change
+/// when a row is edited in place, so lists that memoize from sessions must
+/// hash `updatedAt` (set on every editor save) as well as the model ID.
+enum SessionQueryStamp {
+    static func make(_ sessions: [SurfSession]) -> Int {
+        var hasher = Hasher()
+        for session in sessions {
+            hasher.combine(session.persistentModelID)
+            hasher.combine(session.updatedAt)
+        }
+        return hasher.finalize()
     }
 }
 

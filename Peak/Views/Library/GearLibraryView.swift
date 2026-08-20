@@ -83,10 +83,7 @@ struct GearLibraryView: View {
         .sheet(isPresented: $showEditor) {
             GearEditorView(mode: .new)
         }
-        .onAppear {
-            snapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
-        }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: sessionsStamp, initial: true) { _, _ in
             snapshots = UsageMetricsCalculator.gearSnapshots(sessions: sessions)
         }
     }
@@ -141,6 +138,10 @@ struct GearLibraryView: View {
         }
         .padding(Theme.Spacing.l)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+    }
+
+    private var sessionsStamp: Int {
+        SessionQueryStamp.make(sessions)
     }
 }
 

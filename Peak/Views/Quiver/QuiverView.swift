@@ -64,10 +64,9 @@ struct QuiverView: View {
             GearEditorView(mode: .new)
         }
         .onAppear {
-            refreshSnapshots()
             consumePendingGearIfNeeded()
         }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: sessionsStamp, initial: true) { _, _ in
             refreshSnapshots()
         }
         .onChange(of: navigation.pendingGearID) { _, _ in
@@ -242,6 +241,10 @@ struct QuiverView: View {
 
     private func refreshSnapshots() {
         cachedSnapshots = GearUsageCalculator.snapshots(sessions: sessions)
+    }
+
+    private var sessionsStamp: Int {
+        SessionQueryStamp.make(sessions)
     }
 }
 

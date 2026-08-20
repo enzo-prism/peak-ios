@@ -141,10 +141,7 @@ struct StatsView: View {
             }
             .navigationTitle("Stats")
         }
-        .onAppear {
-            refreshSummaries()
-        }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: statsStamp, initial: true) { _, _ in
             refreshSummaries()
         }
         .onChange(of: goalMetricRaw) { _, _ in
@@ -168,6 +165,16 @@ struct StatsView: View {
 
     private var goalMetric: MonthlyGoalMetric {
         MonthlyGoalMetric(rawValue: goalMetricRaw) ?? .sessions
+    }
+
+    private var statsStamp: Int {
+        var hasher = Hasher()
+        hasher.combine(SessionQueryStamp.make(sessions))
+        for item in gear {
+            hasher.combine(item.persistentModelID)
+            hasher.combine(item.isArchived)
+        }
+        return hasher.finalize()
     }
 
     private var summary: StatsSummary {

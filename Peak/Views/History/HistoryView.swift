@@ -423,12 +423,7 @@ struct HistoryView: View {
     /// Cheap change signature for the session list: covers inserts, deletes,
     /// reorders, and edits (via `updatedAt`) without re-filtering per body pass.
     private var sessionsStamp: Int {
-        var hasher = Hasher()
-        for session in sessions {
-            hasher.combine(session.persistentModelID)
-            hasher.combine(session.updatedAt)
-        }
-        return hasher.finalize()
+        SessionQueryStamp.make(sessions)
     }
 
     private func refreshResults() {

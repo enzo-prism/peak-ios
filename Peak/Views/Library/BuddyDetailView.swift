@@ -2,9 +2,18 @@ import SwiftUI
 import SwiftData
 
 struct BuddyDetailView: View {
+    let buddy: Buddy
+
+    var body: some View {
+        BuddyDetailLoadedView(buddy: buddy, buddyKey: buddy.key)
+            .id(buddy.key)
+    }
+}
+
+private struct BuddyDetailLoadedView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query private var sessions: [SurfSession]
 
     let buddy: Buddy
     @State private var showEditor = false
@@ -12,11 +21,18 @@ struct BuddyDetailView: View {
     @State private var deleteBlockedMessage = ""
     @State private var showDeleteBlocked = false
 
+    init(buddy: Buddy, buddyKey: String) {
+        self.buddy = buddy
+        _sessions = Query(
+            SurfSession.sortedByDateDescending(
+                matchingBuddyKey: buddyKey,
+                prefetch: [\.spot, \.gear, \.buddies]
+            )
+        )
+    }
+
     var body: some View {
-        let relatedSessions = sessions.filter { session in
-            session.buddies.contains(where: { $0.persistentModelID == buddy.persistentModelID })
-        }
-        let metrics = UsageMetricsCalculator.metrics(for: relatedSessions)
+        let metrics = UsageMetricsCalculator.metrics(for: sessions)
 
         ZStack {
             Theme.background.ignoresSafeArea()
@@ -33,7 +49,7 @@ struct BuddyDetailView: View {
                         valueLabel: "Sessions"
                     )
 
-                    sessionSection(sessions: relatedSessions)
+                    sessionSection(sessions: sessions)
 
                     Button(role: .destructive) {
                         deleteTapped(count: metrics.count)

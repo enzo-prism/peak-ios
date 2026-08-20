@@ -71,10 +71,9 @@ struct SpotLibraryView: View {
             Text("You can save up to \(Spot.maxCount) surf breaks.")
         }
         .onAppear {
-            snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
             consumePendingSpotIfNeeded()
         }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: sessionsStamp, initial: true) { _, _ in
             snapshots = UsageMetricsCalculator.spotSnapshots(sessions: sessions)
         }
         .onChange(of: navigation.pendingSpotID) { _, _ in
@@ -218,6 +217,10 @@ struct SpotLibraryView: View {
 
     private var isLimitReached: Bool {
         spots.count >= Spot.maxCount
+    }
+
+    private var sessionsStamp: Int {
+        SessionQueryStamp.make(sessions)
     }
 }
 

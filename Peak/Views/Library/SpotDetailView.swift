@@ -4,9 +4,20 @@ import SwiftData
 import AppIntents
 
 struct SpotDetailView: View {
+    let spot: Spot
+
+    var body: some View {
+        // Recreate the `@Query` when the unique key changes (rename in the
+        // editor), because the fetch predicate is captured at init.
+        SpotDetailLoadedView(spot: spot, spotKey: spot.key)
+            .id(spot.key)
+    }
+}
+
+private struct SpotDetailLoadedView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query private var sessions: [SurfSession]
 
     let spot: Spot
     @State private var showEditor = false
@@ -14,11 +25,18 @@ struct SpotDetailView: View {
     @State private var deleteBlockedMessage = ""
     @State private var showDeleteBlocked = false
 
+    init(spot: Spot, spotKey: String) {
+        self.spot = spot
+        _sessions = Query(
+            SurfSession.sortedByDateDescending(
+                matchingSpotKey: spotKey,
+                prefetch: [\.spot, \.gear, \.buddies]
+            )
+        )
+    }
+
     var body: some View {
-        let relatedSessions = sessions.filter { session in
-            session.spot?.persistentModelID == spot.persistentModelID
-        }
-        let metrics = UsageMetricsCalculator.metrics(for: relatedSessions)
+        let metrics = UsageMetricsCalculator.metrics(for: sessions)
 
         ZStack {
             Theme.background.ignoresSafeArea()
@@ -37,7 +55,7 @@ struct SpotDetailView: View {
                         valueLabel: "Sessions"
                     )
 
-                    sessionSection(sessions: relatedSessions)
+                    sessionSection(sessions: sessions)
 
                     Button(role: .destructive) {
                         deleteTapped(count: metrics.count)

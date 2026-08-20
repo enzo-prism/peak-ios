@@ -3,9 +3,18 @@ import SwiftData
 import AppIntents
 
 struct GearDetailView: View {
+    let gear: Gear
+
+    var body: some View {
+        GearDetailLoadedView(gear: gear, gearKey: gear.key)
+            .id(gear.key)
+    }
+}
+
+private struct GearDetailLoadedView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \SurfSession.date, order: .reverse) private var sessions: [SurfSession]
+    @Query private var sessions: [SurfSession]
 
     let gear: Gear
     @State private var showEditor = false
@@ -22,6 +31,16 @@ struct GearDetailView: View {
     @State private var cachedPolicy = GearUsagePolicy(canDelete: false, canArchive: false)
     @State private var cachedRelatedSessions: [SurfSession] = []
     @State private var cachedReport: GearReport?
+
+    init(gear: Gear, gearKey: String) {
+        self.gear = gear
+        _sessions = Query(
+            SurfSession.sortedByDateDescending(
+                matchingGearKey: gearKey,
+                prefetch: [\.spot, \.gear, \.buddies]
+            )
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -101,10 +120,7 @@ struct GearDetailView: View {
         } message: {
             Text("This removes the gear from your library. Sessions will remain unchanged.")
         }
-        .onAppear {
-            refreshUsage()
-        }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: usageStamp, initial: true) { _, _ in
             refreshUsage()
         }
     }
@@ -278,10 +294,14 @@ struct GearDetailView: View {
         return String(format: "%.1f", value)
     }
 
+    private var usageStamp: Int {
+        SessionQueryStamp.make(sessions)
+    }
+
     private func refreshUsage() {
-        cachedRelatedSessions = sessions.filter { session in
-            session.gear.contains(where: { $0.key == gear.key })
-        }
+        // `@Query` already isolated this gear's sessions; calculators still
+        // filter by key so a two-board row is counted once for this board.
+        cachedRelatedSessions = sessions
         cachedSummary = GearUsageCalculator.summary(for: gear, sessions: sessions)
         cachedPolicy = GearUsageCalculator.policy(for: gear, sessions: sessions)
         // Conditions-bucketed ratings only make sense for the thing you choose

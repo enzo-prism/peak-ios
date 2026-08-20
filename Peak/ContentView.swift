@@ -133,7 +133,7 @@ struct ContentView: View {
             .customizationID("peak.more")
 
             Tab(value: PeakTab.search, role: .search) {
-                HistoryView(isDedicatedSearchTab: true)
+                SearchHistoryTab(isSelected: navigation.selectedTab == .search)
             }
             .customizationID("peak.search")
 
@@ -171,13 +171,10 @@ struct ContentView: View {
     }
 
     /// Cheap change signature covering inserts, deletes, and edits (via
-    /// `updatedAt`); mirrors `HistoryView.sessionsStamp`.
+    /// `updatedAt`); also counts spots/gear so new library rows refresh widgets.
     private var sessionsStamp: Int {
         var hasher = Hasher()
-        for session in sessions {
-            hasher.combine(session.persistentModelID)
-            hasher.combine(session.updatedAt)
-        }
+        hasher.combine(SessionQueryStamp.make(sessions))
         hasher.combine(spots.count)
         hasher.combine(gear.count)
         return hasher.finalize()
@@ -187,6 +184,20 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .modelContainer(PreviewData.container)
+}
+
+/// iOS 18 Search tab reuses History. `@Query` on an unused Tab sibling still
+/// fetches the whole logbook (History prefetches media), so this host only
+/// instantiates History while Search is selected. Search *intents* still land
+/// on the History tab — see `PeakNavigationCoordinator`.
+private struct SearchHistoryTab: View {
+    var isSelected: Bool
+
+    var body: some View {
+        if isSelected {
+            HistoryView(isDedicatedSearchTab: true)
+        }
+    }
 }
 
 /// iPad regular width uses the sidebar-adaptable tab style. Compact (iPhone)

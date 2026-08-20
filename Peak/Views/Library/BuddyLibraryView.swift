@@ -68,10 +68,7 @@ struct BuddyLibraryView: View {
         .sheet(isPresented: $showEditor) {
             BuddyEditorView(mode: .new)
         }
-        .onAppear {
-            snapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
-        }
-        .onChange(of: sessions) { _, _ in
+        .onChange(of: sessionsStamp, initial: true) { _, _ in
             snapshots = UsageMetricsCalculator.buddySnapshots(sessions: sessions)
         }
     }
@@ -99,6 +96,10 @@ struct BuddyLibraryView: View {
         case .az:
             return buddies.sorted { $0.name < $1.name }
         }
+    }
+
+    private var sessionsStamp: Int {
+        SessionQueryStamp.make(sessions)
     }
 }
 
