@@ -119,11 +119,12 @@ extension View {
     }
 
     /// Collapses a `.searchable` field into a button that expands on tap (iOS 26
-    /// space-saving behavior); no-op on earlier systems.
+    /// space-saving behavior); no-op on earlier systems. Pass `false` when search
+    /// is the screen's primary job (the dedicated Search tab).
     @ViewBuilder
-    func searchMinimizeBehavior() -> some View {
+    func searchMinimizeBehavior(_ enabled: Bool = true) -> some View {
         #if compiler(>=6.2)
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, *), enabled {
                 self.searchToolbarBehavior(.minimize)
             } else {
                 self
@@ -140,6 +141,21 @@ extension View {
         #if compiler(>=6.2)
             if #available(iOS 26.0, *) {
                 self.tabBarMinimizeBehavior(.onScrollDown)
+            } else {
+                self
+            }
+        #else
+            self
+        #endif
+    }
+
+    /// Inline navigation subtitle (iOS 26 toolbar). No-op on earlier systems so
+    /// library detail can name the place/kind under "Spot" / "Gear" / "Buddy".
+    @ViewBuilder
+    func libraryNavigationSubtitle(_ text: String) -> some View {
+        #if compiler(>=6.2)
+            if #available(iOS 26.0, *) {
+                self.navigationSubtitle(text)
             } else {
                 self
             }

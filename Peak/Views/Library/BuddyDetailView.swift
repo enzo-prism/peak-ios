@@ -20,6 +20,7 @@ private struct BuddyDetailLoadedView: View {
     @State private var showDeleteConfirm = false
     @State private var deleteBlockedMessage = ""
     @State private var showDeleteBlocked = false
+    @State private var didDelete = false
 
     init(buddy: Buddy, buddyKey: String) {
         self.buddy = buddy
@@ -38,36 +39,38 @@ private struct BuddyDetailLoadedView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    headerCard(metrics: metrics)
+                GlassContainer(spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        headerCard
 
-                    summarySection(metrics: metrics)
+                        summarySection(metrics: metrics)
 
-                    UsageChartCard(
-                        title: "Sessions over time",
-                        data: metrics.monthlyCounts,
-                        valueLabel: "Sessions"
-                    )
+                        if metrics.count > 0 {
+                            UsageChartCard(
+                                title: "Sessions over time",
+                                data: metrics.monthlyCounts,
+                                valueLabel: "Sessions"
+                            )
+                        }
 
-                    sessionSection(sessions: sessions)
+                        LibrarySessionListSection(title: "Sessions", sessions: sessions)
 
-                    Button(role: .destructive) {
-                        deleteTapped(count: metrics.count)
-                    } label: {
-                        Label("Delete Buddy", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
+                        LibraryDestructiveButton(title: "Delete Buddy") {
+                            deleteTapped(count: metrics.count)
+                        }
                     }
-                    .glassButtonStyle(prominent: false)
+                    .padding()
+                    .readableContentWidth()
                 }
-                .padding()
-                .readableContentWidth()
             }
         }
         .navigationTitle("Buddy")
         .navigationBarTitleDisplayMode(.inline)
+        .libraryNavigationSubtitle("Surf buddy")
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showEditor = true }
+                    .accessibilityIdentifier("library.detail.edit")
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -80,6 +83,7 @@ private struct BuddyDetailLoadedView: View {
         ) {
             Button("Delete", role: .destructive) {
                 modelContext.delete(buddy)
+                didDelete = true
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
@@ -91,62 +95,30 @@ private struct BuddyDetailLoadedView: View {
         } message: {
             Text(deleteBlockedMessage)
         }
+        .sensoryFeedback(.success, trigger: didDelete)
     }
 
-    private func headerCard(metrics: UsageSummary) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(buddy.name)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("\(metrics.count) shared session\(metrics.count == 1 ? "" : "s")")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+    private var headerCard: some View {
+        Text(buddy.name)
+            .font(.largeTitle.weight(.semibold))
+            .foregroundStyle(Theme.textPrimary)
+            .lineLimit(3)
+            .minimumScaleFactor(0.7)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(Theme.Spacing.l)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Summary")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
+            LibrarySectionHeader(title: "Summary")
 
             DetailMetricGrid {
                 MetricCardView(title: "Sessions", value: "\(metrics.count)")
                 MetricCardView(title: "Last Surfed", value: lastUsedLabel(metrics.lastUsed))
                 MetricCardView(title: "Avg Rating", value: averageRatingLabel(metrics.averageRating))
-            }
-        }
-    }
-
-    private func sessionSection(sessions: [SurfSession]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Sessions")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            if sessions.isEmpty {
-                Text("No sessions yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textMuted)
-                    .padding(12)
-                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-            } else {
-                ForEach(sessions) { session in
-                    NavigationLink {
-                        SessionDetailView(session: session)
-                    } label: {
-                        SessionRowView(session: session)
-                    }
-                    .buttonStyle(PressFeedbackButtonStyle())
-                }
             }
         }
     }
@@ -162,7 +134,7 @@ private struct BuddyDetailLoadedView: View {
 
     private func lastUsedLabel(_ date: Date?) -> String {
         guard let date else { return "-" }
-        return date.formatted(.dateTime.month(.abbreviated).day().year())
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func averageRatingLabel(_ value: Double) -> String {

@@ -180,3 +180,30 @@ struct HistoryFilters: Equatable {
         }
     }
 }
+
+/// Which History/Search body to show. Kept UI-free so the Search tab's idle
+/// prompt (not a second copy of the timeline) is unit-testable.
+enum HistoryListMode: Equatable {
+    case emptyLogbook
+    case searchPrompt
+    case noMatches
+    case results
+
+    static func resolve(
+        sessionCount: Int,
+        isDedicatedSearchTab: Bool,
+        hasActiveCriteria: Bool,
+        matchCount: Int
+    ) -> HistoryListMode {
+        if sessionCount == 0 {
+            return .emptyLogbook
+        }
+        if isDedicatedSearchTab && !hasActiveCriteria {
+            return .searchPrompt
+        }
+        if hasActiveCriteria && matchCount == 0 {
+            return .noMatches
+        }
+        return .results
+    }
+}

@@ -24,6 +24,7 @@ private struct SpotDetailLoadedView: View {
     @State private var showDeleteConfirm = false
     @State private var deleteBlockedMessage = ""
     @State private var showDeleteBlocked = false
+    @State private var didDelete = false
 
     init(spot: Spot, spotKey: String) {
         self.spot = spot
@@ -42,35 +43,36 @@ private struct SpotDetailLoadedView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    headerCard(metrics: metrics)
+                GlassContainer(spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        headerCard
 
-                    summarySection(metrics: metrics)
+                        summarySection(metrics: metrics)
 
-                    locationSection()
+                        locationSection()
 
-                    UsageChartCard(
-                        title: "Sessions over time",
-                        data: metrics.monthlyCounts,
-                        valueLabel: "Sessions"
-                    )
+                        if metrics.count > 0 {
+                            UsageChartCard(
+                                title: "Sessions over time",
+                                data: metrics.monthlyCounts,
+                                valueLabel: "Sessions"
+                            )
+                        }
 
-                    sessionSection(sessions: sessions)
+                        LibrarySessionListSection(title: "Sessions", sessions: sessions)
 
-                    Button(role: .destructive) {
-                        deleteTapped(count: metrics.count)
-                    } label: {
-                        Label("Delete Spot", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
+                        LibraryDestructiveButton(title: "Delete Spot") {
+                            deleteTapped(count: metrics.count)
+                        }
                     }
-                    .glassButtonStyle(prominent: false)
+                    .padding()
+                    .readableContentWidth()
                 }
-                .padding()
-                .readableContentWidth()
             }
         }
         .navigationTitle("Spot")
         .navigationBarTitleDisplayMode(.inline)
+        .libraryNavigationSubtitle(spot.locationName?.trimmedNonEmpty ?? "Surf break")
         .userActivity("com.designprism.peak.viewingSpot") { activity in
             activity.title = spot.name
             activity.isEligibleForSearch = true
@@ -81,8 +83,9 @@ private struct SpotDetailLoadedView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") { showEditor = true }
+                    .accessibilityIdentifier("library.detail.edit")
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -95,6 +98,7 @@ private struct SpotDetailLoadedView: View {
         ) {
             Button("Delete", role: .destructive) {
                 modelContext.delete(spot)
+                didDelete = true
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
@@ -106,37 +110,33 @@ private struct SpotDetailLoadedView: View {
         } message: {
             Text(deleteBlockedMessage)
         }
+        .sensoryFeedback(.success, trigger: didDelete)
     }
 
-    private func headerCard(metrics: UsageSummary) -> some View {
+    private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(spot.name)
-                .font(.title2.weight(.semibold))
+                .font(.largeTitle.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(3)
+                .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(spot.locationName?.trimmedNonEmpty ?? "No location saved")
                 .font(.subheadline)
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Text("\(metrics.count) session\(metrics.count == 1 ? "" : "s")")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .glassCapsule(tint: Theme.glassDimTint, isInteractive: false)
         }
-        .padding(16)
+        .padding(Theme.Spacing.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func summarySection(metrics: UsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Summary")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
+            LibrarySectionHeader(title: "Summary")
 
             DetailMetricGrid {
                 MetricCardView(title: "Times Surfed", value: "\(metrics.count)")
@@ -148,54 +148,28 @@ private struct SpotDetailLoadedView: View {
 
     private func locationSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Location")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            if let location = spot.locationName?.trimmedNonEmpty {
-                Text(location)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-            } else {
-                Text("No location saved yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textMuted)
-            }
+            LibrarySectionHeader(title: "Location")
 
             if let coordinate = spot.coordinate {
                 mapPreview(coordinate: coordinate)
+
+                Button {
+                    openInMaps(coordinate: coordinate)
+                } label: {
+                    Label("Open in Maps", systemImage: "map")
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
+                }
+                .glassButtonStyle(prominent: false)
+                .accessibilityLabel("Open \(spot.name) in Maps")
+                .accessibilityIdentifier("spot.detail.openInMaps")
             } else {
                 Text("Drop a pin in Edit to save the surf break location.")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textMuted)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-            }
-        }
-    }
-
-    private func sessionSection(sessions: [SurfSession]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Sessions")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            if sessions.isEmpty {
-                Text("No sessions yet.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.textMuted)
-                    .padding(12)
+                    .padding(Theme.Spacing.m)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-            } else {
-                ForEach(sessions) { session in
-                    NavigationLink {
-                        SessionDetailView(session: session)
-                    } label: {
-                        SessionRowView(session: session)
-                    }
-                    .buttonStyle(PressFeedbackButtonStyle())
-                }
             }
         }
     }
@@ -211,7 +185,7 @@ private struct SpotDetailLoadedView: View {
 
     private func lastUsedLabel(_ date: Date?) -> String {
         guard let date else { return "-" }
-        return date.formatted(.dateTime.month(.abbreviated).day().year())
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func averageRatingLabel(_ value: Double) -> String {
@@ -232,9 +206,15 @@ private struct SpotDetailLoadedView: View {
         }
         .mapStyle(.standard(elevation: .flat, emphasis: .muted))
         .frame(height: 180)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-        .accessibilityLabel("Map showing \(spot.name)")
+        .accessibilityHidden(true)
+    }
+
+    private func openInMaps(coordinate: CLLocationCoordinate2D) {
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        item.name = spot.name
+        item.openInMaps()
     }
 }
 

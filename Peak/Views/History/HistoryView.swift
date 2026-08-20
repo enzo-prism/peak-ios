@@ -110,8 +110,12 @@ struct HistoryView: View {
             historyRoot
                 .navigationTitle(navigationTitleText)
                 .toolbar { historyToolbar }
-                .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
-                .searchMinimizeBehavior()
+                .searchable(
+                    text: $searchText,
+                    placement: searchPlacement,
+                    prompt: "Spots, notes, gear, buddies"
+                )
+                .searchMinimizeBehavior(!isDedicatedSearchTab)
                 .navigationDestination(item: $openedSession) { ref in
                     sessionDetail(for: ref)
                 }
@@ -123,8 +127,12 @@ struct HistoryView: View {
             historyRoot
                 .navigationTitle(navigationTitleText)
                 .toolbar { historyToolbar }
-                .searchable(text: $searchText, prompt: "Spots, notes, gear, buddies")
-                .searchMinimizeBehavior()
+                .searchable(
+                    text: $searchText,
+                    placement: searchPlacement,
+                    prompt: "Spots, notes, gear, buddies"
+                )
+                .searchMinimizeBehavior(!isDedicatedSearchTab)
         } detail: {
             if let ref = openedSession, let session = sessionMatching(ref) {
                 SessionDetailView(session: session)
@@ -138,28 +146,50 @@ struct HistoryView: View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
-            if sessions.isEmpty {
+            switch listMode {
+            case .emptyLogbook:
                 EmptyStateView(
                     title: "No sessions yet",
                     message: "Log your first surf and your timeline will show up here.",
                     systemImage: "wave.3.right"
                 )
-            } else {
+            case .searchPrompt:
+                searchPromptState
+            case .noMatches:
                 VStack(spacing: 0) {
                     if hasActiveCriteria {
                         activeFiltersRow
                     }
-
-                    if groupedSessions.isEmpty && hasActiveCriteria {
-                        Spacer()
-                        noMatchesState
-                        Spacer()
-                    } else {
-                        sessionList
+                    Spacer()
+                    noMatchesState
+                    Spacer()
+                }
+            case .results:
+                VStack(spacing: 0) {
+                    if hasActiveCriteria {
+                        activeFiltersRow
                     }
+                    sessionList
                 }
             }
         }
+    }
+
+    private var searchPlacement: SearchFieldPlacement {
+        isDedicatedSearchTab ? .navigationBarDrawer(displayMode: .always) : .automatic
+    }
+
+    private var matchCount: Int {
+        groupedSessions.reduce(0) { $0 + $1.value.count }
+    }
+
+    private var listMode: HistoryListMode {
+        HistoryListMode.resolve(
+            sessionCount: sessions.count,
+            isDedicatedSearchTab: isDedicatedSearchTab,
+            hasActiveCriteria: hasActiveCriteria,
+            matchCount: matchCount
+        )
     }
 
     private var navigationTitleText: String {
@@ -176,13 +206,15 @@ struct HistoryView: View {
                     .contentTransition(.symbolEffect(.replace))
             }
         }
-        ToolbarItem(placement: .navigationBarTrailing) {
-            Button {
-                // Single presenter: ContentView owns the new-session
-                // sheet so this can't race a system-initiated request.
-                QuickLogCoordinator.shared.requestNewSession()
-            } label: {
-                Label("New Session", systemImage: "plus")
+        if !isDedicatedSearchTab {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    // Single presenter: ContentView owns the new-session
+                    // sheet so this can't race a system-initiated request.
+                    QuickLogCoordinator.shared.requestNewSession()
+                } label: {
+                    Label("New Session", systemImage: "plus")
+                }
             }
         }
     }
@@ -380,6 +412,15 @@ struct HistoryView: View {
     }
 
     // MARK: - Empty state
+
+    private var searchPromptState: some View {
+        EmptyStateView(
+            title: "Search your sessions",
+            message: "Find a session by spot, board, buddy, or a note. Filters still work from the button above.",
+            systemImage: "magnifyingglass"
+        )
+        .accessibilityIdentifier("history.search.prompt")
+    }
 
     private var noMatchesState: some View {
         VStack(spacing: Theme.Spacing.l) {

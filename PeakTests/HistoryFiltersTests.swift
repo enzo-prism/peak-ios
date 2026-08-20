@@ -312,4 +312,42 @@ final class HistoryFiltersTests: XCTestCase {
         filters.toggleBuddy(buddy)
         XCTAssertFalse(filters.isActive)
     }
+
+    // MARK: - History / Search list mode
+
+    func testDedicatedSearchWithoutQueryShowsPromptNotTheTimeline() {
+        let mode = HistoryListMode.resolve(
+            sessionCount: 4,
+            isDedicatedSearchTab: true,
+            hasActiveCriteria: false,
+            matchCount: 4
+        )
+        XCTAssertEqual(mode, .searchPrompt)
+    }
+
+    func testHistoryWithoutQueryShowsTheTimeline() {
+        let mode = HistoryListMode.resolve(
+            sessionCount: 4,
+            isDedicatedSearchTab: false,
+            hasActiveCriteria: false,
+            matchCount: 4
+        )
+        XCTAssertEqual(mode, .results)
+    }
+
+    func testDedicatedSearchWithNoMatches() {
+        let mode = HistoryListMode.resolve(
+            sessionCount: 4,
+            isDedicatedSearchTab: true,
+            hasActiveCriteria: true,
+            matchCount: 0
+        )
+        XCTAssertEqual(mode, .noMatches)
+    }
+
+    func testLibrarySessionPreviewRemainderStartsAfterTheVisiblePrefix() {
+        XCTAssertEqual(LibrarySessionPreview.remainderCount(total: 5), 0)
+        XCTAssertEqual(LibrarySessionPreview.remainderCount(total: 6), 1)
+        XCTAssertEqual(LibrarySessionPreview.remainderCount(total: 0), 0)
+    }
 }

@@ -31,6 +31,7 @@ private struct GearDetailLoadedView: View {
     @State private var cachedPolicy = GearUsagePolicy(canDelete: false, canArchive: false)
     @State private var cachedRelatedSessions: [SurfSession] = []
     @State private var cachedReport: GearReport?
+    @State private var didDelete = false
 
     init(gear: Gear, gearKey: String) {
         self.gear = gear
@@ -47,35 +48,43 @@ private struct GearDetailLoadedView: View {
             Theme.background.ignoresSafeArea()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 16) {
-                    headerCard
+                GlassContainer(spacing: 16) {
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        headerCard
 
-                    usageSummarySection(summary: cachedSummary)
+                        usageSummarySection(summary: cachedSummary)
 
-                    if let cachedReport {
-                        BoardReportCard(report: cachedReport)
+                        if let cachedReport {
+                            BoardReportCard(report: cachedReport)
+                        }
+
+                        if cachedSummary.totalUses > 0 {
+                            UsageChartCard(
+                                title: "Usage over time",
+                                data: cachedSummary.monthlyCounts,
+                                valueLabel: "Sessions"
+                            )
+                        }
+
+                        topSpotsSection(spots: cachedSummary.topSpots)
+
+                        notesSection
+
+                        LibrarySessionListSection(
+                            title: "Recent Sessions",
+                            sessions: cachedRelatedSessions
+                        )
+
+                        actionSection(policy: cachedPolicy)
                     }
-
-                    UsageChartCard(
-                        title: "Usage over time",
-                        data: cachedSummary.monthlyCounts,
-                        valueLabel: "Sessions"
-                    )
-
-                    topSpotsSection(spots: cachedSummary.topSpots)
-
-                    notesSection
-
-                    sessionSection(sessions: cachedRelatedSessions)
-
-                    actionSection(policy: cachedPolicy)
+                    .padding()
+                    .readableContentWidth()
                 }
-                .padding()
-                .readableContentWidth()
             }
         }
         .navigationTitle("Gear")
         .navigationBarTitleDisplayMode(.inline)
+        .libraryNavigationSubtitle(gear.kind.label)
         .userActivity("com.designprism.peak.viewingGear") { activity in
             activity.title = gear.name
             activity.isEligibleForSearch = true
@@ -86,10 +95,11 @@ private struct GearDetailLoadedView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit") {
                     showEditor = true
                 }
+                .accessibilityIdentifier("library.detail.edit")
             }
         }
         .sheet(isPresented: $showEditor) {
@@ -114,6 +124,7 @@ private struct GearDetailLoadedView: View {
         ) {
             Button("Delete", role: .destructive) {
                 modelContext.delete(gear)
+                didDelete = true
                 dismiss()
             }
             Button("Cancel", role: .cancel) {}
@@ -123,6 +134,7 @@ private struct GearDetailLoadedView: View {
         .onChange(of: usageStamp, initial: true) { _, _ in
             refreshUsage()
         }
+        .sensoryFeedback(.success, trigger: didDelete)
     }
 
     private var headerCard: some View {
@@ -131,8 +143,11 @@ private struct GearDetailLoadedView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(gear.name)
-                    .font(.headline.weight(.semibold))
+                    .font(.title2.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(gear.kind.label)
                     .font(.caption.weight(.semibold))
@@ -156,8 +171,11 @@ private struct GearDetailLoadedView: View {
 
             Spacer()
         }
-        .padding(16)
-        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: true)
+        .padding(Theme.Spacing.l)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var gearImage: some View {
@@ -177,9 +195,7 @@ private struct GearDetailLoadedView: View {
 
     private func usageSummarySection(summary: GearUsageSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Usage Summary")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
+            LibrarySectionHeader(title: "Usage Summary")
 
             DetailMetricGrid {
                 MetricCardView(title: "Total Uses", value: "\(summary.totalUses)")
@@ -192,9 +208,7 @@ private struct GearDetailLoadedView: View {
 
     private func topSpotsSection(spots: [GearTopSpot]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Top Spots")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
+            LibrarySectionHeader(title: "Top Spots")
 
             if spots.isEmpty {
                 Text("No spot data yet.")
@@ -221,6 +235,7 @@ private struct GearDetailLoadedView: View {
                     Text("Notes")
                         .font(.headline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
+                        .accessibilityAddTraits(.isHeader)
 
                     Text(notes)
                         .font(.subheadline)
@@ -228,31 +243,6 @@ private struct GearDetailLoadedView: View {
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-                }
-            }
-        }
-    }
-
-    private func sessionSection(sessions: [SurfSession]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Sessions")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(Theme.textPrimary)
-
-            if sessions.isEmpty {
-                Text("No sessions yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textMuted)
-                    .padding(12)
-                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
-            } else {
-                ForEach(sessions) { session in
-                    NavigationLink {
-                        SessionDetailView(session: session)
-                    } label: {
-                        SessionRowView(session: session)
-                    }
-                    .buttonStyle(PressFeedbackButtonStyle())
                 }
             }
         }
@@ -266,25 +256,22 @@ private struct GearDetailLoadedView: View {
                 } label: {
                     Label(gear.isArchived ? "Unarchive Gear" : "Archive Gear", systemImage: "archivebox")
                         .frame(maxWidth: .infinity)
+                        .frame(minHeight: 44)
                 }
                 .glassButtonStyle(prominent: false)
             }
 
             if policy.canDelete {
-                Button(role: .destructive) {
+                LibraryDestructiveButton(title: "Delete Gear") {
                     showDeleteConfirm = true
-                } label: {
-                    Label("Delete Gear", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
                 }
-                .glassButtonStyle(prominent: false)
             }
         }
     }
 
     private func dateLabel(_ date: Date?) -> String {
         guard let date else { return "-" }
-        return date.formatted(.dateTime.month(.abbreviated).day().year())
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func averageRatingLabel(_ value: Double) -> String {

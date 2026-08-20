@@ -9,7 +9,7 @@ Status at a glance:
 
 - **App Store (live):** `2.6`
 - **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds. This binary is **not** replaced by the work on `main`.
-- **`main` (unreleased):** 3.3 system integration plus a performance/HIG pass — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists. No schema change. Expect **542 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
+- **`main` (unreleased):** 3.3 system integration plus a performance/HIG pass — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists. No schema change. Expect **546 unit / 54 UI** on a Mac. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
 - **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
@@ -60,7 +60,9 @@ opt-in toggles. GPS from a Health route is never persisted.
   `testMatchingSpotKeyFetchReturnsOnlyThatSpotNewestFirst`,
   `testMatchingGearKeyFetchIncludesATwoBoardSessionOncePerBoard`,
   `testMatchingBuddyKeyFetchExcludesUnrelatedSessions`,
-  `testSessionQueryStampChangesWhenUpdatedAtChanges` (folded into existing files). Expect **542 unit /
+  `testSessionQueryStampChangesWhenUpdatedAtChanges`,
+  `testDedicatedSearchWithoutQueryShowsPromptNotTheTimeline`,
+  `testLibrarySessionPreviewRemainderStartsAfterTheVisiblePrefix` (folded into existing files). Expect **546 unit /
   54 UI** (`./scripts/test.sh` on a Mac). This Cloud VM cannot run `xcodebuild`.
 
 ### Changed
@@ -86,6 +88,16 @@ opt-in toggles. GPS from a Health route is never persisted.
   `OnThisDayProvider`, `GearInsightsCalculator`, `WaveStatsCalculator`,
   `StatsCalculator`, `SurfConditionsService`, `SessionMediaThumbnailView`,
   `SessionRouteMapView`, `ModelContext+Helpers`, library/Stats views)
+
+- **Library detail and Search match Apple's detail / search chrome.** Spot, gear,
+  and buddy detail use a session-style hero, `GlassEffectContainer`, and
+  progressive disclosure (five recents, then older sessions). Interactive glass
+  stays off scrolling / decorative surfaces. Delete uses `Theme.destructive` and
+  a 44 pt target. A pinned spot offers Open in Maps (the map preview is hidden
+  from VoiceOver). The iOS 18 Search tab keeps the search field always visible
+  and shows a prompt until the surfer types or filters, instead of duplicating
+  History. (`SpotDetailView`, `GearDetailView`, `BuddyDetailView`,
+  `LibrarySessionListSection`, `HistoryView`)
 
 - **Last Session widget does work.** Tapping opens that session
   (`peak://session?id=`), not a blank editor. Empty state still uses

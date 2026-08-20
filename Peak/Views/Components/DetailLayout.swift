@@ -70,3 +70,31 @@ struct DetailInfoRow: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 }
+
+struct LibrarySectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(Theme.textPrimary)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Destructive library action. 44 pt minimum (HIG) and `Theme.destructive` so
+/// the label reads as danger on glass, matching session detail.
+struct LibraryDestructiveButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: .destructive, action: action) {
+            Label(title, systemImage: "trash")
+                .foregroundStyle(Theme.destructive)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+        }
+        .glassButtonStyle(prominent: false)
+    }
+}
