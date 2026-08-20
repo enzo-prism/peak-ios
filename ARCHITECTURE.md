@@ -69,9 +69,9 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Display: `Peak/Views/History/SessionDetailView.swift`, `Peak/Views/Components/SessionMediaThumbnailView.swift`
 
 **History & Detail Views**
-- History list: `Peak/Views/History/HistoryView.swift` (split on regular width; Search intents fill this list immediately, skipping debounce)
+- History list: `Peak/Views/History/HistoryView.swift` (split on regular width; Search intents fill this list immediately, skipping debounce). The iOS 18 Search tab keeps the search field always visible (`navigationBarDrawer(displayMode: .always)`) and shows a prompt until the surfer types or filters — it is not a second copy of History.
 - Session detail: `Peak/Views/History/SessionDetailView.swift`
-- Spot / Gear / Buddy detail: `Peak/Views/Library/*DetailView.swift` — `@Query` uses `SurfSession.sortedByDateDescending(matchingSpotKey:)` (and gear/buddy equivalents) so SQLite returns only related rows. Prefetch is `spot` / `gear` / `buddies` for `SessionRowView`; media stays lazy. Renaming a library item recreates the query (`.id(key)`).
+- Spot / Gear / Buddy detail: `Peak/Views/Library/*DetailView.swift` — `@Query` uses `SurfSession.sortedByDateDescending(matchingSpotKey:)` (and gear/buddy equivalents) so SQLite returns only related rows. Prefetch is `spot` / `gear` / `buddies` for `SessionRowView`; media stays lazy. Renaming a library item recreates the query (`.id(key)`). Heroes match session detail (large title, combined VoiceOver). Session lists show five recents then a disclosure. A pinned spot offers **Open in Maps**. Destructive actions use `Theme.destructive` and a 44 pt hit target.
 - Transient route map: `Peak/Views/History/SessionRouteMapView.swift` — MapKit polyline + wave-segment overlay from `linkedWorkoutID`. Coordinates live only in memory; never written to the store. Display tracks are simplified (`RouteDisplaySimplifier`); analysis still uses the full GPS track.
 - Filters for spot, gear, and buddy are applied in History
 
@@ -138,7 +138,7 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Keep `Peak/PrivacyInfo.xcprivacy` accurate when anything privacy-relevant changes
 
 **Testing**
-- Unit tests: `PeakTests/*` — **542 tests** on `main` (525 system-integration baseline + 17 from the performance pass)
+- Unit tests: `PeakTests/*` — **546 tests** on `main` (525 system-integration baseline + 21 from the performance and library-UX passes)
 - UI layout tests: `PeakUITests/*` — **54 tests** on `main`
 - Standard commands: `./scripts/build-sim.sh`, `./scripts/test.sh`
 - **Run one `xcodebuild` at a time.** The simulator is a single shared resource; concurrent runs produce false failures. See `AGENTS.md`.
