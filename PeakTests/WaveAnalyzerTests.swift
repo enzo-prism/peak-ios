@@ -1308,3 +1308,52 @@ final class RouteSampleCoreLocationTests: XCTestCase {
     }
 }
 
+final class RouteDisplaySimplifierTests: XCTestCase {
+    func testShortTracksAreLeftAlone() {
+        let samples = line(count: 2)
+        XCTAssertEqual(RouteDisplaySimplifier.simplified(samples: samples).count, 2)
+    }
+
+    func testSpacingDropKeepsFirstAndLast() {
+        // 1 m steps, 10 m minimum spacing → roughly every tenth point plus ends.
+        let samples = line(count: 101, metersPerStep: 1)
+        let simplified = RouteDisplaySimplifier.simplified(
+            samples: samples,
+            maxPoints: 400,
+            minSpacingMeters: 10
+        )
+        XCTAssertEqual(simplified.first?.latitude, samples.first?.latitude)
+        XCTAssertEqual(simplified.last?.latitude, samples.last?.latitude)
+        XCTAssertLessThan(simplified.count, samples.count)
+        XCTAssertGreaterThan(simplified.count, 8)
+    }
+
+    func testMaxPointsCapsADenseTrack() {
+        let samples = line(count: 2_000, metersPerStep: 20)
+        let simplified = RouteDisplaySimplifier.simplified(
+            samples: samples,
+            maxPoints: 50,
+            minSpacingMeters: 0
+        )
+        XCTAssertLessThanOrEqual(simplified.count, 50)
+        XCTAssertEqual(simplified.first?.longitude, samples.first?.longitude)
+        XCTAssertEqual(simplified.last?.longitude, samples.last?.longitude)
+    }
+
+    private func line(count: Int, metersPerStep: Double = 10) -> [RouteSample] {
+        let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        // ~111_000 m per degree of latitude.
+        let latStep = metersPerStep / 111_000
+        return (0..<count).map { index in
+            RouteSample(
+                timestamp: start.addingTimeInterval(Double(index)),
+                latitude: 21.276 + latStep * Double(index),
+                longitude: -157.827,
+                speedMetersPerSecond: 2,
+                horizontalAccuracyMeters: 5,
+                courseDegrees: 0
+            )
+        }
+    }
+}
+

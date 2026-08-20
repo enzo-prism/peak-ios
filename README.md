@@ -15,7 +15,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
   `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
   it has never recorded a real surf; it stays off `main` until it passes real-device
   ocean testing.
-- **Test baseline on `main`:** 525 unit, 54 UI (iPhone; 8 of the 54 currently fail on the iPad leg of `design-check.sh` — pre-existing breakage, see AGENTS.md).
+- **Test baseline on `main`:** 537 unit, 54 UI after the performance pass (was 525; iPhone; 8 of the 54 currently fail on the iPad leg of `design-check.sh` — pre-existing breakage, see AGENTS.md).
 - **App Group** `group.com.designprism.peak` is registered (2026-07-29). Device
   archives use manual signing — see `RELEASE_PLAYBOOK.md`.
 
@@ -165,7 +165,7 @@ Optional overrides:
 
 ## Testing
 
-Current suite on `main`: **525 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
+Current suite on `main`: **537 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See

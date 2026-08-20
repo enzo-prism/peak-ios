@@ -570,6 +570,22 @@ final class SurfConditionsServiceTests: XCTestCase {
         XCTAssertEqual(reversed, .rising, "reversing the provider's series changed the answer")
     }
 
+    func testTideSeriesReuseMatchesPerCallDerivation() {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let times = (0..<13).map { base.addingTimeInterval(Double($0) * 3600) }
+        let levels: [Double?] = (0..<13).map { i in
+            0.9 * cos(2 * Double.pi * (Double(i) - 3) / 12.42)
+        }
+        let series = try XCTUnwrap(SurfConditionsService.tideSeries(times: times, levels: levels))
+
+        for time in times {
+            XCTAssertEqual(
+                SurfConditionsService.deriveTideTrend(from: series, around: time),
+                SurfConditionsService.deriveTideTrend(times: times, levels: levels, around: time)
+            )
+        }
+    }
+
     /// Missing sea level must not break the rest of the snapshot — the marine
     /// endpoint returns it as a separate array and can omit it entirely.
     func testFetchSucceedsWhenSeaLevelIsAbsent() async throws {

@@ -256,6 +256,18 @@ final class GearInsightsCalculatorTests: XCTestCase {
         XCTAssertEqual(reports.map(\.gearName), ["Fish", "Log"])
     }
 
+    func testReportsCountATwoBoardSessionOncePerBoard() {
+        let fish = Gear(name: "Fish", kind: .board)
+        let log = Gear(name: "Log", kind: .board)
+        let together = session(day: 1, gear: [fish, log], rating: 4)
+        let fishOnly = session(day: 2, gear: [fish], rating: 5)
+
+        let reports = GearInsightsCalculator.reports(for: [fish, log], sessions: [together, fishOnly])
+
+        XCTAssertEqual(reports.first { $0.gearName == "Fish" }?.sessionCount, 2)
+        XCTAssertEqual(reports.first { $0.gearName == "Log" }?.sessionCount, 1)
+    }
+
     func testEmptyLibraryProducesEmptyReport() {
         let fish = Gear(name: "Fish", kind: .board)
         let report = GearInsightsCalculator.report(for: fish, sessions: [])

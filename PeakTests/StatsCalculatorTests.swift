@@ -76,6 +76,27 @@ final class StatsCalculatorTests: XCTestCase {
         let other = mix.first { $0.key == "stats.spot-mix.other" }
         XCTAssertEqual(other?.detail, "2 spots")
     }
+
+    func testWaveHeightRatingSamplesKeepChronologyAndCapToMostRecent() {
+        func rated(_ day: Int) -> SurfSession {
+            let session = TestFixture.session(
+                date: TestCalendar.makeDate(year: 2026, month: 2, day: day, hour: 7),
+                rating: 4
+            )
+            session.waveHeightMeters = Double(day)
+            return session
+        }
+
+        let small = StatsCalculator.waveHeightRatingSamples(
+            sessions: [rated(3), rated(1), rated(2)]
+        )
+        XCTAssertEqual(small.map(\.waveHeightMeters), [1, 2, 3])
+
+        let many = (1...12).map(rated)
+        let capped = StatsCalculator.waveHeightRatingSamples(sessions: many, limit: 5)
+        XCTAssertEqual(capped.count, 5)
+        XCTAssertEqual(capped.map(\.waveHeightMeters), [8, 9, 10, 11, 12])
+    }
 }
 
 /// Anniversary windowing. The interesting cases are the ones a naive
@@ -182,6 +203,22 @@ final class OnThisDayProviderTests: XCTestCase {
         )
 
         XCTAssertEqual(memories.count, 2)
+    }
+
+    func testLimitPrefersCloserYearOverAHigherOlderRating() {
+        let closer = session(year: 2025, month: 7, day: 20, rating: 2)
+        let olderBetter = session(year: 2024, month: 7, day: 20, rating: 5)
+
+        let memories = OnThisDayProvider.memories(
+            sessions: [olderBetter, closer],
+            referenceDate: TestCalendar.makeDate(year: 2026, month: 7, day: 20, hour: 12),
+            calendar: calendar,
+            limit: 1
+        )
+
+        XCTAssertEqual(memories.count, 1)
+        XCTAssertEqual(memories.first?.yearsAgo, 1)
+        XCTAssertEqual(memories.first?.session.rating, 2)
     }
 }
 
@@ -648,6 +685,16 @@ final class WaveStatsCalculatorTests: XCTestCase {
             ]),
             3
         )
+    }
+
+    func testRecordsTakeTheLaterSessionOnATiedValue() {
+        let earlier = session(day: 1, waves: 10, topSpeedKph: 20, longestRideSeconds: 15)
+        let later = session(day: 8, waves: 10, topSpeedKph: 20, longestRideSeconds: 15)
+        let records = WaveStatsCalculator.records(sessions: [earlier, later])
+
+        XCTAssertEqual(records.mostWaves?.date, later.date)
+        XCTAssertEqual(records.fastestWave?.date, later.date)
+        XCTAssertEqual(records.longestRide?.date, later.date)
     }
 }
 

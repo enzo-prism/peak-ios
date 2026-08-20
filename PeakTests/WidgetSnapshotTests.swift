@@ -384,4 +384,37 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded.totalSessions, 7)
         XCTAssertNil(decoded.lastSessionWaveCount)
     }
+
+    func testPayloadEqualityIgnoresGeneratedAt() {
+        let sessions = [TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 16), spot: TestFixture.spot())]
+        let morning = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: TestCalendar.gmt)
+        let laterSameDay = WidgetSnapshotWriter.makeSnapshot(
+            from: sessions,
+            now: TestCalendar.makeDate(year: 2026, month: 2, day: 18, hour: 18),
+            calendar: TestCalendar.gmt
+        )
+
+        XCTAssertTrue(morning.hasSameWidgetPayload(as: laterSameDay))
+        XCTAssertNotEqual(morning.generatedAt, laterSameDay.generatedAt)
+        XCTAssertFalse(WidgetSnapshotWriter.shouldPublish(laterSameDay, replacing: morning))
+    }
+
+    func testShouldPublishWhenTheCalendarDayChanges() {
+        let sessions = [TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 16), spot: TestFixture.spot())]
+        let today = WidgetSnapshotWriter.makeSnapshot(from: sessions, now: now, calendar: TestCalendar.gmt)
+        let tomorrow = WidgetSnapshotWriter.makeSnapshot(
+            from: sessions,
+            now: TestCalendar.makeDate(year: 2026, month: 2, day: 19, hour: 9),
+            calendar: TestCalendar.gmt
+        )
+
+        XCTAssertFalse(today.hasSameWidgetPayload(as: tomorrow))
+        XCTAssertTrue(WidgetSnapshotWriter.shouldPublish(tomorrow, replacing: today))
+    }
+
+    func testShouldAlwaysPublishOverTheEmptyPlaceholder() {
+        let snapshot = WidgetSnapshotWriter.makeSnapshot(from: [], now: now, calendar: TestCalendar.gmt)
+        XCTAssertTrue(WidgetSnapshotWriter.shouldPublish(snapshot, replacing: .empty))
+        XCTAssertFalse(WidgetSnapshotWriter.shouldPublish(snapshot, replacing: snapshot))
+    }
 }

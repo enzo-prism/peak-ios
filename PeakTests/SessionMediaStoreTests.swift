@@ -60,6 +60,16 @@ final class SessionMediaStoreTests: XCTestCase {
         XCTAssertEqual(processed.photoData, SessionMediaStore.compressedPhotoData(from: sourceData))
     }
 
+    func testDownsampledImageCapsTheLongestEdge() throws {
+        let image = Self.solidImage(width: 3000, height: 2000)
+        let sourceData = try XCTUnwrap(image.jpegData(compressionQuality: 1))
+
+        let downsampled = try XCTUnwrap(SessionMediaStore.downsampledImage(from: sourceData, maxDimension: 256))
+        let longest = max(downsampled.size.width * downsampled.scale, downsampled.size.height * downsampled.scale)
+        XCTAssertLessThanOrEqual(longest, 256)
+        XCTAssertGreaterThan(longest, 0)
+    }
+
     func testProcessedPhotoPassesThroughUndecodableData() async {
         let junk = Data([0xDE, 0xAD, 0xBE, 0xEF])
 
