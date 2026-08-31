@@ -570,7 +570,7 @@ final class SurfConditionsServiceTests: XCTestCase {
         XCTAssertEqual(reversed, .rising, "reversing the provider's series changed the answer")
     }
 
-    func testTideSeriesReuseMatchesPerCallDerivation() {
+    func testTideSeriesReuseMatchesPerCallDerivation() throws {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         let times = (0..<13).map { base.addingTimeInterval(Double($0) * 3600) }
         let levels: [Double?] = (0..<13).map { i in

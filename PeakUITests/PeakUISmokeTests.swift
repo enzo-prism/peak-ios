@@ -583,7 +583,7 @@ final class PeakWindowCardUITests: XCTestCase {
 
         tapTab(named: "More")
 
-        let settings = app.buttons["Settings"]
+        let settings = app.buttons["more.settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
         settings.tap()
 
@@ -779,7 +779,11 @@ private extension PeakUISmokeTests {
         line: UInt = #line
     ) {
         let notice = app.descendants(matching: .any)["session.editor.conditionsNotice"]
-        assertExists(notice, timeout: 5, file: file, line: line)
+        // iPad's larger accessibility hierarchy can delay publication of the
+        // async result during a busy full-suite run even though the mock throws
+        // immediately. Ten seconds keeps the assertion deterministic without
+        // weakening the expected message check below.
+        assertExists(notice, timeout: 10, file: file, line: line)
 
         if let prefix {
             XCTAssertTrue(
@@ -1184,12 +1188,9 @@ final class PeakInsightsUITests: XCTestCase {
 
         tapTab(named: "More")
 
-        let entry = app.buttons["Year in Review"].firstMatch
-        if entry.waitForExistence(timeout: 5) {
-            entry.tap()
-        } else {
-            app.staticTexts["Year in Review"].firstMatch.tap()
-        }
+        let entry = app.buttons["more.yearInReview"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "Year in Review entry was not accessible")
+        entry.tap()
 
         let summary = app.descendants(matching: .any)
             .matching(NSPredicate(format: "label == %@", "Year summary"))
@@ -1227,10 +1228,9 @@ final class PeakMarketingCaptureTests: XCTestCase {
         try super.setUpWithError()
         continueAfterFailure = false
 
-        let path = try XCTUnwrap(
-            ProcessInfo.processInfo.environment["PEAK_SHOT_DIR"],
-            "Set PEAK_SHOT_DIR to capture App Store screenshots"
-        )
+        guard let path = ProcessInfo.processInfo.environment["PEAK_SHOT_DIR"] else {
+            throw XCTSkip("Set PEAK_SHOT_DIR to capture App Store screenshots")
+        }
         shotDirectory = URL(fileURLWithPath: path, isDirectory: true)
         try FileManager.default.createDirectory(at: shotDirectory, withIntermediateDirectories: true)
 

@@ -46,8 +46,8 @@ final class SurfSession {
     var linkedWorkoutID: String?
     var createdAt: Date
     var updatedAt: Date
-    @Relationship(deleteRule: .nullify) var gear: [Gear]
-    @Relationship(deleteRule: .nullify) var buddies: [Buddy]
+    @Relationship(deleteRule: .nullify, inverse: \Gear.sessions) var gear: [Gear]
+    @Relationship(deleteRule: .nullify, inverse: \Buddy.sessions) var buddies: [Buddy]
     @Relationship(deleteRule: .cascade) var media: [SessionMedia]
 
     init(

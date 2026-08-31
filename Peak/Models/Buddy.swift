@@ -6,6 +6,7 @@ final class Buddy {
     @Attribute(.unique) var key: String
     var name: String
     var createdAt: Date
+    @Relationship(deleteRule: .nullify) var sessions: [SurfSession] = []
 
     init(name: String, createdAt: Date = Date()) {
         let cleaned = name.trimmedNonEmpty ?? "Unknown"

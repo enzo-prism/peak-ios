@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Status at a glance:
 
-- **App Store (live):** `2.6`
-- **App Store (in review):** `3.2` build **1** — submitted 2026-07-29, `WAITING_FOR_REVIEW`, phased release armed. First public release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds. This binary is **not** replaced by the work on `main`.
-- **`main` / `prod` (unreleased):** 3.3 system integration plus performance and library-UX passes — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail. No schema change. Expect **546 unit / 54 UI** on a Mac. `prod` is a git snapshot of the same SHA; App Store production remains the in-review `3.2` train. Cut the next TestFlight on a Mac per `RELEASE_PLAYBOOK.md`; do not archive from Cursor Cloud.
-- **TestFlight / ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
+- **App Store (live):** `3.2` build **1** — `READY_FOR_DISTRIBUTION` in App Store Connect.
+- **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
+- **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
 ## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
 
-Five Apple-platform improvements, no schema change, local-only. HealthKit
+Five Apple-platform improvements, with a local-only schema migration for
+explicit gear and buddy inverse relationships. HealthKit
 background delivery and Watch-surf notifications stay behind existing / new
 opt-in toggles. GPS from a Health route is never persisted.
 
@@ -24,7 +24,8 @@ opt-in toggles. GPS from a Health route is never persisted.
   types donated to a named on-device index (`PeakLogbook`). `OpenSessionIntent`,
   `OpenSpotIntent`, and `OpenGearIntent` (`OpenIntent`, iOS 18) open the matching
   detail. On-screen `NSUserActivity` carries `appEntityIdentifier`. "When did I
-  last surf?" returns a tappable snippet. `SearchPeakIntent` is an App Shortcut.
+  last surf?" returns a tappable snippet. `SearchPeakIntent` hands system search
+  requests into the in-app History search experience.
   (`Peak/Supporting/AppIntentsEntities.swift`, `SpotlightIndexer.swift`,
   `SessionIntentQueries.swift`)
 - **iPad-class navigation.** iOS 18 uses the `Tab` API with
@@ -62,8 +63,21 @@ opt-in toggles. GPS from a Health route is never persisted.
   `testMatchingBuddyKeyFetchExcludesUnrelatedSessions`,
   `testSessionQueryStampChangesWhenUpdatedAtChanges`,
   `testDedicatedSearchWithoutQueryShowsPromptNotTheTimeline`,
-  `testLibrarySessionPreviewRemainderStartsAfterTheVisiblePrefix` (folded into existing files). Expect **546 unit /
-  54 UI** (`./scripts/test.sh` on a Mac). This Cloud VM cannot run `xcodebuild`.
+  `testLibrarySessionPreviewRemainderStartsAfterTheVisiblePrefix` (folded into existing files). Expect **549 unit /
+  55 UI** (`./scripts/test.sh` on a Mac).
+
+### Release readiness fixes
+
+- Updated `SearchPeakIntent` for the current App Intents search API so the 3.3
+  target compiles with Xcode 26 while retaining the specialized Spotlight
+  search intent.
+- Kept the compact-width shell to five primary tabs so iOS does not replace
+  Peak's More tab with a system overflow tab. Search and the Library section
+  remain available in the regular-width iPad sidebar.
+- Added explicit gear and buddy inverse relationships plus a versioned V10 to
+  V11 migration that preserves existing many-to-many session links.
+- Made Apple Intelligence UI-test availability deterministic and corrected the
+  More-screen accessibility identifiers used by release UI checks.
 
 ### Changed
 

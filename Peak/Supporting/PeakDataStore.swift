@@ -29,7 +29,7 @@ enum PeakDataStore {
     /// The one statement of which schema version is HEAD. Everything that opens
     /// the store (app launch, App Intents fallback) must agree on this, or the
     /// second opener throws against the already-migrated store file.
-    static let headSchema: any VersionedSchema.Type = PeakSchemaV10.self
+    static let headSchema: any VersionedSchema.Type = PeakSchemaV11.self
 
     static func load(isUITest: Bool) -> StoreLoadResult {
         let schema = Schema(versionedSchema: headSchema)

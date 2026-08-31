@@ -5,7 +5,7 @@ struct BuddyDetailView: View {
     let buddy: Buddy
 
     var body: some View {
-        BuddyDetailLoadedView(buddy: buddy, buddyKey: buddy.key)
+        BuddyDetailLoadedView(buddy: buddy)
             .id(buddy.key)
     }
 }
@@ -22,18 +22,20 @@ private struct BuddyDetailLoadedView: View {
     @State private var showDeleteBlocked = false
     @State private var didDelete = false
 
-    init(buddy: Buddy, buddyKey: String) {
+    init(buddy: Buddy) {
         self.buddy = buddy
         _sessions = Query(
-            SurfSession.sortedByDateDescending(
-                matchingBuddyKey: buddyKey,
-                prefetch: [\.spot, \.gear, \.buddies]
-            )
+            SurfSession.sortedByDateDescending()
         )
     }
 
     var body: some View {
-        let metrics = UsageMetricsCalculator.metrics(for: sessions)
+        // SwiftData's SQL translation for `contains`, and prefetching the same
+        // to-many relationship, can omit valid rows. Filter lazy values in memory.
+        let relatedSessions = sessions.filter { session in
+            session.buddies.contains { $0.key == buddy.key }
+        }
+        let metrics = UsageMetricsCalculator.metrics(for: relatedSessions)
 
         ZStack {
             Theme.background.ignoresSafeArea()
@@ -53,7 +55,7 @@ private struct BuddyDetailLoadedView: View {
                             )
                         }
 
-                        LibrarySessionListSection(title: "Sessions", sessions: sessions)
+                        LibrarySessionListSection(title: "Sessions", sessions: relatedSessions)
 
                         LibraryDestructiveButton(title: "Delete Buddy") {
                             deleteTapped(count: metrics.count)

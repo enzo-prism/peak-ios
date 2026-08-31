@@ -6,7 +6,7 @@ struct GearDetailView: View {
     let gear: Gear
 
     var body: some View {
-        GearDetailLoadedView(gear: gear, gearKey: gear.key)
+        GearDetailLoadedView(gear: gear)
             .id(gear.key)
     }
 }
@@ -33,13 +33,10 @@ private struct GearDetailLoadedView: View {
     @State private var cachedReport: GearReport?
     @State private var didDelete = false
 
-    init(gear: Gear, gearKey: String) {
+    init(gear: Gear) {
         self.gear = gear
         _sessions = Query(
-            SurfSession.sortedByDateDescending(
-                matchingGearKey: gearKey,
-                prefetch: [\.spot, \.gear, \.buddies]
-            )
+            SurfSession.sortedByDateDescending()
         )
     }
 
@@ -90,7 +87,7 @@ private struct GearDetailLoadedView: View {
             activity.isEligibleForSearch = true
             activity.isEligibleForPrediction = true
             activity.isEligibleForHandoff = false
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.2, *) {
                 activity.appEntityIdentifier = EntityIdentifier(for: GearEntity(gear: gear))
             }
         }
@@ -286,15 +283,18 @@ private struct GearDetailLoadedView: View {
     }
 
     private func refreshUsage() {
-        // `@Query` already isolated this gear's sessions; calculators still
-        // filter by key so a two-board row is counted once for this board.
-        cachedRelatedSessions = sessions
-        cachedSummary = GearUsageCalculator.summary(for: gear, sessions: sessions)
-        cachedPolicy = GearUsageCalculator.policy(for: gear, sessions: sessions)
+        // SwiftData's SQL translation for `contains`, and prefetching the same
+        // to-many relationship, can omit valid rows. Filter lazy values in memory.
+        let relatedSessions = sessions.filter { session in
+            session.gear.contains { $0.key == gear.key }
+        }
+        cachedRelatedSessions = relatedSessions
+        cachedSummary = GearUsageCalculator.summary(for: gear, sessions: relatedSessions)
+        cachedPolicy = GearUsageCalculator.policy(for: gear, sessions: relatedSessions)
         // Conditions-bucketed ratings only make sense for the thing you choose
         // per swell; a leash doesn't have a favourite period.
         cachedReport = gear.kind == .board
-            ? GearInsightsCalculator.report(for: gear, sessions: sessions)
+            ? GearInsightsCalculator.report(for: gear, sessions: relatedSessions)
             : nil
     }
 }

@@ -96,7 +96,7 @@ final class ModelContextHelpersTests: XCTestCase {
         )
     }
 
-    func testMatchingGearKeyFetchIncludesATwoBoardSessionOncePerBoard() throws {
+    func testInMemoryGearFilterIncludesATwoBoardSessionOncePerBoard() throws {
         let container = try TestModelContainer.make()
         let context = ModelContext(container)
 
@@ -111,34 +111,40 @@ final class ModelContextHelpersTests: XCTestCase {
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 10),
             gear: [boardA, boardB]
         )
+        context.insert(both)
+        try context.save()
+
         let onlyB = TestFixture.session(
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 11),
             gear: [boardB]
         )
-        context.insert(both)
         context.insert(onlyB)
         try context.save()
 
-        let forA = try context.fetch(
-            SurfSession.sortedByDateDescending(matchingGearKey: boardA.key)
-        )
+        XCTAssertEqual(both.gear.map(\.key).sorted(), [boardA.key, boardB.key].sorted())
+        XCTAssertEqual(onlyB.gear.map(\.key), [boardB.key])
+
+        let sessions = try context.fetch(SurfSession.sortedByDateDescending())
+        let forA = sessions.filter { session in
+            session.gear.contains { $0.key == boardA.key }
+        }
         XCTAssertEqual(forA.map(\.persistentModelID), [both.persistentModelID])
 
-        let forB = try context.fetch(
-            SurfSession.sortedByDateDescending(matchingGearKey: boardB.key)
-        )
+        let forB = sessions.filter { session in
+            session.gear.contains { $0.key == boardB.key }
+        }
         XCTAssertEqual(
             forB.map(\.persistentModelID),
             [onlyB.persistentModelID, both.persistentModelID]
         )
 
-        let forUnused = try context.fetch(
-            SurfSession.sortedByDateDescending(matchingGearKey: unused.key)
-        )
+        let forUnused = sessions.filter { session in
+            session.gear.contains { $0.key == unused.key }
+        }
         XCTAssertTrue(forUnused.isEmpty)
     }
 
-    func testMatchingBuddyKeyFetchExcludesUnrelatedSessions() throws {
+    func testInMemoryBuddyFilterExcludesUnrelatedSessions() throws {
         let container = try TestModelContainer.make()
         let context = ModelContext(container)
 
@@ -151,22 +157,31 @@ final class ModelContextHelpersTests: XCTestCase {
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 8),
             buddies: [kai]
         )
+        context.insert(withKai)
+        try context.save()
+
         let withBoth = TestFixture.session(
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 9),
             buddies: [kai, nia]
         )
+        context.insert(withBoth)
+        try context.save()
+
         let withNia = TestFixture.session(
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 10),
             buddies: [nia]
         )
-        context.insert(withKai)
-        context.insert(withBoth)
         context.insert(withNia)
         try context.save()
 
-        let forKai = try context.fetch(
-            SurfSession.sortedByDateDescending(matchingBuddyKey: kai.key)
-        )
+        XCTAssertEqual(withKai.buddies.map(\.key), [kai.key])
+        XCTAssertEqual(withBoth.buddies.map(\.key).sorted(), [kai.key, nia.key].sorted())
+        XCTAssertEqual(withNia.buddies.map(\.key), [nia.key])
+
+        let sessions = try context.fetch(SurfSession.sortedByDateDescending())
+        let forKai = sessions.filter { session in
+            session.buddies.contains { $0.key == kai.key }
+        }
         XCTAssertEqual(
             forKai.map(\.persistentModelID),
             [withBoth.persistentModelID, withKai.persistentModelID]

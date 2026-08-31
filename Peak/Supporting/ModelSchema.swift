@@ -1481,18 +1481,301 @@ enum PeakSchemaV9: VersionedSchema {
     }
 }
 
-/// HEAD. References the live `@Model` classes, which carry the 3.0 wave-stats delta:
-/// `SurfSession.waveCount`, `topSpeedKph`, `longestRideSeconds`, `longestRideMeters`,
-/// `paddleDistanceMeters`, `waveStatsSource`, `linkedWorkoutID`.
-/// `ModelMigrationTests.testHeadSchemaShapeIsPinned` guards this shape.
+/// Frozen 1.9.0 shape. These independent snapshots preserve the public 3.2
+/// checksum; SurfSession includes the seven wave-stat fields introduced in 3.0.
 enum PeakSchemaV10: VersionedSchema {
     static var versionIdentifier: Schema.Version = Schema.Version(1, 9, 0)
     static var models: [any PersistentModel.Type] {
         [SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self]
     }
+
+    @Model
+    final class Spot {
+        @Attribute(.unique) var key: String
+        var name: String
+        var locationName: String?
+        var latitude: Double?
+        var longitude: Double?
+        var tideStationId: String?
+        var createdAt: Date
+
+        init(
+            name: String,
+            locationName: String? = nil,
+            latitude: Double? = nil,
+            longitude: Double? = nil,
+            tideStationId: String? = nil,
+            createdAt: Date = Date()
+        ) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.key = Spot.makeKey(from: cleaned)
+            self.locationName = locationName?.trimmedNonEmpty
+            self.latitude = latitude
+            self.longitude = longitude
+            self.tideStationId = tideStationId?.trimmedNonEmpty
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(from name: String) -> String {
+            name.normalizedKey
+        }
+    }
+
+    @Model
+    final class Gear {
+        @Attribute(.unique) var key: String
+        var name: String
+        var kind: GearKind
+        var brand: String?
+        var model: String?
+        var size: String?
+        var volumeLiters: Double?
+        var notes: String?
+        @Attribute(.externalStorage) var photoData: Data?
+        var isArchived: Bool = false
+        var createdAt: Date
+
+        init(
+            name: String,
+            kind: GearKind,
+            brand: String? = nil,
+            model: String? = nil,
+            size: String? = nil,
+            volumeLiters: Double? = nil,
+            notes: String? = nil,
+            photoData: Data? = nil,
+            isArchived: Bool = false,
+            createdAt: Date = Date()
+        ) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.kind = kind
+            self.key = Gear.makeKey(name: cleaned, kind: kind)
+            self.brand = brand?.trimmedNonEmpty
+            self.model = model?.trimmedNonEmpty
+            self.size = size?.trimmedNonEmpty
+            self.volumeLiters = volumeLiters
+            self.notes = notes?.trimmedNonEmpty
+            self.photoData = photoData
+            self.isArchived = isArchived
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(name: String, kind: GearKind) -> String {
+            "\(kind.rawValue)|\(name.normalizedKey)"
+        }
+    }
+
+    @Model
+    final class Buddy {
+        @Attribute(.unique) var key: String
+        var name: String
+        var createdAt: Date
+
+        init(name: String, createdAt: Date = Date()) {
+            let cleaned = name.trimmedNonEmpty ?? "Unknown"
+            self.name = cleaned
+            self.key = Buddy.makeKey(from: cleaned)
+            self.createdAt = createdAt
+        }
+
+        static func makeKey(from name: String) -> String {
+            name.normalizedKey
+        }
+    }
+
+    @Model
+    final class SessionMedia {
+        var kind: SessionMediaKind
+        @Attribute(.externalStorage) var photoData: Data?
+        @Attribute(.externalStorage) var thumbnailData: Data?
+        var videoFileName: String?
+        var sortIndex: Int = 0
+        var cropOriginX: Double = 0
+        var cropOriginY: Double = 0
+        var cropWidth: Double = 1
+        var cropHeight: Double = 1
+        var createdAt: Date
+
+        init(
+            kind: SessionMediaKind,
+            photoData: Data? = nil,
+            thumbnailData: Data? = nil,
+            videoFileName: String? = nil,
+            sortIndex: Int = 0,
+            cropOriginX: Double = 0,
+            cropOriginY: Double = 0,
+            cropWidth: Double = 1,
+            cropHeight: Double = 1,
+            createdAt: Date = Date()
+        ) {
+            self.kind = kind
+            self.photoData = photoData
+            self.thumbnailData = thumbnailData
+            self.videoFileName = videoFileName
+            self.sortIndex = sortIndex
+            self.cropOriginX = cropOriginX
+            self.cropOriginY = cropOriginY
+            self.cropWidth = cropWidth
+            self.cropHeight = cropHeight
+            self.createdAt = createdAt
+        }
+    }
+
+    @Model
+    final class SurfSession {
+        var date: Date
+        var spot: Spot?
+        var notes: String
+        var rating: Int
+        var durationMinutes: Int?
+        var windCondition: WindCondition?
+        var waveHeight: WaveHeight?
+        var windSpeedKph: Double?
+        var windDirectionDegrees: Double?
+        var waveHeightMeters: Double?
+        var swellWaveHeightMeters: Double?
+        var swellWavePeriodSeconds: Double?
+        var swellWaveDirectionDegrees: Double?
+        var windWaveHeightMeters: Double?
+        var windWavePeriodSeconds: Double?
+        var windWaveDirectionDegrees: Double?
+        var seaSurfaceTemperatureC: Double?
+        var seaLevelHeightM: Double?
+        var tideTrend: String?
+        var conditionsSource: String?
+        var conditionsFetchedAt: Date?
+        var conditionsLatitude: Double?
+        var conditionsLongitude: Double?
+        var waveCount: Int?
+        var topSpeedKph: Double?
+        var longestRideSeconds: Double?
+        var longestRideMeters: Double?
+        var paddleDistanceMeters: Double?
+        var waveStatsSource: String?
+        var linkedWorkoutID: String?
+        var createdAt: Date
+        var updatedAt: Date
+        @Relationship(deleteRule: .nullify) var gear: [Gear]
+        @Relationship(deleteRule: .nullify) var buddies: [Buddy]
+        @Relationship(deleteRule: .cascade) var media: [SessionMedia]
+
+        init(
+            date: Date,
+            spot: Spot?,
+            gear: [Gear] = [],
+            buddies: [Buddy] = [],
+            media: [SessionMedia] = [],
+            rating: Int = 0,
+            durationMinutes: Int? = nil,
+            windCondition: WindCondition? = nil,
+            waveHeight: WaveHeight? = nil,
+            windSpeedKph: Double? = nil,
+            windDirectionDegrees: Double? = nil,
+            waveHeightMeters: Double? = nil,
+            swellWaveHeightMeters: Double? = nil,
+            swellWavePeriodSeconds: Double? = nil,
+            swellWaveDirectionDegrees: Double? = nil,
+            windWaveHeightMeters: Double? = nil,
+            windWavePeriodSeconds: Double? = nil,
+            windWaveDirectionDegrees: Double? = nil,
+            seaSurfaceTemperatureC: Double? = nil,
+            seaLevelHeightM: Double? = nil,
+            tideTrend: String? = nil,
+            conditionsSource: String? = nil,
+            conditionsFetchedAt: Date? = nil,
+            conditionsLatitude: Double? = nil,
+            conditionsLongitude: Double? = nil,
+            waveCount: Int? = nil,
+            topSpeedKph: Double? = nil,
+            longestRideSeconds: Double? = nil,
+            longestRideMeters: Double? = nil,
+            paddleDistanceMeters: Double? = nil,
+            waveStatsSource: String? = nil,
+            linkedWorkoutID: String? = nil,
+            notes: String = "",
+            createdAt: Date = Date(),
+            updatedAt: Date = Date()
+        ) {
+            self.date = date
+            self.spot = spot
+            self.gear = gear
+            self.buddies = buddies
+            self.media = media
+            self.rating = rating
+            self.durationMinutes = durationMinutes
+            self.windCondition = windCondition
+            self.waveHeight = waveHeight
+            self.windSpeedKph = windSpeedKph
+            self.windDirectionDegrees = windDirectionDegrees
+            self.waveHeightMeters = waveHeightMeters
+            self.swellWaveHeightMeters = swellWaveHeightMeters
+            self.swellWavePeriodSeconds = swellWavePeriodSeconds
+            self.swellWaveDirectionDegrees = swellWaveDirectionDegrees
+            self.windWaveHeightMeters = windWaveHeightMeters
+            self.windWavePeriodSeconds = windWavePeriodSeconds
+            self.windWaveDirectionDegrees = windWaveDirectionDegrees
+            self.seaSurfaceTemperatureC = seaSurfaceTemperatureC
+            self.seaLevelHeightM = seaLevelHeightM
+            self.tideTrend = tideTrend
+            self.conditionsSource = conditionsSource
+            self.conditionsFetchedAt = conditionsFetchedAt
+            self.conditionsLatitude = conditionsLatitude
+            self.conditionsLongitude = conditionsLongitude
+            self.waveCount = waveCount
+            self.topSpeedKph = topSpeedKph
+            self.longestRideSeconds = longestRideSeconds
+            self.longestRideMeters = longestRideMeters
+            self.paddleDistanceMeters = paddleDistanceMeters
+            self.waveStatsSource = waveStatsSource
+            self.linkedWorkoutID = linkedWorkoutID
+            self.notes = notes
+            self.createdAt = createdAt
+            self.updatedAt = updatedAt
+        }
+    }
+}
+
+/// HEAD. The 1.10.0 schema adds explicit inverse collections for the Gear and
+/// Buddy many-to-many relationships so one item can remain linked to many sessions.
+enum PeakSchemaV11: VersionedSchema {
+    static var versionIdentifier: Schema.Version = Schema.Version(1, 10, 0)
+    static var models: [any PersistentModel.Type] {
+        [SurfSession.self, Spot.self, Gear.self, Buddy.self, SessionMedia.self]
+    }
+}
+
+private struct V10RelationshipSnapshot {
+    let gearKeys: [String]
+    let buddyKeys: [String]
+}
+
+/// `MigrationStage.custom` runs its two closures synchronously but against
+/// different model contexts. This lock-protected bridge carries only immutable
+/// relationship keys between them and is cleared as soon as the stage finishes.
+private final class V10RelationshipMigrationBridge: @unchecked Sendable {
+    private let lock = NSLock()
+    private var snapshots: [Data: V10RelationshipSnapshot] = [:]
+
+    func replace(with value: [Data: V10RelationshipSnapshot]) {
+        lock.lock()
+        snapshots = value
+        lock.unlock()
+    }
+
+    func take() -> [Data: V10RelationshipSnapshot] {
+        lock.lock()
+        defer { lock.unlock() }
+        let value = snapshots
+        snapshots = [:]
+        return value
+    }
 }
 
 enum PeakMigrationPlan: SchemaMigrationPlan {
+    private static let v10RelationshipBridge = V10RelationshipMigrationBridge()
+
     static var schemas: [any VersionedSchema.Type] {
         [
             PeakSchemaV1.self,
@@ -1504,7 +1787,8 @@ enum PeakMigrationPlan: SchemaMigrationPlan {
             PeakSchemaV7.self,
             PeakSchemaV8.self,
             PeakSchemaV9.self,
-            PeakSchemaV10.self
+            PeakSchemaV10.self,
+            PeakSchemaV11.self
         ]
     }
 
@@ -1518,7 +1802,46 @@ enum PeakMigrationPlan: SchemaMigrationPlan {
             MigrationStage.lightweight(fromVersion: PeakSchemaV6.self, toVersion: PeakSchemaV7.self),
             MigrationStage.lightweight(fromVersion: PeakSchemaV7.self, toVersion: PeakSchemaV8.self),
             MigrationStage.lightweight(fromVersion: PeakSchemaV8.self, toVersion: PeakSchemaV9.self),
-            MigrationStage.lightweight(fromVersion: PeakSchemaV9.self, toVersion: PeakSchemaV10.self)
+            MigrationStage.lightweight(fromVersion: PeakSchemaV9.self, toVersion: PeakSchemaV10.self),
+            MigrationStage.custom(
+                fromVersion: PeakSchemaV10.self,
+                toVersion: PeakSchemaV11.self,
+                willMigrate: { context in
+                    let sessions = try context.fetch(FetchDescriptor<PeakSchemaV10.SurfSession>())
+                    let snapshots = Dictionary(uniqueKeysWithValues: try sessions.map { session in
+                        (
+                            try migrationKey(for: session.persistentModelID),
+                            V10RelationshipSnapshot(
+                                gearKeys: session.gear.map(\.key),
+                                buddyKeys: session.buddies.map(\.key)
+                            )
+                        )
+                    })
+                    v10RelationshipBridge.replace(with: snapshots)
+                },
+                didMigrate: { context in
+                    let snapshots = v10RelationshipBridge.take()
+                    let gearByKey = Dictionary(uniqueKeysWithValues:
+                        try context.fetch(FetchDescriptor<Gear>()).map { ($0.key, $0) }
+                    )
+                    let buddiesByKey = Dictionary(uniqueKeysWithValues:
+                        try context.fetch(FetchDescriptor<Buddy>()).map { ($0.key, $0) }
+                    )
+                    let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+                    for session in sessions {
+                        guard let snapshot = snapshots[try migrationKey(for: session.persistentModelID)] else { continue }
+                        session.gear = snapshot.gearKeys.compactMap { gearByKey[$0] }
+                        session.buddies = snapshot.buddyKeys.compactMap { buddiesByKey[$0] }
+                    }
+                    try context.save()
+                }
+            )
         ]
+    }
+
+    private static func migrationKey(for identifier: PersistentIdentifier) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(identifier)
     }
 }

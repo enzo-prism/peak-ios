@@ -132,30 +132,39 @@ struct ContentView: View {
             }
             .customizationID("peak.more")
 
-            Tab(value: PeakTab.search, role: .search) {
-                SearchHistoryTab(isSelected: navigation.selectedTab == .search)
-            }
-            .customizationID("peak.search")
-
-            TabSection("Library") {
-                Tab(PeakTab.spots.title, systemImage: PeakTab.spots.systemImage, value: PeakTab.spots) {
-                    SpotLibraryView(isLibraryTab: true)
+            if showsSidebarTabs {
+                Tab(value: PeakTab.search, role: .search) {
+                    SearchHistoryTab(isSelected: navigation.selectedTab == .search)
                 }
-                .defaultVisibility(.hidden, for: .tabBar)
-                .customizationID("peak.spots")
+                .customizationID("peak.search")
 
-                Tab(PeakTab.buddies.title, systemImage: PeakTab.buddies.systemImage, value: PeakTab.buddies) {
-                    NavigationStack {
-                        BuddyLibraryView()
+                TabSection("Library") {
+                    Tab(PeakTab.spots.title, systemImage: PeakTab.spots.systemImage, value: PeakTab.spots) {
+                        SpotLibraryView(isLibraryTab: true)
                     }
+                    .defaultVisibility(.hidden, for: .tabBar)
+                    .customizationID("peak.spots")
+
+                    Tab(PeakTab.buddies.title, systemImage: PeakTab.buddies.systemImage, value: PeakTab.buddies) {
+                        NavigationStack {
+                            BuddyLibraryView()
+                        }
+                    }
+                    .defaultVisibility(.hidden, for: .tabBar)
+                    .customizationID("peak.buddies")
                 }
-                .defaultVisibility(.hidden, for: .tabBar)
-                .customizationID("peak.buddies")
             }
         }
         .modifier(SidebarAdaptableTabStyle(
-            enabled: horizontalSizeClass == .regular && !TestingDefaults.isUITest
+            enabled: showsSidebarTabs
         ))
+    }
+
+    /// Extra library/search tabs belong to the iPad sidebar. Keeping them out
+    /// of compact tab bars prevents iOS from replacing Peak's fifth tab with
+    /// the system overflow screen.
+    private var showsSidebarTabs: Bool {
+        horizontalSizeClass == .regular && !TestingDefaults.isUITest
     }
 
     private func handleDeepLink(_ url: URL) {
