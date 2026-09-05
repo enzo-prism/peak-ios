@@ -42,25 +42,45 @@ jobs:
           if-no-files-found: ignore
           include-hidden-files: true
 
-  design:
+  device_ui:
+    name: UI (${{ matrix.device }})
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, ipad]
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '26'
-      - name: Test iPhone and production iPad navigation
+      - name: Test production device flows
+        env:
+          DESIGN_DEVICE: ${{ matrix.device }}
         run: ./scripts/design-check.sh
-      - name: Verify complete suites and record source
+      - name: Verify complete suite and record source
+        env:
+          DESIGN_DEVICE: ${{ matrix.device }}
         run: |
-          python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 594
-          python3 scripts/check-test-results.py artifacts/design-check/iphone/UITests.xcresult 63
-          python3 scripts/check-test-results.py artifacts/design-check/ipad/UITests.xcresult 63
+          if [[ "$DESIGN_DEVICE" == "iphone" ]]; then
+            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 594
+          fi
+          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 63
       - name: Upload device test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: design-check-results
-          path: artifacts/design-check/
+          name: design-check-${{ matrix.device }}
+          path: artifacts/design-check/${{ matrix.device }}/
           if-no-files-found: ignore
+
+  design:
+    needs: device_ui
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both device suites
+        env:
+          DEVICE_UI_RESULT: ${{ needs.device_ui.result }}
+        run: test "$DEVICE_UI_RESULT" = success

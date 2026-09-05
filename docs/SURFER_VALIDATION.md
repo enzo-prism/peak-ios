@@ -1,6 +1,6 @@
 # Peak surfer validation kit
 
-Prepared 2026-09-04. This is an execution kit; recruitment, device upgrades, and ocean testing have not been performed.
+Prepared 2026-09-04. Release acceptance is owner-led; external recruitment is optional future product research, not a release requirement. This is an execution kit; recruitment, device upgrades, and ocean testing have not been performed.
 
 ## Current release and device evidence
 
@@ -8,7 +8,7 @@ ASC app `6757644027`: 3.2 is `READY_FOR_SALE`; 3.3 is `WAITING_FOR_REVIEW`, rele
 
 Read-only `xcrun devicectl list devices` found Enzo's iPhone 17 Pro **available (paired)** and iPhone 15 Pro **unavailable**. No iPad or Apple Watch appeared. Availability does not establish installed Peak version, a populated library, usable signing, or Health permission. No device was installed to, launched, or modified during discovery.
 
-## Recruit 5–10 surfers
+## Optional future research with 5–10 surfers
 
 Choose a mix of 2–3 frequent surfers, 2–3 occasional surfers, at least two people with multiple boards, and 2–3 Apple Watch workout users; categories may overlap. Include a novice logbook user and, if possible, an iPad user. Identify volunteers directly; do not scrape contacts or health records. Use participant codes S01–S10 in research notes and keep contact details separately.
 
@@ -98,7 +98,7 @@ Keep `feature/3.1-watchos` separate until it records at least five real surf ses
 | Real upgrade | Confirm the available iPhone 17 Pro may be used, its installed Peak version, and a backed-up test library; provide a second/scratch installation for restore verification |
 | Physical iPad | Connect/pair an iPad and identify OS plus a safe test library |
 | Health | Volunteer/device owner consent and a real existing surfing workout; confirm Apple Watch access if new workouts are needed |
-| Recruitment | Names/contact destinations for 5–10 willing surfers, an approved tested install build/link, and permission for the exact invitations |
+| Optional research | Names/contact destinations for 5–10 willing surfers, an approved tested install build/link, and permission for the exact invitations |
 | Ocean | Paired physical Watch, test-build installation, and five actual surf opportunities with manual notes |
 | Store publication | Apple approval plus the final release decision after the candidate-specific gates; current 3.3 remains manual |
 
