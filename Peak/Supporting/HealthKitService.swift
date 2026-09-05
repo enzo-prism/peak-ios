@@ -20,8 +20,33 @@ enum HealthKitLogic {
     /// fabricate a workout duration.
     static let assumedDurationMinutes = 60
 
-    /// Stable identifier for a session, derived from `createdAt` (which never
-    /// changes across edits) at millisecond precision.
+    /// New writes use persistent session identity, independent of timestamps.
+    static func sessionKey(forSessionID id: UUID) -> String {
+        "peak-session-\(id.uuidString.lowercased())"
+    }
+
+    struct LegacyWorkoutMatch: Equatable {
+        let key: String
+        let interval: DateInterval
+
+        func matches(start: Date, end: Date) -> Bool {
+            interval.start == start && interval.end == end
+        }
+    }
+
+    /// A legacy key is safe only when the local store proves a single owner.
+    /// Unknown duration cannot establish an exact legacy workout interval.
+    static func legacyWorkoutMatch(
+        createdAt: Date, date: Date, durationMinutes: Int?, matchingSessionCount: Int
+    ) -> LegacyWorkoutMatch? {
+        guard matchingSessionCount == 1, let durationMinutes, durationMinutes > 0 else { return nil }
+        return LegacyWorkoutMatch(
+            key: sessionKey(forSessionCreatedAt: createdAt),
+            interval: sessionWindow(date: date, durationMinutes: durationMinutes)
+        )
+    }
+
+    /// Legacy metadata format retained only for safe backward-compatible lookup.
     static func sessionKey(forSessionCreatedAt createdAt: Date) -> String {
         "peak-\(Int64((createdAt.timeIntervalSince1970 * 1000).rounded()))"
     }
@@ -322,23 +347,21 @@ final class HealthKitService {
     func saveOrUpdateWorkout(for session: SurfSession) {
         guard canWrite, let values = workoutValues(for: session) else { return }
         Task {
-            try? await self.replaceWorkout(sessionKey: values.key, interval: values.interval)
+            try? await self.replaceWorkout(sessionKey: values.key, interval: values.interval, legacy: values.legacy)
         }
     }
 
-    /// Deletes the Health workout for a session. IMPORTANT: call BEFORE
-    /// `modelContext.delete(session)` — the stable key is derived from
-    /// `session.createdAt`, which is read synchronously here.
+    /// Call before deleting the model: capture identity and any provably owned
+    /// legacy workout while its model context can still verify ownership.
     func deleteWorkout(for session: SurfSession) {
-        deleteWorkout(sessionKey: HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt))
-    }
-
-    /// Delete by pre-captured session key (for callers that must delete the
-    /// model object first).
-    func deleteWorkout(sessionKey key: String) {
-        guard canWrite else { return }
+        guard canWrite, let id = session.sessionID else { return }
+        let key = HealthKitLogic.sessionKey(forSessionID: id)
+        let legacy = legacyWorkoutMatch(for: session)
         Task {
             try? await self.deletePeakWorkouts(sessionKey: key)
+            if let legacy {
+                try? await self.deletePeakWorkouts(sessionKey: legacy.key, exactInterval: legacy)
+            }
         }
     }
 
@@ -350,7 +373,7 @@ final class HealthKitService {
     @discardableResult
     func saveWorkout(for session: SurfSession) async throws -> Bool {
         guard canWrite, let values = workoutValues(for: session) else { return false }
-        try await replaceWorkout(sessionKey: values.key, interval: values.interval)
+        try await replaceWorkout(sessionKey: values.key, interval: values.interval, legacy: values.legacy)
         return true
     }
 
@@ -384,7 +407,7 @@ final class HealthKitService {
             }
             if let values = workoutValues(for: session) {
                 do {
-                    try await replaceWorkout(sessionKey: values.key, interval: values.interval)
+                    try await replaceWorkout(sessionKey: values.key, interval: values.interval, legacy: values.legacy)
                     summary.written += 1
                 } catch {
                     summary.failed += 1
@@ -577,17 +600,36 @@ final class HealthKitService {
 
     /// Write inputs for a session; nil when the session has no logged duration
     /// (we never fabricate a workout length).
-    private func workoutValues(for session: SurfSession) -> (key: String, interval: DateInterval)? {
-        guard let duration = session.durationMinutes, duration > 0 else { return nil }
+    private func workoutValues(for session: SurfSession) -> (
+        key: String, interval: DateInterval, legacy: HealthKitLogic.LegacyWorkoutMatch?
+    )? {
+        guard let id = session.sessionID, let duration = session.durationMinutes, duration > 0 else { return nil }
         return (
-            key: HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt),
-            interval: HealthKitLogic.sessionWindow(date: session.date, durationMinutes: duration)
+            key: HealthKitLogic.sessionKey(forSessionID: id),
+            interval: HealthKitLogic.sessionWindow(date: session.date, durationMinutes: duration),
+            legacy: legacyWorkoutMatch(for: session)
+        )
+    }
+
+    private func legacyWorkoutMatch(for session: SurfSession) -> HealthKitLogic.LegacyWorkoutMatch? {
+        guard let context = session.modelContext,
+              let sessions = try? context.fetch(FetchDescriptor<SurfSession>()) else { return nil }
+        let key = HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt)
+        let owners = sessions.filter {
+            HealthKitLogic.sessionKey(forSessionCreatedAt: $0.createdAt) == key
+        }
+        guard owners.count == 1, owners[0].persistentModelID == session.persistentModelID else { return nil }
+        return HealthKitLogic.legacyWorkoutMatch(
+            createdAt: session.createdAt, date: session.date,
+            durationMinutes: session.durationMinutes, matchingSessionCount: owners.count
         )
     }
 
     /// Delete any previous Peak workout carrying this session key, then write a
     /// fresh HKWorkoutBuilder workout spanning the interval.
-    private func replaceWorkout(sessionKey key: String, interval: DateInterval) async throws {
+    private func replaceWorkout(
+        sessionKey key: String, interval: DateInterval, legacy: HealthKitLogic.LegacyWorkoutMatch?
+    ) async throws {
         try await deletePeakWorkouts(sessionKey: key)
 
         let configuration = HKWorkoutConfiguration()
@@ -603,9 +645,16 @@ final class HealthKitService {
         try await builder.addMetadata([HealthKitLogic.sessionKeyMetadataKey: key])
         try await builder.endCollection(at: interval.end)
         _ = try await builder.finishWorkout()
+        // Preserve the legacy workout if the replacement fails. If its interval
+        // has changed since migration, leave it alone rather than guess ownership.
+        if let legacy {
+            try await deletePeakWorkouts(sessionKey: legacy.key, exactInterval: legacy)
+        }
     }
 
-    private func deletePeakWorkouts(sessionKey key: String) async throws {
+    private func deletePeakWorkouts(
+        sessionKey key: String, exactInterval: HealthKitLogic.LegacyWorkoutMatch? = nil
+    ) async throws {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForObjects(
                 withMetadataKey: HealthKitLogic.sessionKeyMetadataKey,
@@ -617,7 +666,12 @@ final class HealthKitService {
             predicates: [.workout(predicate)],
             sortDescriptors: []
         )
-        let workouts = try await descriptor.result(for: healthStore)
+        let candidates = try await descriptor.result(for: healthStore)
+        let workouts = candidates.filter { workout in
+            guard let exactInterval else { return true }
+            return workout.workoutActivityType == .surfingSports
+                && exactInterval.matches(start: workout.startDate, end: workout.endDate)
+        }
         guard !workouts.isEmpty else { return }
         try await healthStore.delete(workouts)
     }

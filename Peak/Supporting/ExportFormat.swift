@@ -189,7 +189,7 @@ struct PeakBackupManifest: Codable {
 struct SessionMediaBackupEntry: Codable {
     /// Stable identifier minted at backup time (diagnostics only; not persisted).
     let id: String
-    /// Matches `SessionExport.id` (the owning session's createdAt timestamp string).
+    /// Matches `SessionExport.id` (the owning session's UUID, or a legacy timestamp).
     let sessionId: String
     let kind: String
     let sortIndex: Int
@@ -225,7 +225,7 @@ enum ImportMode {
 }
 
 enum PeakExportManager {
-    static let schemaVersion = "peak_export_v1"
+    static let schemaVersion = "peak_export_v2"
 
     static func makeExport(
         sessions: [SurfSession],
@@ -269,7 +269,7 @@ enum PeakExportManager {
         }
         let sessionExports = sessions.sorted { $0.createdAt < $1.createdAt }.map { session in
             SessionExport(
-                id: ExportDateFormatter.string(from: session.createdAt),
+                id: SessionIntentQueries.identifier(for: session),
                 date: ExportDateFormatter.string(from: session.date),
                 spotId: session.spot?.key,
                 spotName: session.spot?.name,
@@ -371,7 +371,7 @@ enum PeakExportManager {
             "id,date,spotName,rating,notes,buddyNames,gearSummary,windCondition,waveHeight,windSpeedKph,windDirectionDegrees,waveHeightMeters,swellWaveHeightMeters,swellWavePeriodSeconds,swellWaveDirectionDegrees,windWaveHeightMeters,windWavePeriodSeconds,windWaveDirectionDegrees,seaSurfaceTemperatureC,seaLevelHeightM,tideTrend,conditionsSource,conditionsFetchedAt,conditionsLatitude,conditionsLongitude,waveCount,topSpeedKph,longestRideSeconds,longestRideMeters,paddleDistanceMeters,waveStatsSource"
         ]
         for session in sessions {
-            let id = ExportDateFormatter.string(from: session.createdAt)
+            let id = SessionIntentQueries.identifier(for: session)
             let date = ExportDateFormatter.string(from: session.date)
             let spotName = session.spot?.name ?? ""
             let rating = "\(session.rating)"
@@ -521,14 +521,45 @@ enum PeakExportManager {
         return rows.joined(separator: "\n")
     }
 
+    @discardableResult
     static func applyImport(
         _ export: PeakExport,
         mode: ImportMode,
         context: ModelContext
-    ) throws {
-        guard export.schemaVersion == schemaVersion else {
+    ) throws -> [String: SurfSession] {
+        guard [schemaVersion, "peak_export_v1"].contains(export.schemaVersion) else {
             throw ExportError.unsupportedSchema
         }
+        // Resolve every identity before modifying relationships or deleting data.
+        // Legacy timestamp collisions cannot be resolved safely from an old file.
+        let existing = mode == .merge ? try context.fetch(FetchDescriptor<SurfSession>()) : []
+        var matched: [String: SurfSession] = [:]
+        var seenIDs: Set<String> = []
+        var seenLegacyDates: Set<Int64> = []
+        var matchedRows: Set<PersistentIdentifier> = []
+        for row in export.sessions {
+            guard let createdAt = ExportDateFormatter.date(from: row.createdAt) else {
+                throw ExportError.invalidSessionIdentity
+            }
+            let uuid = UUID(uuidString: row.id)
+            let canonical = uuid?.uuidString ?? row.id
+            guard seenIDs.insert(canonical).inserted else { throw ExportError.ambiguousSessionIdentity }
+            let candidates: [SurfSession]
+            if let uuid {
+                candidates = existing.filter { $0.sessionID == uuid }
+            } else {
+                guard ExportDateFormatter.date(from: row.id) != nil else { throw ExportError.invalidSessionIdentity }
+                let key = SurfSession.millisecondsKey(for: createdAt)
+                guard seenLegacyDates.insert(key).inserted else { throw ExportError.ambiguousSessionIdentity }
+                candidates = existing.filter { SurfSession.millisecondsKey(for: $0.createdAt) == key }
+            }
+            guard candidates.count <= 1 else { throw ExportError.ambiguousSessionIdentity }
+            if let candidate = candidates.first {
+                guard matchedRows.insert(candidate.persistentModelID).inserted else { throw ExportError.ambiguousSessionIdentity }
+                matched[row.id] = candidate
+            }
+        }
+        var imported: [String: SurfSession] = [:]
         if mode == .replace {
             try context.resetAllData()
         }
@@ -617,7 +648,7 @@ enum PeakExportManager {
 
         for sessionExport in export.sessions {
             guard let createdAt = ExportDateFormatter.date(from: sessionExport.createdAt) else { continue }
-            let existingSession = context.existingSession(createdAt: createdAt)
+            let existingSession = matched[sessionExport.id]
             let session = existingSession ?? SurfSession(
                 date: Date(),
                 spot: nil,
@@ -625,6 +656,8 @@ enum PeakExportManager {
                 updatedAt: createdAt
             )
 
+            if let uuid = UUID(uuidString: sessionExport.id) { session.sessionID = uuid }
+            imported[sessionExport.id] = session
             session.date = ExportDateFormatter.date(from: sessionExport.date) ?? session.date
             session.rating = SurfSession.clampedRating(sessionExport.rating)
             session.durationMinutes = SurfSession.normalizedDuration(sessionExport.durationMinutes)
@@ -670,6 +703,7 @@ enum PeakExportManager {
                 context.insert(session)
             }
         }
+        return imported
     }
 
     nonisolated private static func exportURL(prefix: String, fileExtension: String) -> URL {
@@ -697,9 +731,20 @@ enum PeakExportManager {
     }
 }
 
-enum ExportError: Error {
+enum ExportError: LocalizedError {
     case encodingFailed
     case unsupportedSchema
+    case invalidSessionIdentity
+    case ambiguousSessionIdentity
+
+    var errorDescription: String? {
+        switch self {
+        case .encodingFailed: return "The export could not be encoded."
+        case .unsupportedSchema: return "This export format is not supported by this version of Peak."
+        case .invalidSessionIdentity: return "A session in this file has an invalid identity or creation date. No sessions were imported."
+        case .ambiguousSessionIdentity: return "This file or your library contains sessions with the same legacy identity. Peak cannot safely decide which session to replace. No sessions were imported. Export a new backup from the original library using the latest Peak."
+        }
+    }
 }
 
 enum ExportDateFormatter {

@@ -27,7 +27,7 @@ struct SpotLibraryView: View {
     @State private var openedSpot: PeakEntityRef?
 
     private var usesSplitNavigation: Bool {
-        isLibraryTab && horizontalSizeClass == .regular && !TestingDefaults.isUITest
+        isLibraryTab && horizontalSizeClass == .regular && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {
@@ -177,12 +177,12 @@ struct SpotLibraryView: View {
         spots.first { SessionIntentQueries.identifier(for: $0) == ref.id }
     }
 
-    /// iOS 18's Spots tab owns the pending id. On iOS 17 the coordinator lands
-    /// on More and `MoreView` pushes. A SpotLibraryView pushed from More must
-    /// not steal the pending id from the tab instance.
+    /// Consume only while this sidebar destination is selected. System spot
+    /// links select More on every platform; a mounted, inactive Spots tab must
+    /// leave their pending id for MoreView to push.
     private func consumePendingSpotIfNeeded() {
         if #available(iOS 18.0, *) {
-            guard isLibraryTab else { return }
+            guard isLibraryTab, navigation.selectedTab == .spots else { return }
             guard let id = navigation.pendingSpotID else { return }
             _ = navigation.consumePendingSpot()
             openedSpot = PeakEntityRef(id: id)

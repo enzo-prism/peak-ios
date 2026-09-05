@@ -4,6 +4,67 @@ import XCTest
 @testable import Peak
 
 final class ExportImportTests: XCTestCase {
+    func testDuplicateTimestampBackupPreservesUUIDsAndOwnPhotosAcrossRepeatedMerge() async throws {
+        let source = ModelContext(try makeContainer())
+        let date = Date(timeIntervalSince1970: 1_725_000_000)
+        let a = SurfSession(date: date, spot: nil, notes: "A", createdAt: date)
+        let b = SurfSession(date: date, spot: nil, notes: "B", createdAt: date)
+        source.insert(a)
+        source.insert(b)
+        let photoA = SessionMedia(kind: .photo, photoData: Data([1, 2, 3]))
+        let photoB = SessionMedia(kind: .photo, photoData: Data([4, 5, 6]))
+        source.insert(photoA)
+        source.insert(photoB)
+        a.media = [photoA]
+        b.media = [photoB]
+        try source.save()
+        let url = try await BackupManager.makeBackupFile(sessions: [a, b], spots: [], gear: [], buddies: [])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let target = ModelContext(try makeContainer())
+        for _ in 0..<2 {
+            try await BackupManager.restore(from: url, mode: .merge, context: target)
+            try target.save()
+            let sessions = try target.fetch(FetchDescriptor<SurfSession>())
+            XCTAssertEqual(sessions.count, 2)
+            XCTAssertEqual(Set(sessions.compactMap(\.sessionID)), Set([a, b].compactMap(\.sessionID)))
+            XCTAssertEqual(sessions.first { $0.notes == "A" }?.media.map(\.photoData), [Data([1, 2, 3])])
+            XCTAssertEqual(sessions.first { $0.notes == "B" }?.media.map(\.photoData), [Data([4, 5, 6])])
+        }
+    }
+
+    func testAmbiguousLegacyImportRejectsBeforeReplaceDeletesData() throws {
+        let context = ModelContext(try makeContainer())
+        let original = SurfSession(date: Date(), spot: nil, notes: "Keep me")
+        context.insert(original)
+        try context.save()
+        let exported = PeakExportManager.makeExport(sessions: [original], spots: [], gear: [], buddies: [])
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: PeakExportManager.jsonData(from: exported)) as? [String: Any])
+        var row = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
+        row["id"] = row["created_at"]
+        object["sessions"] = [row, row]
+        object["schema_version"] = "peak_export_v1"
+        let legacy = try PeakExportManager.decodeJSON(JSONSerialization.data(withJSONObject: object))
+        XCTAssertThrowsError(try PeakExportManager.applyImport(legacy, mode: .replace, context: context))
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Keep me"])
+    }
+
+    func testUniqueLegacyImportMatchesExistingUUID() throws {
+        let context = ModelContext(try makeContainer())
+        let original = SurfSession(date: Date(), spot: nil)
+        context.insert(original)
+        try context.save()
+        let id = original.sessionID
+        let exported = PeakExportManager.makeExport(sessions: [original], spots: [], gear: [], buddies: [])
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: PeakExportManager.jsonData(from: exported)) as? [String: Any])
+        var row = try XCTUnwrap((object["sessions"] as? [[String: Any]])?.first)
+        row["id"] = row["created_at"]
+        object["sessions"] = [row]
+        object["schema_version"] = "peak_export_v1"
+        let legacy = try PeakExportManager.decodeJSON(JSONSerialization.data(withJSONObject: object))
+        try PeakExportManager.applyImport(legacy, mode: .merge, context: context)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<SurfSession>()).compactMap(\.sessionID), [try XCTUnwrap(id)])
+    }
+
     func testExportImportMergeRoundTrip() throws {
         let calendar = Calendar(identifier: .gregorian)
         let createdAt = calendar.date(from: DateComponents(year: 2026, month: 2, day: 10, hour: 6))!
@@ -359,6 +420,216 @@ final class ExportImportTests: XCTestCase {
     }
 
     // MARK: - Crash-proof store recovery
+
+    func testRecoveryReceiptKeepsExportAvailableOnNextNormalLaunch() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = try PeakDataStore.relocateStoreFiles(in: root)
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: root), "Completed recovery must unblock the fresh store")
+        XCTAssertEqual(try PeakDataStore.preservedArchive(in: root), archive.path)
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(open: { memory }, fallback: {
+            XCTFail("A saved receipt must not block a healthy current library")
+            return memory
+        }, recover: {
+            XCTFail("A healthy current library must not be archived again")
+            return archive
+        }, pending: { try PeakDataStore.pendingRecovery(in: root) }, preservedArchive: {
+            try PeakDataStore.preservedArchive(in: root)
+        })
+        XCTAssertEqual(result.outcome, .recoveredFresh(archivedPath: archive.path))
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testIntentDiskAccessBlocksPendingAndUnreadableRecoveryMarkers() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertTrue(PeakDataStore.canOpenStore(in: root))
+        let marker = root.appendingPathComponent(PeakDataStore.recoveryMarkerName)
+        let issue = StoreRecoveryIssue(archivedPath: nil, details: "Incomplete preservation")
+        try JSONEncoder().encode(issue).write(to: marker)
+        XCTAssertFalse(PeakDataStore.canOpenStore(in: root))
+        try Data("invalid marker".utf8).write(to: marker)
+        XCTAssertFalse(PeakDataStore.canOpenStore(in: root), "Unreadable recovery state must fail closed for cold intents")
+        try assertRecoveryBytes(in: root)
+    }
+
+    func testRecoveryExportCreatesZIPWithoutChangingArchive() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = try PeakDataStore.relocateStoreFiles(in: root)
+        let exported = try PeakDataStore.recoveryExport(archivedPath: archive.path)
+        defer { try? FileManager.default.removeItem(at: exported) }
+        XCTAssertEqual(exported.pathExtension, "zip")
+        XCTAssertEqual(Array(try Data(contentsOf: exported).prefix(2)), [0x50, 0x4b])
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testStoreLoadNormalDoesNotAttemptRecovery() throws {
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(open: { memory }, fallback: {
+            XCTFail("Normal open should not use fallback")
+            return memory
+        }, recover: {
+            XCTFail("Normal open should not archive")
+            return URL(fileURLWithPath: "/unused")
+        }, pending: { nil })
+        XCTAssertEqual(result.outcome, .normal)
+    }
+
+    func testStoreLoadFreshSuccessReportsActualArchive() throws {
+        let memory = try makeContainer()
+        var opens = 0
+        let result = PeakDataStore.loadPersistent(open: {
+            opens += 1
+            if opens == 1 { throw CocoaError(.fileReadCorruptFile) }
+            return memory
+        }, fallback: {
+            XCTFail("Fresh store opened successfully")
+            return memory
+        }, recover: { URL(fileURLWithPath: "/preserved-library") }, pending: { nil })
+        XCTAssertEqual(opens, 2)
+        XCTAssertEqual(result.outcome, .recoveredFresh(archivedPath: "/preserved-library"))
+    }
+
+    func testStoreLoadUnreadableRecoveryMarkerDoesNotOpenDisk() throws {
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(open: {
+            XCTFail("An unreadable marker cannot prove disk is safe")
+            return memory
+        }, fallback: { memory }, recover: {
+            XCTFail("Must not overwrite unknown recovery state")
+            return URL(fileURLWithPath: "/unused")
+        }, pending: { throw CocoaError(.fileReadCorruptFile) })
+        guard case .inMemoryFallback(let issue) = result.outcome else { return XCTFail("Expected temporary store") }
+        XCTAssertTrue(issue.details.contains("Could not check previous recovery"))
+    }
+
+    func testRecoveryCopyFailureLeavesEveryOriginalAndBlocksReopening() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var copied = 0
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, copyItem: { source, destination in
+            copied += 1
+            if copied == 2 { throw CocoaError(.fileWriteOutOfSpace) }
+            try FileManager.default.copyItem(at: source, to: destination)
+        })) { error in
+            XCTAssertNil((error as? StoreRecoveryIssue)?.archivedPath, "A partial copy must never be offered as a complete archive")
+        }
+        XCTAssertEqual(copied, 2)
+        try assertRecoveryBytes(in: root)
+        let pending = try XCTUnwrap(PeakDataStore.pendingRecovery(in: root))
+        XCTAssertNil(pending.archivedPath)
+    }
+
+    func testRecoveryRemovalFailureKeepsCompleteArchiveAndDurableMarker() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var removed = 0
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { url in
+            removed += 1
+            if removed == 2 { throw CocoaError(.fileWriteNoPermission) }
+            try FileManager.default.removeItem(at: url)
+        })) { error in
+            XCTAssertNotNil((error as? StoreRecoveryIssue)?.archivedPath)
+        }
+        XCTAssertEqual(removed, 2)
+        let pending = try XCTUnwrap(PeakDataStore.pendingRecovery(in: root))
+        let archive = URL(fileURLWithPath: try XCTUnwrap(pending.archivedPath))
+        try assertRecoveryBytes(in: archive)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("default.store").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("default.store-wal").path))
+        // A second preservation attempt must not overwrite the complete copy
+        // with the incomplete set of remaining source files.
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root))
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testRecoveryMarkerRemovalFailureStillBlocksNextLaunch() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { url in
+            if url.lastPathComponent == PeakDataStore.recoveryMarkerName { throw CocoaError(.fileWriteNoPermission) }
+            try FileManager.default.removeItem(at: url)
+        }))
+        let pending = try XCTUnwrap(PeakDataStore.pendingRecovery(in: root))
+        try assertRecoveryBytes(in: URL(fileURLWithPath: XCTUnwrap(pending.archivedPath)))
+    }
+
+    func testRecoveryUsesUniqueArchiveForIdenticalTimestamps() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = try PeakDataStore.relocateStoreFiles(in: root, now: now)
+        try Data("next".utf8).write(to: root.appendingPathComponent("default.store"))
+        let second = try PeakDataStore.relocateStoreFiles(in: root, now: now)
+        XCTAssertNotEqual(first, second)
+        try assertRecoveryBytes(in: first)
+        XCTAssertEqual(try Data(contentsOf: second.appendingPathComponent("default.store")), Data("next".utf8))
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: root))
+    }
+
+    func testRecoveryMissingSourcesDoesNotClaimPreservation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root))
+    }
+
+    func testStoreLoadDoesNotRetryDiskWhenPreservationFails() throws {
+        let memory = try makeContainer()
+        var opens = 0
+        let issue = StoreRecoveryIssue(archivedPath: nil, details: "Injected copy failure")
+        let result = PeakDataStore.loadPersistent(open: {
+            opens += 1
+            throw CocoaError(.fileReadCorruptFile)
+        }, fallback: { memory }, recover: { throw issue }, pending: { nil })
+        XCTAssertEqual(opens, 1, "Never create a fresh store after a failed archive")
+        guard case .inMemoryFallback(let recovery) = result.outcome else { return XCTFail("Expected temporary store") }
+        XCTAssertNil(recovery.archivedPath)
+        XCTAssertTrue(recovery.details.contains(issue.details))
+    }
+
+    func testStoreLoadInterruptedRecoveryNeverOpensDisk() throws {
+        let memory = try makeContainer()
+        let pending = StoreRecoveryIssue(archivedPath: "/preserved-library", details: "Interrupted removal")
+        let result = PeakDataStore.loadPersistent(open: {
+            XCTFail("Must not open a possibly partial store")
+            return memory
+        }, fallback: { memory }, recover: {
+            XCTFail("Must preserve the existing recovery archive")
+            return URL(fileURLWithPath: "/unused")
+        }, pending: { pending })
+        XCTAssertEqual(result.outcome, .inMemoryFallback(recovery: pending))
+    }
+
+    func testStoreLoadFreshFailureRetainsArchiveContext() throws {
+        let memory = try makeContainer()
+        var opens = 0
+        let result = PeakDataStore.loadPersistent(open: {
+            opens += 1
+            throw CocoaError(.fileWriteOutOfSpace)
+        }, fallback: { memory }, recover: { URL(fileURLWithPath: "/preserved-library") }, pending: { nil })
+        XCTAssertEqual(opens, 2)
+        guard case .inMemoryFallback(let recovery) = result.outcome else { return XCTFail("Expected temporary store") }
+        XCTAssertEqual(recovery.archivedPath, "/preserved-library")
+        XCTAssertTrue(recovery.details.contains("fresh library could not open"))
+    }
+
+    private func makeRecoveryFixture() throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PeakRecovery-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(".default_SUPPORT"), withIntermediateDirectories: true)
+        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin"] {
+            try Data(name.utf8).write(to: root.appendingPathComponent(name))
+        }
+        return root
+    }
+
+    private func assertRecoveryBytes(in directory: URL, file: StaticString = #filePath, line: UInt = #line) throws {
+        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin"] {
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(name)), Data(name.utf8), file: file, line: line)
+        }
+    }
 
     func testRelocateStoreFilesMovesCorruptStoreFiles() throws {
         let fm = FileManager.default

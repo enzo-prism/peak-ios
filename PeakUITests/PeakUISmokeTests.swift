@@ -14,6 +14,7 @@ final class PeakUISmokeTests: XCTestCase {
     private func launchAppWithUITestEnvironment(surfConditionsScenario: String) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_SURF_CONDITIONS_SCENARIO"] = surfConditionsScenario
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
@@ -355,6 +356,7 @@ final class PeakWindowCardUITests: XCTestCase {
     private func launch(windowScenario: String?) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         if let windowScenario {
@@ -544,6 +546,7 @@ final class PeakWindowCardUITests: XCTestCase {
     func testFillingInPastConditionsReportsWhatItManaged() {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         // Deliberately no fixed seed date: eligibility is measured against the
         // provider's ~92-day archive horizon and the real clock, so the seeded
@@ -871,6 +874,7 @@ final class MarketingScreenshotCapture: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-06-10T12:00:00Z"
         app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
@@ -946,6 +950,7 @@ final class PeakWelcomeUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
     }
@@ -1054,6 +1059,7 @@ final class PeakInsightsUITests: XCTestCase {
     private func launch(insightsScenario: String? = nil) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = Self.currentMonthAnchor()
         if let insightsScenario {
@@ -1238,6 +1244,7 @@ final class PeakMarketingCaptureTests: XCTestCase {
 
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         // Deliberately no UITESTS_FIXED_DATE: the seed dates every session

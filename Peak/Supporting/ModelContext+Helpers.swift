@@ -154,7 +154,8 @@ extension ModelContext {
             predicate: #Predicate { $0.createdAt >= lower && $0.createdAt <= upper }
         )
         let candidates = (try? fetch(descriptor)) ?? []
-        return candidates.first { SurfSession.millisecondsKey(for: $0.createdAt) == target }
+        let matches = candidates.filter { SurfSession.millisecondsKey(for: $0.createdAt) == target }
+        return matches.count == 1 ? matches.first : nil
     }
 
     private func deleteSessionMediaFiles() throws {

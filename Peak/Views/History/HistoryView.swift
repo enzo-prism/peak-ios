@@ -30,7 +30,7 @@ struct HistoryView: View {
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.isUITest
+        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {
@@ -297,7 +297,7 @@ struct HistoryView: View {
     }
 
     private func sessionMatching(_ ref: PeakEntityRef) -> SurfSession? {
-        sessions.first { SessionIntentQueries.identifier(for: $0) == ref.id }
+        SessionIntentQueries.sessions(withIdentifiers: [ref.id], in: sessions).first
     }
 
     // MARK: - Pending navigation

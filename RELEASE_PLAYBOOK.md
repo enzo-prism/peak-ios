@@ -1,246 +1,90 @@
-# Peak iOS Release Playbook
+# Peak iOS release playbook
 
-## Current state (as of August 20, 2026)
-- App: `peak.surf` (`com.designprism.peak`)
-- App ID: `6757644027` · Team: `L49MKXGVM4`
-- **App Store (live):** `2.6`
-- **App Store (in review):** `3.2` build **1** (submitted 2026-07-29,
-  `WAITING_FOR_REVIEW`, phased release armed). First public 3.x since 2.6.
-  Store production is this App Store train — not a deploy from git.
-- **`main` (unreleased):** 3.3 system integration plus performance and library-UX
-  passes (Spotlight, iPad navigation, Health loop, widgets, route map, predicate
-  library fetches, dedicated Search). Does **not** replace the in-review 3.2
-  binary. `MARKETING_VERSION` stays **`3.2`** until a Mac cuts the next store
-  train. Cursor Cloud is Linux — do not archive or `asc builds upload` from it.
-- **`prod`:** fast-forward-only git snapshot of `main`. When a release-ready
-  train lands on `main`, fast-forward `prod` to the same SHA. There is no
-  automatic App Store deploy from `prod`.
-- **TestFlight:** `3.2` — build 1, uploaded 2026-07-29, `VALID`,
-  encryption-exempt. Cut from `main` at the audit-round-2 commit; carries every
-  formerly-unshipped train (`2.7`–`3.0`, `3.2`) plus both audit-fix rounds.
-  Previous: `3.0` builds 2–3 (2026-07-21), `2.6` builds 1–2.
-- `MARKETING_VERSION` in `project.pbxproj` is **`3.2`**, `CURRENT_PROJECT_VERSION`
-  **1**, aligned across app and widget targets; Release configs use **manual
-  signing** (see the resolved-blocker note below).
-- **Suite baseline on `main`:** 546 unit tests, 54 UI tests (8 iPad UI failures
-  are pre-existing — see AGENTS.md).
+## Verified App Store state, September 4, 2026
 
-> ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
-> was created in the Developer portal and associated with both
-> `com.designprism.peak` and `com.designprism.peak.PeakWidgets`. The `3.2` build 1
-> archive was cut the same day with **manual signing** — App Store distribution
-> profiles "Peak App Store 3.2" / "Peak Widgets App Store 3.2" (created via
-> `asc profiles create`, cert `9M47KCWLU8`), wired into the Release build configs
-> as `PROVISIONING_PROFILE_SPECIFIER`. Note: on this Mac, Xcode has no Apple ID
-> and `xcodebuild -allowProvisioningUpdates` rejects the API key, so manual
-> profiles are the working path; the export options for manual signing live at
-> `.asc/artifacts/ExportOptions-3.2-1.plist` (gitignored — recreate per build).
-> The section below is kept for history.
+- App `peak.surf`, bundle `com.designprism.peak`, ASC app `6757644027`, team `L49MKXGVM4`.
+- **3.2 is public** (`READY_FOR_SALE`).
+- **3.3 is waiting for review**, created August 31, release type **MANUAL**. Apple approval alone will not publish it.
+- The 3.3 release source is `9ad9d60` (`Prepare Peak 3.3 App Store release`). Its baseline unit run passed 549 tests in the September 4 audit. New reliability changes need their own verification and build; they are not in the submitted binary.
+- Git branches, `prod`, tags, simulator results and uploaded artifacts do not independently establish public availability. Read ASC and the storefront before reporting a release.
 
-> ✅ **Resolved 2026-07-29 — App Group registered.** `group.com.designprism.peak`
-> was created in the Developer portal and associated with both
-> `com.designprism.peak` and `com.designprism.peak.PeakWidgets`. The `3.2` build 1
-> archive was cut the same day with **manual signing** — App Store distribution
-> profiles "Peak App Store 3.2" / "Peak Widgets App Store 3.2" (created via
-> `asc profiles create`, cert `9M47KCWLU8`), wired into the Release build configs
-> as `PROVISIONING_PROFILE_SPECIFIER`. Note: on this Mac, Xcode has no Apple ID
-> and `xcodebuild -allowProvisioningUpdates` rejects the API key, so manual
-> profiles are the working path; the export options for manual signing live at
-> `.asc/artifacts/ExportOptions-3.2-1.plist` (gitignored — recreate per build).
-> The section below is kept for history.
+## Source and build identity
 
-> ⚠️ **Branch strategy.** `main` is the active trunk. `prod` is a
-> fast-forward-only snapshot of the same SHA (App Store candidate git ref).
-> Land every fix on a short branch off `main`, PR it, and merge; then
-> fast-forward `prod` to match `main` when asked to push production. Never
-> force-push `main` or `prod`.
-> - **`feature/streamlined-log-session` is a STALE divergent branch (pre-2.0
->   design) — do NOT ship from it or merge it into `main`; it would regress the trunk.**
-> - **`feature/3.1-watchos` is code-complete but must NOT be merged or shipped.**
->   The watch app has never recorded a real surf; it is gated on real-device ocean
->   testing to validate the `WaveAnalyzer` constants. Do not list watchOS support in
->   any release note, App Store metadata, or screenshot set.
+Use an isolated branch/worktree for a candidate and preserve unrelated local edits. Reconcile release fixes into `main` through a reviewed PR with passing checks. Do not force-push or silently repoint `prod`. A release record must name the exact source SHA, version/build, ASC build ID, archive/export artifacts, verification evidence and submission/publication dates.
 
-## App Group registration (historical — resolved 2026-07-29)
+Create an immutable source tag only when its SHA-to-build mapping is established. Never infer an old build's source from today's branch pointer. Check the branch's marketing/build values across app and widget targets before an archive. Choose a new store version/build after re-reading ASC, rather than reusing historical numbers from this document.
 
-> **Done.** `group.com.designprism.peak` exists in the Developer portal and is
-> associated with both bundle IDs. The notes below are kept so nobody re-learns
-> that the App Store Connect API cannot create App Groups.
+The unmerged `feature/3.1-watchos` companion remains gated on physical Watch/ocean testing. Do not include it in release notes or screenshots until it is part of a validated shipping candidate. `feature/streamlined-log-session` is a historical divergent design branch and must not be used as a release source.
 
-`group.com.designprism.peak` is declared in both entitlements files
-(`Peak/Peak.entitlements`, `PeakWidgets/PeakWidgets.entitlements`). Before it
-existed in the portal:
+## Read-only status
 
-- simulator builds and the full test suite are fine (code signing is disabled there);
-- **any device build or `asc xcode archive` of `Peak` or `PeakWidgets` fails to sign.**
-
-What is already done:
-- The `APP_GROUPS` capability **is** enabled on both `com.designprism.peak` and
-  `com.designprism.peak.PeakWidgets`.
-
-What remains, and it is human-only:
-- Create the App Group itself (Developer portal → Identifiers → App Groups, team
-  `L49MKXGVM4`) and associate it with both bundle IDs.
-- **The App Store Connect API cannot create App Groups.** Neither `asc` nor
-  `-allowProvisioningUpdates` can do this — it is portal UI or the Xcode
-  Signing & Capabilities GUI, nothing else. Do not spend time scripting around it.
-
-## Historical snapshot (as of July 15, 2026 — superseded)
-The August 20 current-state block at the top of this file is the live picture.
-The July 15 snapshot below is kept for the 2.6 submit commands that still work
-as examples (swap version numbers).
-
-## Current state (as of July 15, 2026)
-- App: `peak.surf` (`com.designprism.peak`)
-- App ID: `6757644027` · Team: `L49MKXGVM4`
-- **App Store (live):** `2.4` (`READY_FOR_SALE`)
-- **Shipping train:** `2.6` build **2** — Stats 2.0, Apple Health (opt-in), full backup, History search, spots map, HIG polish + privacy policy aligned for review
-- See `CHANGELOG.md` for full 2.5 + 2.6 notes (users jump from live **2.4** → **2.6**)
-
-> ⚠️ **Branch strategy.** `main` is the active trunk.
-> **`feature/streamlined-log-session` is STALE (pre-2.0 design) — do NOT ship or merge it.**
-> **`feature/2.5-widgets` is deferred** (needs one-time App Group registration) — do not claim widgets in store copy.
-> Land fixes on short branches off `main`, PR, merge.
-
-## 30-second status check
-```bash
-./scripts/release-cli.sh 2.6 IOS
-./scripts/asc-sync.sh status
-./scripts/asc-sync.sh latest-build
-./scripts/asc-sync.sh next-build 2.6 IOS
-./scripts/gh-tooling.sh status
-asc review status --app 6757644027
-asc validate --app 6757644027 --version 2.6 --platform IOS
-```
-
-## Cut a TestFlight build (asc CLI, end-to-end)
-The release path runs entirely through the **asc CLI**; build artifacts land in
-`.asc/artifacts/` (gitignored). From a clean `main` (or a branch off it) with tests
-green — and, for anything `2.7`+, with the App Group registered:
+Discover current flags with `--help` before using a command. On this Mac, `asc` is the release CLI.
 
 ```bash
-# 0. Pre-flight: any NEW bundle id or capability must be registered BEFORE archiving.
-#    `-allowProvisioningUpdates` cannot create portal resources with an API key,
-#    and App Groups cannot be created by the API at all (see above).
-
-# 1. Determine + set the next build number
-asc builds next-build-number --app 6757644027 --version 2.7 --platform IOS   # → next build N
-asc xcode version edit --version 2.7 --build-number N
-#   NOTE: `version edit` updates CURRENT_PROJECT_VERSION only. If MARKETING_VERSION
-#   changes too — it does for every train on main right now, which still says 2.6 —
-#   edit BOTH build configs in Peak.xcodeproj/project.pbxproj. Keep the PeakWidgets
-#   target's version aligned with the app's — it drifted once during 2.7 development,
-#   alongside a stale DEVELOPMENT_TEAM that failed as "No Account for Team".
-Artifacts land in `.asc/artifacts/`. From clean `main` with tests green:
-
-```bash
-# 1. Next build number + set CURRENT_PROJECT_VERSION
-asc builds next-build-number --app 6757644027 --version 2.6 --platform IOS
-asc xcode version edit --version 2.6 --build-number N
-#    If MARKETING_VERSION changes, edit BOTH build configs in project.pbxproj.
-
-# 2. Archive → export → upload
-asc xcode archive --project Peak.xcodeproj --scheme Peak --configuration Release \
-  --archive-path .asc/artifacts/Peak-2.7-N.xcarchive --overwrite
-asc xcode export --archive-path .asc/artifacts/Peak-2.7-N.xcarchive \
-  --export-options .asc/export-options-app-store.plist \
-  --ipa-path .asc/artifacts/Peak-2.7-N.ipa
-asc builds upload --app 6757644027 --ipa .asc/artifacts/Peak-2.7-N.ipa
-  --archive-path .asc/artifacts/Peak-2.6-N.xcarchive --overwrite
-asc xcode export --archive-path .asc/artifacts/Peak-2.6-N.xcarchive \
-  --export-options .asc/export-options-app-store.plist \
-  --ipa-path .asc/artifacts/Peak-2.6-N.ipa
-asc builds upload --app 6757644027 --ipa .asc/artifacts/Peak-2.6-N.ipa
-
-# 3. Wait until processingState == VALID
-asc builds wait --app 6757644027 --latest
-
-# 4. REQUIRED: export compliance (standard HTTPS only → exempt)
-asc builds update --app 6757644027 --latest --uses-non-exempt-encryption=false
-```
-
-Peak only makes standard HTTPS calls (Open-Meteo conditions auto-fill, NOAA CO-OPS
-tide predictions), so encryption is exempt — `--uses-non-exempt-encryption=false`
-is always correct here. On-device model inference adds no network call and does not
-change this answer.
-
-The `ExportOptions` plist (`destination=export`, `method=app-store-connect`,
-`signingStyle=automatic`, `teamID=L49MKXGVM4`, `manageAppVersionAndBuildNumber=false`)
-is reusable across builds. **The tracked copy is `.asc/export-options-app-store.plist`** —
-`.asc/artifacts/` is gitignored, so the per-build plists in there exist only on the
-machine that made them and must not be referenced as if checked in.
-
-### App Review notes for the current trains
-- Widgets, App Intents, and the Live Activity render **local data only** — no
-  accounts, no backend, no push token (the timer uses `Text(timerInterval:)`).
-- Wave stats are derived on-device from HealthKit workout routes the user already
-  has, behind an opt-in, and are presented as editable estimates.
-- On-device insights use Apple's Foundation Models; nothing is sent off-device.
-
-## Promote a version to the App Store
-When taking a train from TestFlight to the public listing:
-1. Create/select the App Store version and attach the chosen build.
-2. Update "What's New", screenshots, and metadata (`asc versions`,
-   `asc localizations`, `asc screenshots`, `asc metadata`).
-3. Validate readiness, then submit for review.
-4. Track via `./scripts/asc-sync.sh status` and `./scripts/asc-ops.sh workflow-run release_readiness`.
-
-## Definition of done before any upload
-- `./scripts/test.sh` green (or the targeted UI tests for the touched surface),
-  **run one at a time** — the simulator is a shared resource and concurrent
-  `xcodebuild` runs produce false passes and false failures. See `AGENTS.md`.
-- Test counts reconciled against the baseline (546 unit / 54 UI on `main` after
-  the performance pass). A smaller count with no failures means a
-  stale test runner, not a green suite.
-- `./scripts/design-check.sh` for any UI change.
-- For `2.7`+: App Group registered, or the archive will not sign.
-- `MARKETING_VERSION` bumped in **both** build configs, app and widget target aligned.
-- Changes committed on a branch off `main`, PR'd via `gh`, and merged.
-- `CHANGELOG.md` updated with the build's entry, and its "Status at a glance"
-  header updated to the new TestFlight train.
-Peak only uses standard HTTPS (Open-Meteo auto-fill). Always set
-`--uses-non-exempt-encryption=false`.
-
-## Promote a version to the App Store (review)
-Preferred path when a VALID build already exists (e.g. 2.6 build 1):
-
-```bash
-# Stage: create version, copy metadata, attach build, readiness checks
-# After build 2 is VALID:
-BUILD_ID=$(asc builds list --app 6757644027 --limit 1 --output json | jq -r '.data[0].id')
-
-asc release stage \
-  --app 6757644027 \
-  --version 2.6 \
-  --build "$BUILD_ID" \
-  --copy-metadata-from 2.4 \
-  --exclude-fields whatsNew,promotionalText \
-  --confirm
-
-# Then set What's New + review notes (see below), validate, submit:
-asc validate --app 6757644027 --version 2.6 --platform IOS
-asc review submit --app 6757644027 --version 2.6 \
-  --build "$BUILD_ID" --confirm
+asc versions list --app 6757644027 --platform IOS
 asc status --app 6757644027
+./scripts/asc-sync.sh latest-build
+./scripts/gh-tooling.sh status
 ```
 
-### App Review notes template (2.6)
-- Offline-first surf log. **No sign-in / accounts / demo credentials.**
-- Main path: Log → Log Session → spot name → Save Session → appears in History + Stats.
-- Location is **optional** (pins unlock map + conditions auto-fill only).
-- Apple Health is **opt-in** (Settings → Apple Health): save surfing workouts; import Watch HR/calories.
-- Auto-fill Conditions: user-tapped only; HTTPS GET to Open-Meteo with coordinates + time window.
-- Photos: system PhotosPicker (no full-library permission).
-- Encryption: standard HTTPS only (exempt).
+`asc validate` is useful while staging a candidate. An already-submitted `WAITING_FOR_REVIEW` version can fail submit-readiness validation because of its lifecycle state; that alone is not an App Review rejection.
 
-### What's New guidance
-Cover **user-visible 2.5 + 2.6** because live users are on **2.4**. Do not mention widgets.
+## Candidate acceptance before upload
 
-## Definition of done before any upload / submit
-- `./scripts/test.sh` green
-- `./scripts/design-check.sh` for UI changes
-- Changes on `main` (PR'd if branch work)
-- `CHANGELOG.md` + this playbook current
-- Privacy policy mentions Health, location, Open-Meteo, local-only storage
-- Export compliance set on the build
-- `asc validate` clean before `asc review submit`
+1. Record the source SHA and run one `xcodebuild` at a time. Use `./scripts/test-unit.sh` and relevant UI suites, including production iPad navigation when touched. Keep the actual result bundle/log and test count; historical counts do not prove current coverage.
+2. Run the populated-device upgrade, backup/restore and Health checks in [SURFER_VALIDATION.md](docs/SURFER_VALIDATION.md). Distinguish synthetic migration fixtures, simulator UI coverage and physical device evidence.
+3. Reconcile README, architecture, changelog and release notes with the candidate's actual schema, user-facing behavior and test evidence. Never describe unrun device/ocean checks as passed.
+4. Verify distribution signing/profiles and App Group access for **both** app and widget extension. The App Group `group.com.designprism.peak` was registered July 29. Past archives used manual signing; re-read current profile validity and build settings before selecting export options. Do not assume the tracked automatic-signing plist matches installed manual profiles.
+5. Verify privacy/export-compliance answers against the actual binary. Current networking uses standard HTTPS; no telemetry SDK is added by Apple's analytics reporting request.
+6. Review and merge the focused PR, then cut the archive from the exact accepted commit. If archiving a PR commit before merge, retain that SHA explicitly in the release record.
+
+## Archive, TestFlight, review and publication
+
+Discover each applicable command before running it:
+
+```bash
+asc builds next-build-number --help
+asc xcode archive --help
+asc xcode export --help
+asc builds upload --help
+asc builds wait --help
+asc testflight --help
+asc release --help
+asc validate --help
+```
+
+Keep archives and export options under gitignored `.asc/artifacts/`, named with version and build. Archive → export with verified signing → upload the exact IPA → wait for that exact build's processing result → verify encryption compliance. Prefer explicit build IDs over `--latest`, which can select another concurrent upload.
+
+TestFlight distribution, external invitations, review submission, cancellation and public release are separate actions. Prepare the exact build and recipient/version details before executing an authorized action. Verify persisted build/group/submission state afterward. Do not cancel the pending 3.3 review just because a later reliability candidate exists.
+
+For a new App Store candidate: prepare metadata and user-facing What's New, attach the verified build, validate, then submit through the current CLI flow. After approval, confirm release type and candidate acceptance before manual publication; finish with ASC and storefront readback.
+
+## Reviewer notes template
+
+- Offline-first surf log; no sign-in or demo credentials.
+- Main path: Log → Log Session → enter spot → Save Session → History and Stats.
+- Spot name is sufficient; location/pins are optional.
+- Apple Health is opt-in. Test unavailable/denied/no-route states without needing a Watch workout.
+- Conditions are fetched when requested, or through the explicit opt-in automatic refresh setting.
+- Photos use the system picker. Language-model features require supported hardware/OS and fall back to computed facts.
+- Explain any new navigation or migration behavior specific to the candidate; do not paste old version notes unchanged.
+
+## Release record template
+
+```text
+Version/build:
+Source SHA / immutable tag / PR:
+ASC version ID / build ID:
+Archive path / IPA path / signing profile evidence:
+Unit/UI results and count / result bundle:
+Device upgrade / restore / Health / iPad results:
+Known limitations:
+Metadata and privacy checked:
+Upload / processing / beta review / distribution receipts:
+App Review submission / approval:
+Release type / publication authorization / storefront readback:
+```
+
+## Apple analytics
+
+An ONGOING analytics report request was created and read back September 4: `2877a158-bf47-458f-9c6d-92ea7bdb4928`, `stoppedDueToInactivity=false`. Retrieve on demand using `asc analytics requests` and `asc analytics view`; use `--reuse-existing` if re-establishing the request. This is Apple reporting, not an in-app analytics SDK. Full report retrieval initially timed out. A bounded retry with `ASC_TIMEOUT=90s` and `--limit 1` succeeded and returned an AirPlay Discovery Sessions report definition, with no instances shown. Usable usage/acquisition data has not been established. No recurring polling task was created.

@@ -1,4 +1,14 @@
-# Peak Roadmap — 2.7 → 3.3 (drafted 2026-07-20; 3.3 added 2026-08-18; `prod` snapshot 2026-08-20)
+# Peak roadmap
+
+## Current priority, September 4, 2026
+
+3.2 is public; 3.3 is waiting for review with manual release. Prioritize a tested reliability follow-up: reconcile release fixes into main, preserve session identity and relationships across migrations and restore, cover production iPad navigation, and verify Spotlight/recovery behavior. The submitted 3.3 binary is separate from subsequent source changes.
+
+Run the [5–10-surfer pilot and device acceptance protocol](docs/SURFER_VALIDATION.md) before committing to another large feature train. Favor observed repeat-log friction and useful board insights. Keep the Watch companion behind five real surf recordings and held-out analyzer checks. Apple analytics reporting is configured; it does not measure actual surf opportunities or log completion.
+
+The historical plan below records the original implementation sequence, not current release status. Version numbers 2.7–3.2 are historical; select any future release number from live ASC state. Source and test evidence in RELEASE_PLAYBOOK.md supersede the old counts and branch pointers below.
+
+## Historical feature plan
 
 Implementation plan for the five-pillar improvement program: (1) ecosystem unlock (widgets + App Intents + Live Activity), (2) wave stats via HealthKit route mining → watchOS app, (3) "Best Window Today" + tide, (4) quiver analytics, (5) memory layer + first-run + on-device AI insights.
 
@@ -8,7 +18,7 @@ Grounded in: repo state at `5e750a0` (2.6 (1), main), the 2026-07-20 three-agent
 
 - Version trains: always strictly newer than every existing ASC train. TestFlight flow per RELEASE_PLAYBOOK + `.asc/` (archive → export → `asc builds upload` → poll VALID → `asc builds update --latest --uses-non-exempt-encryption=false`).
 - Schema changes: never edit live models without a new versioned schema. Freeze the outgoing HEAD schema as an inline snapshot **in the same change** as a real field delta (SwiftData rejects duplicate shape checksums — a no-op version bump is impossible). Update `ModelMigrationTests.testHeadSchemaShapeIsPinned` expectations deliberately, and add a migration test per new stage.
-- New **unit-test** files must be added to the pbxproj by hand (PeakTests is not a synchronized group); app + PeakUITests targets auto-include.
+- New **unit-test** files must be added to the pbxproj by hand (PeakTests is not a synchronized group); only the Peak app group auto-includes; PeakUITests and PeakWidgets files also need explicit project registration.
 - Off-main work needs `@concurrent` (project sets `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`; `nonisolated` sync funcs still run on main).
 - `.accessibilityIdentifier` goes on the ScrollView (outside), never on a GlassContainer inside scroll content (id-clobbering bug).
 - New capabilities/bundle IDs: pre-register via `asc bundle-ids …` **before** archiving (`-allowProvisioningUpdates` cannot register portal resources with the API key).
@@ -177,7 +187,7 @@ Add `HKSeriesType.workoutRoute()` to the read set; fetch `HKWorkoutRoute` + `CLL
 
 ---
 
-## Release 3.3 — System integration (unreleased on `main` / `prod`, 2026-08-20)
+## Release 3.3 — Historical system-integration plan (August 20 snapshot)
 
 Apple-platform completeness on top of the in-review 3.2 binary. **No schema change. Does not replace 3.2 in App Review.** `prod` fast-forwards to the same SHA as `main` as a git snapshot. App Store production remains App Store Connect (`3.2` in review).
 

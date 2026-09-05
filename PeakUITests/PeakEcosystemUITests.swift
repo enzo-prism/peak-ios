@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 /// Covers the 2.7 ecosystem surfaces from the app's side: logging a session as
 /// it happens (start → end → prefilled editor) and the widget's deep link.
@@ -22,6 +23,7 @@ final class PeakEcosystemUITests: XCTestCase {
     private func launchApp(openURL: String? = nil) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         if let openURL {
@@ -200,5 +202,216 @@ private extension PeakEcosystemUITests {
         // off-screen; taps there are unreliable.
         let visible = scrollView.frame.insetBy(dx: 0, dy: 8)
         return visible.minY <= frame.midY && frame.midY <= visible.maxY
+    }
+}
+
+
+/// Exercises the shipping shell: no classic-navigation override. Existing flow
+/// tests retain their explicit compact lane; these cover adaptive tab/sidebar
+/// chrome and the regular-width master/detail destinations it exposes.
+final class PeakProductionNavigationUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+    }
+
+    override func tearDown() {
+        if let app {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            app.terminate()
+        }
+        XCUIDevice.shared.orientation = .portrait
+        app = nil
+        super.tearDown()
+    }
+
+    private func launchProductionNavigation() {
+        XCUIDevice.shared.orientation = UIDevice.current.userInterfaceIdiom == .pad ? .landscapeLeft : .portrait
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
+        // Be explicit even if the surrounding test runner supplies an override.
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "0"
+        app.launch()
+        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 8))
+    }
+
+    func testCompactProductionNavigationKeepsFivePrimaryTabs() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom == .pad, "Compact phone navigation is checked on iPhone")
+        launchProductionNavigation()
+        for title in ["Log", "History", "Stats", "Quiver", "More"] {
+            XCTAssertTrue(app.tabBars.buttons[title].waitForExistence(timeout: 5), "Missing primary tab: \(title)")
+        }
+        XCTAssertFalse(app.tabBars.buttons["Search"].exists)
+        app.tabBars.buttons["More"].tap()
+        XCTAssertTrue(app.buttons["more.spots"].waitForExistence(timeout: 5))
+    }
+
+    func testIPadProductionSearchFindsSeededSession() throws {
+        try requireIPad()
+        launchProductionNavigation()
+        selectDestination("Search")
+        XCTAssertTrue(app.otherElements["history.search.prompt"].waitForExistence(timeout: 5)
+                      || app.staticTexts["Search your sessions"].exists)
+        let searchField = app.searchFields.firstMatch
+        if !searchField.isHittable {
+            let searchButton = app.navigationBars.buttons["Search"].firstMatch
+            if searchButton.exists && searchButton.isHittable { searchButton.tap() }
+        }
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5), "Dedicated Search did not expose its search field")
+        searchField.tap()
+        searchField.typeText("Trestles")
+        XCTAssertTrue(app.descendants(matching: .any)["history.row"].firstMatch.waitForExistence(timeout: 5),
+                      "Searching the production tab returned no seeded session")
+        XCTAssertTrue(app.staticTexts["Trestles"].firstMatch.exists)
+    }
+
+    func testIPadProductionLibraryOpensSpotsAndBuddies() throws {
+        try requireIPad()
+        launchProductionNavigation()
+        selectDestination("Spots")
+        XCTAssertTrue(app.buttons["spot.library.add"].waitForExistence(timeout: 5))
+        let spot = app.buttons["spot.row"].firstMatch
+        XCTAssertTrue(spot.waitForExistence(timeout: 5), "Production Spots must expose selectable split-view rows")
+        spot.tap()
+        XCTAssertTrue(app.buttons["library.detail.edit"].waitForExistence(timeout: 5), "Spot selection did not populate its detail column")
+        selectDestination("Buddies")
+        XCTAssertTrue(app.buttons["buddy.library.add"].waitForExistence(timeout: 5), "Sidebar Buddies did not open its library")
+    }
+
+    func testIPadProductionHistoryOpensSessionDetail() throws {
+        try requireIPad()
+        launchProductionNavigation()
+        selectDestination("History")
+        let session = app.buttons["history.row"].firstMatch
+        XCTAssertTrue(session.waitForExistence(timeout: 5), "Production History must expose selectable split-view rows")
+        session.tap()
+        XCTAssertTrue(app.buttons["session.detail.share"].waitForExistence(timeout: 5), "History selection did not populate its detail column")
+    }
+
+    func testIPadSpotDeepLinkAfterVisitingSidebarLibraryOpensInMore() throws {
+        try requireIPad()
+        launchProductionNavigation()
+        selectDestination("Spots")
+        XCTAssertTrue(app.buttons["spot.library.add"].waitForExistence(timeout: 5))
+
+        app.open(URL(string: "peak://spot?id=trestles")!)
+
+        XCTAssertTrue(app.buttons["library.detail.edit"].waitForExistence(timeout: 5),
+                      "An inactive sidebar library consumed More's deep link")
+        XCTAssertTrue(app.staticTexts["Trestles"].firstMatch.exists)
+        // More pushes its detail on a stack; the sidebar library opens a split
+        // column. Its back button establishes which destination handled it.
+        let backToMore = app.navigationBars.buttons["More"].firstMatch
+        XCTAssertTrue(backToMore.waitForExistence(timeout: 5), "Spot deep link did not route through More")
+        backToMore.tap()
+        XCTAssertTrue(app.buttons["more.spots"].waitForExistence(timeout: 5))
+    }
+
+    private func requireIPad() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "Requires regular-width iPad navigation")
+        try XCTSkipUnless(ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 18, "Sidebar tabs require iPadOS 18")
+    }
+
+    private func selectDestination(_ title: String, file: StaticString = #filePath, line: UInt = #line) {
+        // The system can expose adaptive tabs as buttons or sidebar cells.
+        // Reveal its own sidebar control when a library-only tab is hidden.
+        if tapVisibleDestination(title) { return }
+        let sidebarButtons = app.buttons.matching(NSPredicate(
+            format: "label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar'"
+        ))
+        for button in sidebarButtons.allElementsBoundByIndex where button.isHittable {
+            button.tap()
+            if tapVisibleDestination(title) { return }
+        }
+        XCTFail("Missing production navigation destination: \(title)", file: file, line: line)
+    }
+
+    private func tapVisibleDestination(_ title: String) -> Bool {
+        let predicate = NSPredicate(format: "label == %@", title)
+        for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.cells.matching(predicate)] {
+            if let element = query.allElementsBoundByIndex.first(where: { $0.isHittable }) {
+                element.tap()
+                return true
+            }
+        }
+        return false
+    }
+}
+
+/// Recovery presentation uses a fabricated temporary archive and an in-memory
+/// store. It never damages, replaces, or exports a real user's library.
+final class PeakRecoveryUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+    }
+
+    override func tearDown() {
+        if let app {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            app.terminate()
+        }
+        app = nil
+        super.tearDown()
+    }
+
+    private func launchRecovery(_ scenario: String) {
+        app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_STORE_RECOVERY"] = scenario
+        app.launchEnvironment["UITESTS_SHOW_WELCOME"] = "1"
+        app.launch()
+    }
+
+    func testFreshRecoveryExplainsArchiveAndKeepsDetailsAvailable() {
+        launchRecovery("fresh")
+        let alert = app.alerts["Your previous library needs recovery"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 8))
+        XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "a new empty library is now in use")).firstMatch.exists)
+        XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
+        alert.buttons["Close"].tap()
+        XCTAssertTrue(app.staticTexts["Your previous library needs recovery."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Log Session"].exists, "Recovery should suppress first-run onboarding")
+        app.buttons["Details"].tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Recovery instructions must remain accessible after dismissal")
+    }
+
+    func testTemporaryRecoveryWarnsChangesWillBeLostAndOffersPreservedCopy() {
+        launchRecovery("temporary")
+        let alert = app.alerts["Temporary library in use"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 8))
+        XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "will be lost when Peak closes")).firstMatch.exists)
+        XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
+        alert.buttons["Close"].tap()
+        XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
+        app.buttons["Details"].tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+    }
+
+    func testFailedPreservationDoesNotClaimOrOfferAnArchive() {
+        launchRecovery("preservationFailed")
+        let alert = app.alerts["Temporary library in use"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 8))
+        XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Existing library files have been left on this device")).firstMatch.exists)
+        XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertFalse(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "complete copy")).firstMatch.exists)
+        alert.buttons["Close"].tap()
+        XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
+        app.buttons["Details"].tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
     }
 }

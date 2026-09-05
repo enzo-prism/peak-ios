@@ -58,7 +58,7 @@ enum BackupManager {
 
         var snapshots: [RawMediaSnapshot] = []
         for session in sessions {
-            let sessionId = ExportDateFormatter.string(from: session.createdAt)
+            let sessionId = SessionIntentQueries.identifier(for: session)
             let ordered = session.media.sorted { $0.sortIndex < $1.sortIndex }
             for media in ordered {
                 let videoURL = media.videoFileName.map { SessionMediaStore.videoURL(for: $0) }
@@ -152,7 +152,7 @@ enum BackupManager {
     /// Sessions/spots/gear/buddies go through `PeakExportManager.applyImport`
     /// (which owns the merge/dedupe + `.replace` wipe semantics). Media is then
     /// reattached: each manifest entry is matched to its imported session by
-    /// `createdAt` string and appended to that session's `media` relationship.
+    /// export identity and appended to that session's `media` relationship.
     /// Entries whose session isn't found are skipped.
     ///
     /// Ordering is deliberate: every byte the backup carries is decoded and
@@ -244,7 +244,7 @@ enum BackupManager {
         context: ModelContext
     ) throws {
 
-        // Snapshot which sessions already exist (by their millisecond identity key)
+        // Snapshot which sessions already exist (by their portable identity)
         // BEFORE the import. On a merge restore into a library that still holds
         // these sessions, media is reattached additively below — so without this we
         // would append every photo/video a second time (and orphan video files) on
@@ -252,19 +252,12 @@ enum BackupManager {
         let preexistingSessionKeys: Set<String>
         if mode == .merge {
             let existing = (try? context.fetch(FetchDescriptor<SurfSession>())) ?? []
-            preexistingSessionKeys = Set(existing.map { ExportDateFormatter.string(from: $0.createdAt) })
+            preexistingSessionKeys = Set(existing.map { SessionIntentQueries.identifier(for: $0) })
         } else {
             preexistingSessionKeys = []
         }
 
-        try PeakExportManager.applyImport(file.export, mode: mode, context: context)
-
-        // Index the imported sessions by their createdAt string (= SessionExport.id).
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
-        var sessionByKey: [String: SurfSession] = [:]
-        for session in sessions {
-            sessionByKey[ExportDateFormatter.string(from: session.createdAt)] = session
-        }
+        let sessionByKey = try PeakExportManager.applyImport(file.export, mode: mode, context: context)
 
         // Sessions that existed before this merge get their media replaced (not
         // duplicated): clear once, deleting stored video files first, before the
@@ -281,7 +274,7 @@ enum BackupManager {
                 continue
             }
 
-            if preexistingSessionKeys.contains(entry.sessionId),
+            if preexistingSessionKeys.contains(SessionIntentQueries.identifier(for: session)),
                !clearedSessionKeys.contains(entry.sessionId) {
                 SessionMediaStore.deleteStoredMedia(for: session.media)
                 for existingMedia in session.media {

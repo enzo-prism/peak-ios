@@ -1,82 +1,94 @@
 import Foundation
 import SwiftData
 
-/// How the persistent store was opened at launch.
-enum StoreLoadOutcome: Equatable {
-    /// Opened the on-disk store normally (or the in-memory UI-test store).
-    case normal
-    /// The on-disk store couldn't be opened; the old files were archived to
-    /// `archivedPath` and a fresh empty store was created in their place.
-    case recoveredFresh(archivedPath: String)
-    /// Even a fresh on-disk store failed; running against an in-memory store
-    /// whose contents will not persist across launches.
-    case inMemoryFallback
+/// Details retained for recovery, without exposing filesystem paths in the UI.
+nonisolated struct StoreRecoveryIssue: Error, Equatable, Codable, Sendable {
+    let archivedPath: String?
+    let details: String
 }
 
-/// The container plus how it was obtained.
+/// How the persistent store was opened at launch.
+enum StoreLoadOutcome: Equatable {
+    case normal
+    case recoveredFresh(archivedPath: String)
+    /// Changes made in this container cannot survive closing the app.
+    case inMemoryFallback(recovery: StoreRecoveryIssue)
+}
+
 struct StoreLoadResult {
     let container: ModelContainer
     let outcome: StoreLoadOutcome
 }
 
-/// Crash-proof store opener. Replaces PeakApp's `fatalError` with a tiered
-/// recovery path: normal on-disk → archive the corrupt store + retry fresh →
-/// in-memory fallback. Only a total failure to build even an in-memory
-/// container is treated as unrecoverable.
+/// Never retries an on-disk store after unsuccessful preservation. A durable
+/// marker also prevents reopening a partly removed store on the next launch.
 enum PeakDataStore {
     private static let storeFileName = "default.store"
-
-    /// The one statement of which schema version is HEAD. Everything that opens
-    /// the store (app launch, App Intents fallback) must agree on this, or the
-    /// second opener throws against the already-migrated store file.
-    static let headSchema: any VersionedSchema.Type = PeakSchemaV11.self
+    nonisolated static let recoveryMarkerName = "Peak Store Recovery.json"
+    nonisolated static let recoveryRecordName = "Peak Preserved Library.json"
+    static let headSchema: any VersionedSchema.Type = PeakSchemaV12.self
 
     static func load(isUITest: Bool) -> StoreLoadResult {
         let schema = Schema(versionedSchema: headSchema)
-
-        // UI tests always run against a fresh in-memory store (seeded by PeakApp).
         if isUITest {
-            if let container = try? makeContainer(schema: schema, inMemory: true) {
-                return StoreLoadResult(container: container, outcome: .normal)
-            }
-            return StoreLoadResult(container: makeInMemoryOrCrash(schema: schema), outcome: .inMemoryFallback)
+            return StoreLoadResult(container: makeInMemoryOrCrash(schema: schema), outcome: .normal)
         }
-
-        // Tier 1: normal on-disk store.
-        do {
-            let container = try makeContainer(schema: schema, inMemory: false)
-            return StoreLoadResult(container: container, outcome: .normal)
-        } catch {
-            // Tier 2: archive the unreadable store files, then retry a fresh on-disk store.
-            let archivedPath = (try? archiveDefaultStore())?.path ?? "unknown"
-            if let container = try? makeContainer(schema: schema, inMemory: false) {
-                return StoreLoadResult(
-                    container: container,
-                    outcome: .recoveredFresh(archivedPath: archivedPath)
-                )
-            }
-
-            // Tier 3: in-memory fallback (data won't persist, but the app runs).
-            return StoreLoadResult(
-                container: makeInMemoryOrCrash(schema: schema),
-                outcome: .inMemoryFallback
-            )
-        }
-    }
-
-    // MARK: - Container construction
-
-    private static func makeContainer(schema: Schema, inMemory: Bool) throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(
-            for: schema,
-            migrationPlan: PeakMigrationPlan.self,
-            configurations: [configuration]
+        return loadPersistent(
+            open: { try makeContainer(schema: schema, inMemory: false) },
+            fallback: { makeInMemoryOrCrash(schema: schema) },
+            recover: { try archiveDefaultStore() },
+            pending: { try pendingRecovery(in: applicationSupport()) },
+            preservedArchive: { try preservedArchive(in: applicationSupport()) }
         )
     }
 
-    /// Last resort. A plain in-memory container with no migration plan should
-    /// never fail; if it does the process is truly unrecoverable.
+    /// Dependency seam for failure-path tests; production and tests use the same
+    /// ordering, including checking an interrupted recovery before opening disk.
+    static func loadPersistent(
+        open: () throws -> ModelContainer,
+        fallback: () -> ModelContainer,
+        recover: () throws -> URL,
+        pending: () throws -> StoreRecoveryIssue?,
+        preservedArchive: () throws -> String? = { nil }
+    ) -> StoreLoadResult {
+        func temporary(_ issue: StoreRecoveryIssue) -> StoreLoadResult {
+            StoreLoadResult(container: fallback(), outcome: .inMemoryFallback(recovery: issue))
+        }
+        let previousArchive: String?
+        do {
+            if let issue = try pending() { return temporary(issue) }
+            previousArchive = try preservedArchive()
+        } catch {
+            return temporary(StoreRecoveryIssue(archivedPath: nil, details: "Could not check previous recovery: \(error.localizedDescription)"))
+        }
+        do {
+            let container = try open()
+            return StoreLoadResult(container: container, outcome: previousArchive.map { .recoveredFresh(archivedPath: $0) } ?? .normal)
+        } catch {
+            let originalError = error.localizedDescription
+            let archive: URL
+            do {
+                archive = try recover()
+            } catch {
+                let issue = error as? StoreRecoveryIssue
+                return temporary(StoreRecoveryIssue(
+                    archivedPath: issue?.archivedPath,
+                    details: "Library could not open: \(originalError). Preservation failed: \(issue?.details ?? error.localizedDescription)"
+                ))
+            }
+            do {
+                return StoreLoadResult(container: try open(), outcome: .recoveredFresh(archivedPath: archive.path))
+            } catch {
+                return temporary(StoreRecoveryIssue(archivedPath: archive.path, details: "Old library preserved; fresh library could not open: \(error.localizedDescription)"))
+            }
+        }
+    }
+
+    private static func makeContainer(schema: Schema, inMemory: Bool) throws -> ModelContainer {
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
+        return try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+    }
+
     private static func makeInMemoryOrCrash(schema: Schema) -> ModelContainer {
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         do {
@@ -86,53 +98,105 @@ enum PeakDataStore {
         }
     }
 
-    // MARK: - Corrupt-store archival
-
-    /// Moves the default on-disk store (and its sidecar/external-storage files)
-    /// out of Application Support into a timestamped "Archived Store …" folder.
-    /// Returns the archive directory. Nothing is deleted — the user's bytes are
-    /// preserved for later recovery.
-    @discardableResult
-    nonisolated static func archiveDefaultStore(now: Date = Date()) throws -> URL {
-        let appSupport = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        return try relocateStoreFiles(in: appSupport, storeName: storeFileName, now: now)
+    nonisolated private static func applicationSupport() throws -> URL {
+        try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     }
 
-    /// Pure, testable file-relocation helper: moves `<storeName>` plus its
-    /// `-wal`/`-shm` sidecars and the `.<base>_SUPPORT` external-storage folder
-    /// from `directory` into a fresh "Archived Store <stamp>" subfolder, which
-    /// it returns. Missing files are skipped.
+    /// A pending marker is deliberately not cleared automatically: a previous
+    /// launch may have stopped between removing two related SQLite components.
+    nonisolated static func pendingRecovery(in directory: URL) throws -> StoreRecoveryIssue? {
+        let marker = directory.appendingPathComponent(recoveryMarkerName)
+        guard FileManager.default.fileExists(atPath: marker.path) else { return nil }
+        return try JSONDecoder().decode(StoreRecoveryIssue.self, from: Data(contentsOf: marker))
+    }
+
+    /// Unlike the blocking marker, this receipt remains after a successful
+    /// recovery, keeping the recovery notice and export available next launch.
+    nonisolated static func preservedArchive(in directory: URL) throws -> String? {
+        let receipt = directory.appendingPathComponent(recoveryRecordName)
+        guard FileManager.default.fileExists(atPath: receipt.path) else { return nil }
+        let issue = try JSONDecoder().decode(StoreRecoveryIssue.self, from: Data(contentsOf: receipt))
+        guard let path = issue.archivedPath, FileManager.default.fileExists(atPath: path) else { return nil }
+        return path
+    }
+
+    /// Cold App Intents must also avoid opening an interrupted recovery store.
+    nonisolated static func canOpenStore(in directory: URL) -> Bool {
+        do { return try pendingRecovery(in: directory) == nil } catch { return false }
+    }
+
+    nonisolated static func canOpenDefaultStore() -> Bool {
+        do { return canOpenStore(in: try applicationSupport()) } catch { return false }
+    }
+
+    @discardableResult
+    nonisolated static func archiveDefaultStore(now: Date = Date()) throws -> URL {
+        try relocateStoreFiles(in: applicationSupport(), storeName: storeFileName, now: now)
+    }
+
+    /// Copies every component before removing any original. If a copy, removal,
+    /// or marker operation fails, the error is propagated and disk reopening is
+    /// blocked. A complete archive survives even a partial removal or crash.
     @discardableResult
     nonisolated static func relocateStoreFiles(
         in directory: URL,
         storeName: String = "default.store",
-        now: Date = Date()
+        now: Date = Date(),
+        copyItem: (URL, URL) throws -> Void = { try FileManager.default.copyItem(at: $0, to: $1) },
+        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
     ) throws -> URL {
         let fm = FileManager.default
+        let marker = directory.appendingPathComponent(recoveryMarkerName)
+        if let issue = try pendingRecovery(in: directory) { throw issue }
         let stamp = ExportDateFormatter.fileSafeString(from: now)
-        let archiveDir = directory.appendingPathComponent("Archived Store \(stamp)", isDirectory: true)
-        try fm.createDirectory(at: archiveDir, withIntermediateDirectories: true)
-
+        let archive = directory.appendingPathComponent("Archived Store \(stamp) \(UUID().uuidString)", isDirectory: true)
         let baseName = (storeName as NSString).deletingPathExtension
-        let candidates = [
-            storeName,
-            "\(storeName)-wal",
-            "\(storeName)-shm",
-            ".\(baseName)_SUPPORT"
-        ]
-
-        for name in candidates {
-            let source = directory.appendingPathComponent(name)
-            guard fm.fileExists(atPath: source.path) else { continue }
-            let destination = archiveDir.appendingPathComponent(name)
-            try? fm.moveItem(at: source, to: destination)
+        let sources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT"]
+            .map { directory.appendingPathComponent($0) }
+            .filter { fm.fileExists(atPath: $0.path) }
+        // No source is not proof that a library was preserved.
+        guard !sources.isEmpty else {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "No existing library files could be found to preserve.")
         }
+        var completeArchive: String?
+        do {
+            try fm.createDirectory(at: archive, withIntermediateDirectories: false)
+            let started = StoreRecoveryIssue(archivedPath: nil, details: "Library preservation was interrupted before a complete copy was confirmed. Original files have not been removed.")
+            try JSONEncoder().encode(started).write(to: marker, options: .atomic)
+            for source in sources {
+                try copyItem(source, archive.appendingPathComponent(source.lastPathComponent))
+            }
+            // Write the complete archive location BEFORE removing any source.
+            completeArchive = archive.path
+            let preserved = StoreRecoveryIssue(archivedPath: archive.path, details: "A complete library copy was preserved, but preparing a fresh library did not finish.")
+            try JSONEncoder().encode(preserved).write(to: marker, options: .atomic)
+            try JSONEncoder().encode(preserved).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
+            for source in sources { try removeItem(source) }
+            try removeItem(marker)
+            return archive
+        } catch {
+            throw StoreRecoveryIssue(archivedPath: completeArchive, details: "\(error.localizedDescription) Recovery files: \(archive.path)")
+        }
+    }
 
-        return archiveDir
+    /// Produces a system-coordinated ZIP for Save to Files/support. The original
+    /// archive stays untouched; exporting is always an explicit user action.
+    nonisolated static func recoveryExport(archivedPath: String) throws -> URL {
+        let archive = URL(fileURLWithPath: archivedPath, isDirectory: true)
+        var coordinationError: NSError?
+        var exportResult: Result<URL, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: archive, options: .forUploading, error: &coordinationError) { zippedURL in
+            exportResult = Result {
+                let destination = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Peak Recovery \(UUID().uuidString).zip")
+                try FileManager.default.copyItem(at: zippedURL, to: destination)
+                return destination
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let exportResult else {
+            throw StoreRecoveryIssue(archivedPath: archivedPath, details: "Could not prepare the recovery copy for export.")
+        }
+        return try exportResult.get()
     }
 }

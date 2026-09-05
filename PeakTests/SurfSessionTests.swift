@@ -72,6 +72,41 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertEqual(HealthKitLogic.sessionKeyMetadataKey, "com.designprism.peak.sessionKey")
     }
 
+    func testHealthWorkoutUUIDKeysAreStableAndDistinct() {
+        let first = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
+        let second = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
+        XCTAssertEqual(HealthKitLogic.sessionKey(forSessionID: first),
+                       "peak-session-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        XCTAssertEqual(HealthKitLogic.sessionKey(forSessionID: first),
+                       HealthKitLogic.sessionKey(forSessionID: first))
+        XCTAssertNotEqual(HealthKitLogic.sessionKey(forSessionID: first),
+                          HealthKitLogic.sessionKey(forSessionID: second))
+        XCTAssertNotEqual(HealthKitLogic.sessionKey(forSessionID: first),
+                          HealthKitLogic.sessionKey(forSessionCreatedAt: epoch(1_700_000_000)))
+    }
+
+    func testLegacyHealthWorkoutRequiresSingleOwnerAndExactInterval() throws {
+        let start = epoch(1_700_000_000)
+        let match = try XCTUnwrap(HealthKitLogic.legacyWorkoutMatch(
+            createdAt: start, date: start, durationMinutes: 60, matchingSessionCount: 1
+        ))
+        XCTAssertEqual(match.key, "peak-1700000000000")
+        XCTAssertTrue(match.matches(start: start, end: start.addingTimeInterval(3600)))
+        XCTAssertFalse(match.matches(start: start.addingTimeInterval(1), end: start.addingTimeInterval(3600)))
+        XCTAssertFalse(match.matches(start: start, end: start.addingTimeInterval(3601)))
+        for ownerCount in [0, 2, 3] {
+            XCTAssertNil(HealthKitLogic.legacyWorkoutMatch(
+                createdAt: start, date: start, durationMinutes: 60, matchingSessionCount: ownerCount
+            ))
+        }
+        let durations: [Int?] = [nil, 0, -1]
+        for duration in durations {
+            XCTAssertNil(HealthKitLogic.legacyWorkoutMatch(
+                createdAt: start, date: start, durationMinutes: duration, matchingSessionCount: 1
+            ))
+        }
+    }
+
     func testOverlapMatcherTreatsSharedBoundaryAsNonOverlapping() {
         let a = DateInterval(start: epoch(0), duration: 100)
         let touching = DateInterval(start: epoch(100), duration: 100)   // shares boundary at 100

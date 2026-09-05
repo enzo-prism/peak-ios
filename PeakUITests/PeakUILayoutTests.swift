@@ -10,6 +10,7 @@ final class PeakUILayoutTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         app.launch()

@@ -22,6 +22,7 @@ enum PeakIntentStore {
     static var container: ModelContainer? {
         if let registered { return registered }
         if let fallback { return fallback }
+        guard PeakDataStore.canOpenDefaultStore() else { return nil }
         // Never let a Siri query archive a "corrupt" store out from under the
         // app: read-only intent access uses the plain load path and simply
         // returns nothing if it fails. Must open at the HEAD schema — asking for
