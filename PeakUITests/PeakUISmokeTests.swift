@@ -733,8 +733,21 @@ private extension PeakUISmokeTests {
         guard scrollView.exists else { return }
         var attempts = 0
         while !isCentreVisible(element, in: scrollView) && attempts < maxSwipes {
-            if element.exists && element.frame.midY < visibleContentFrame(in: scrollView).minY {
-                scrollView.swipeDown()
+            if element.exists, element.frame.height > 0 {
+                let visible = visibleContentFrame(in: scrollView)
+                // Full swipes can alternate above/below a short iPad sheet
+                // forever. Once AX has a frame, move toward the visible centre
+                // by a measured distance and release without flick momentum.
+                let limit = visible.height * 0.45
+                let delta = min(limit, max(-limit, visible.midY - element.frame.midY))
+                guard abs(delta) > 1 else { break }
+                let origin = scrollView.coordinate(withNormalizedOffset: .zero)
+                // Trailing scroll padding avoids dragging an editable slider.
+                let x = visible.maxX - scrollView.frame.minX - 4
+                let startY = visible.midY - delta / 2 - scrollView.frame.minY
+                let start = origin.withOffset(CGVector(dx: x, dy: startY))
+                let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
             } else {
                 scrollView.swipeUp()
             }
