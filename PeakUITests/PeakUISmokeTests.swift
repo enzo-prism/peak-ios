@@ -82,6 +82,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(beginsWith: "Filled from Open-Meteo")
@@ -130,6 +131,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(contains: "Mock surf report service error")
@@ -157,6 +159,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(contains: "Surf report data is unavailable")
@@ -730,7 +733,7 @@ private extension PeakUISmokeTests {
         guard scrollView.exists else { return }
         var attempts = 0
         while !isCentreVisible(element, in: scrollView) && attempts < maxSwipes {
-            if element.exists && element.frame.midY < scrollView.frame.minY {
+            if element.exists && element.frame.midY < visibleContentFrame(in: scrollView).minY {
                 scrollView.swipeDown()
             } else {
                 scrollView.swipeUp()
@@ -743,10 +746,25 @@ private extension PeakUISmokeTests {
         guard element.exists, element.isHittable else { return false }
         let frame = element.frame
         guard frame.height > 0 else { return false }
-        // Keep a margin so a centre resting exactly on the edge still counts as
-        // off-screen; taps there are unreliable.
-        let visible = scrollView.frame.insetBy(dx: 0, dy: 8)
-        return visible.minY <= frame.midY && frame.midY <= visible.maxY
+        return visibleContentFrame(in: scrollView).contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    private func visibleContentFrame(in scrollView: XCUIElement) -> CGRect {
+        var visible = scrollView.frame
+        // A sheet's ScrollView extends behind its navigation bar on iPad.
+        // AX can call a partly covered button hittable even when its centre is
+        // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll
+        // direction; otherwise a target above the usable viewport scrolls away.
+        for bar in app.navigationBars.allElementsBoundByIndex where bar.exists {
+            let frame = bar.frame
+            if frame.intersects(visible), frame.maxY < visible.maxY {
+                let bottom = visible.maxY
+                visible.origin.y = frame.maxY
+                visible.size.height = bottom - frame.maxY
+            }
+        }
+        // A centre resting exactly on an edge is not reliably tappable.
+        return visible.insetBy(dx: 8, dy: 8)
     }
 
     func showOptionalFields(in scrollView: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
