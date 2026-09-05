@@ -107,6 +107,129 @@ final class SurfSessionTests: XCTestCase {
         }
     }
 
+    func testHealthReplacementCreatesBeforeDeletingCapturedOldWorkouts() async throws {
+        let old = UUID()
+        let replacement = UUID()
+        var events: [String] = []
+        try await HealthKitLogic.replacePreservingOld(
+            capture: { events.append("capture"); return [old, replacement] },
+            create: { events.append("create"); return replacement },
+            identifier: { $0 },
+            delete: { values in
+                events.append("delete")
+                XCTAssertEqual(values, [old])
+            }
+        )
+        XCTAssertEqual(events, ["capture", "create", "delete"])
+    }
+
+    func testHealthReplacementFailurePreservesOldWorkouts() async {
+        enum ExpectedFailure: Error { case create }
+        var deleted = false
+        do {
+            try await HealthKitLogic.replacePreservingOld(
+                capture: { [UUID()] },
+                create: { throw ExpectedFailure.create },
+                identifier: { $0 },
+                delete: { _ in deleted = true }
+            )
+            XCTFail("Expected create failure")
+        } catch {}
+        XCTAssertFalse(deleted)
+    }
+
+    func testHealthCaptureFailureNeverCreatesReplacement() async {
+        enum ExpectedFailure: Error { case capture }
+        var created = false
+        do {
+            try await HealthKitLogic.replacePreservingOld(
+                capture: { () throws -> [UUID] in throw ExpectedFailure.capture },
+                create: { created = true; return UUID() },
+                identifier: { $0 },
+                delete: { _ in XCTFail("Must not delete after failed capture") }
+            )
+            XCTFail("Expected capture failure")
+        } catch {}
+        XCTAssertFalse(created)
+    }
+
+    @MainActor
+    func testHealthQueueFinishesOlderSaveBeforeDeleteEvenWhenSaveFails() async throws {
+        enum ExpectedFailure: Error { case save }
+        let queue = HealthWorkoutQueue()
+        var events: [String] = []
+        let save = queue.enqueue(key: "session") {
+            events.append("save-start")
+            await Task.yield()
+            events.append("save-end")
+            throw ExpectedFailure.save
+        }
+        let deletion = queue.enqueue(key: "session") { events.append("delete") }
+        try await deletion.value
+        _ = try? await save.value
+        XCTAssertEqual(events, ["save-start", "save-end", "delete"])
+    }
+
+    func testImportedHealthWorkoutsAreNeverWrittenBackAsPeakWorkouts() {
+        XCTAssertTrue(HealthKitLogic.shouldWriteWorkout(linkedWorkoutID: nil))
+        XCTAssertTrue(HealthKitLogic.shouldWriteWorkout(linkedWorkoutID: ""))
+        XCTAssertFalse(HealthKitLogic.shouldWriteWorkout(linkedWorkoutID: UUID().uuidString))
+    }
+
+    @MainActor
+    func testEditorMediaFailedSaveKeepsOriginalAndDraftVideoAndCleansNewCopy() throws {
+        enum ExpectedFailure: Error { case save }
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("draft-\(UUID()).mov")
+        let oldSource = FileManager.default.temporaryDirectory.appendingPathComponent("old-\(UUID()).mov")
+        try Data("draft".utf8).write(to: source)
+        try Data("original".utf8).write(to: oldSource)
+        let original = try SessionMediaStore.storeVideo(from: oldSource, thumbnailData: nil)
+        defer {
+            SessionMediaStore.deleteTemporaryFiles([source, oldSource])
+            SessionMediaStore.deleteVideoFile(named: original.fileName)
+        }
+        let changes = SessionMediaSaveTransaction()
+        changes.removedVideoNames = [original.fileName]
+        let staged = try changes.stageVideo(from: source, thumbnailData: nil)
+        var rolledBack = false
+        XCTAssertThrowsError(try changes.persist(save: { throw ExpectedFailure.save },
+                                                rollbackModel: { rolledBack = true }))
+        XCTAssertTrue(rolledBack)
+        XCTAssertEqual(try Data(contentsOf: source), Data("draft".utf8))
+        XCTAssertEqual(try Data(contentsOf: SessionMediaStore.videoURL(for: original.fileName)), Data("original".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: staged.fileName).path))
+        // Retry uses the same still-usable draft source.
+        let retry = SessionMediaSaveTransaction()
+        let retried = try retry.stageVideo(from: source, thumbnailData: nil)
+        defer { SessionMediaStore.deleteVideoFile(named: retried.fileName) }
+        try retry.persist(save: {}, rollbackModel: { XCTFail("Successful retry must not roll back") })
+        XCTAssertEqual(try Data(contentsOf: SessionMediaStore.videoURL(for: retried.fileName)), Data("draft".utf8))
+    }
+
+    @MainActor
+    func testEditorMediaDeletesOriginalOnlyAfterSuccessfulModelSave() throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("draft-\(UUID()).mov")
+        let oldSource = FileManager.default.temporaryDirectory.appendingPathComponent("old-\(UUID()).mov")
+        try Data("draft".utf8).write(to: source)
+        try Data("original".utf8).write(to: oldSource)
+        let original = try SessionMediaStore.storeVideo(from: oldSource, thumbnailData: nil)
+        let changes = SessionMediaSaveTransaction()
+        changes.removedVideoNames = [original.fileName]
+        let staged = try changes.stageVideo(from: source, thumbnailData: nil)
+        defer {
+            SessionMediaStore.deleteTemporaryFiles([source, oldSource])
+            SessionMediaStore.deleteVideoFile(named: original.fileName)
+            SessionMediaStore.deleteVideoFile(named: staged.fileName)
+        }
+        try changes.persist(save: {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: original.fileName).path))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+        }, rollbackModel: { XCTFail("Successful save must not roll back") })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: original.fileName).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: staged.fileName).path))
+    }
+
     func testOverlapMatcherTreatsSharedBoundaryAsNonOverlapping() {
         let a = DateInterval(start: epoch(0), duration: 100)
         let touching = DateInterval(start: epoch(100), duration: 100)   // shares boundary at 100

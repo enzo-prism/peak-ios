@@ -380,7 +380,7 @@ final class PeakRecoveryUITests: XCTestCase {
         launchRecovery("fresh")
         let alert = app.alerts["Your previous library needs recovery"]
         XCTAssertTrue(alert.waitForExistence(timeout: 8))
-        XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "a new empty library is now in use")).firstMatch.exists)
+        XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "your current library is separate from that copy")).firstMatch.exists)
         XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Your previous library needs recovery."].waitForExistence(timeout: 5))

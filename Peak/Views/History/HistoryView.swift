@@ -23,6 +23,7 @@ struct HistoryView: View {
     @State private var editingSession: SurfSession?
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
+    @State private var showDeleteError = false
     /// Deep-link / split-column selection. Compact user taps still use
     /// `NavigationLink` so iPhone UI tests that hit `history.row` keep working.
     @State private var openedSession: PeakEntityRef?
@@ -65,6 +66,11 @@ struct HistoryView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently removes the session and its media.")
+        }
+        .alert("Session could not be deleted", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your session and its media were kept. Please try again.")
         }
         .sensoryFeedback(.success, trigger: deletionCount)
         .task(id: searchText) {
@@ -455,9 +461,18 @@ struct HistoryView: View {
     private func deletePendingSession() {
         guard let session = sessionPendingDelete else { return }
         sessionPendingDelete = nil
-        SessionMediaStore.deleteStoredMedia(for: session.media)
-        HealthKitService.shared.deleteWorkout(for: session)
+        let videoNames = session.media.compactMap(\.videoFileName)
+        let healthDeletion = HealthKitService.shared.workoutDeletion(for: session)
         modelContext.delete(session)
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            showDeleteError = true
+            return
+        }
+        videoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+        HealthKitService.shared.deleteWorkout(healthDeletion)
         deletionCount += 1
     }
 

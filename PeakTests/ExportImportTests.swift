@@ -65,6 +65,109 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<SurfSession>()).compactMap(\.sessionID), [try XCTUnwrap(id)])
     }
 
+    private enum InjectedImportSaveFailure: Error { case failed }
+
+    private func makeDiskImportContainer() throws -> ModelContainer {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ImportTransaction-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
+        return try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self,
+            configurations: [ModelConfiguration(schema: schema, url: root.appendingPathComponent("test.store"))])
+    }
+
+    func testRestoreSaveFailurePreservesPersistedRowsVideosAndUnrelatedEdits() async throws {
+        for mode in [ImportMode.merge, .replace] {
+            let container = try makeDiskImportContainer()
+            let context = ModelContext(container)
+            let name = "transaction-original-\(UUID().uuidString).mov"
+            let originalURL = SessionMediaStore.videoURL(for: name)
+            try FileManager.default.createDirectory(at: originalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let bytes = Data([0x21, 0x22, 0x23])
+            try bytes.write(to: originalURL)
+            defer { SessionMediaStore.deleteVideoFile(named: name) }
+            let original = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .video, videoFileName: name)], notes: "Backup version")
+            context.insert(original)
+            try context.save()
+            let backup = try await BackupManager.makeBackupFile(sessions: [original], spots: [], gear: [], buddies: [])
+            defer { try? FileManager.default.removeItem(at: backup) }
+            original.notes = "Pending local edit"
+            let originalID = original.sessionID
+            let beforeFiles = Set(try FileManager.default.contentsOfDirectory(atPath: originalURL.deletingLastPathComponent().path))
+            do {
+                try await BackupManager.restore(from: backup, mode: mode, context: context, save: { _ in
+                    XCTAssertEqual(try Data(contentsOf: originalURL), bytes, "Original must survive until commit")
+                    throw InjectedImportSaveFailure.failed
+                })
+                XCTFail("Injected commit failure must be reported")
+            } catch InjectedImportSaveFailure.failed { }
+            let fresh = ModelContext(container)
+            let persisted = try fresh.fetch(FetchDescriptor<SurfSession>())
+            XCTAssertEqual(persisted.count, 1)
+            XCTAssertEqual(persisted.first?.sessionID, originalID)
+            XCTAssertEqual(persisted.first?.notes, "Pending local edit", "Rollback must not discard caller edits")
+            XCTAssertEqual(persisted.first?.media.first?.videoFileName, name)
+            XCTAssertEqual(try Data(contentsOf: originalURL), bytes)
+            XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: originalURL.deletingLastPathComponent().path)), beforeFiles, "Failed restore must remove staged videos")
+        }
+    }
+
+    func testRestoreCommitsMergeAndReplaceBeforeDeletingOriginalVideos() async throws {
+        for mode in [ImportMode.merge, .replace] {
+            let container = try makeDiskImportContainer()
+            let context = ModelContext(container)
+            let name = "transaction-success-\(UUID().uuidString).mov"
+            let originalURL = SessionMediaStore.videoURL(for: name)
+            try FileManager.default.createDirectory(at: originalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let bytes = Data([0x31, 0x32, 0x33])
+            try bytes.write(to: originalURL)
+            defer { SessionMediaStore.deleteVideoFile(named: name) }
+            let original = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .video, videoFileName: name)], notes: "Saved backup")
+            context.insert(original)
+            try context.save()
+            let backup = try await BackupManager.makeBackupFile(sessions: [original], spots: [], gear: [], buddies: [])
+            defer { try? FileManager.default.removeItem(at: backup) }
+            var committed = false
+            try await BackupManager.restore(from: backup, mode: mode, context: context, save: { transaction in
+                XCTAssertTrue(FileManager.default.fileExists(atPath: originalURL.path))
+                try transaction.save()
+                committed = true
+            })
+            XCTAssertTrue(committed)
+            XCTAssertFalse(context.hasChanges)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
+            let persisted = try ModelContext(container).fetch(FetchDescriptor<SurfSession>())
+            XCTAssertEqual(persisted.count, 1)
+            let restoredName = try XCTUnwrap(persisted.first?.media.first?.videoFileName)
+            defer { SessionMediaStore.deleteVideoFile(named: restoredName) }
+            XCTAssertNotEqual(restoredName, name)
+            XCTAssertEqual(try Data(contentsOf: SessionMediaStore.videoURL(for: restoredName)), bytes)
+        }
+    }
+
+    func testJSONReplaceSaveFailureLeavesOriginalPersistedVideoIntact() throws {
+        let container = try makeDiskImportContainer()
+        let context = ModelContext(container)
+        let name = "json-transaction-\(UUID().uuidString).mov"
+        let originalURL = SessionMediaStore.videoURL(for: name)
+        try FileManager.default.createDirectory(at: originalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let bytes = Data([0x41, 0x42])
+        try bytes.write(to: originalURL)
+        defer { SessionMediaStore.deleteVideoFile(named: name) }
+        let original = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .video, videoFileName: name)], notes: "Keep me")
+        context.insert(original)
+        try context.save()
+        let empty = PeakExportManager.makeExport(sessions: [], spots: [], gear: [], buddies: [])
+        XCTAssertThrowsError(try PeakExportManager.applyImport(empty, mode: .replace, context: context, save: { _ in
+            throw InjectedImportSaveFailure.failed
+        }))
+        XCTAssertEqual(try ModelContext(container).fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Keep me"])
+        XCTAssertEqual(try Data(contentsOf: originalURL), bytes)
+        try PeakExportManager.applyImport(empty, mode: .replace, context: context)
+        XCTAssertTrue(try ModelContext(container).fetch(FetchDescriptor<SurfSession>()).isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
+    }
+
     func testExportImportMergeRoundTrip() throws {
         let calendar = Calendar(identifier: .gregorian)
         let createdAt = calendar.date(from: DateComponents(year: 2026, month: 2, day: 10, hour: 6))!
@@ -421,6 +524,123 @@ final class ExportImportTests: XCTestCase {
 
     // MARK: - Crash-proof store recovery
 
+    func testRecoveryVideoCopyFailureResumesBeforeOpeningFreshStore() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, copyItem: { source, destination in
+            if source.lastPathComponent == "SessionMedia" { throw CocoaError(.fileWriteOutOfSpace) }
+            try FileManager.default.copyItem(at: source, to: destination)
+        }))
+        try assertRecoveryBytes(in: root)
+        let interrupted = try XCTUnwrap(PeakDataStore.pendingRecovery(in: root))
+        XCTAssertEqual(interrupted.phase, .copying)
+        XCTAssertNil(interrupted.archivedPath, "Missing videos means the copy is incomplete")
+        let incomplete = root.appendingPathComponent(try XCTUnwrap(interrupted.archiveDirectory))
+        let memory = try makeContainer()
+        var preserved: URL?
+        let result = PeakDataStore.loadPersistent(open: {
+            XCTAssertNotNil(preserved, "Must complete preservation before opening disk")
+            return memory
+        }, fallback: {
+            XCTFail("A retry after storage is freed should succeed")
+            return memory
+        }, recover: {
+            let archive = try PeakDataStore.relocateStoreFiles(in: root)
+            preserved = archive
+            return archive
+        }, pending: { try PeakDataStore.pendingRecovery(in: root) })
+        let archive = try XCTUnwrap(preserved)
+        XCTAssertEqual(result.outcome, .recoveredFresh(archivedPath: archive.path))
+        try assertRecoveryBytes(in: archive)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: incomplete.path), "Retry must reclaim its incomplete copy")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("SessionMedia").path))
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: root))
+    }
+
+    func testRecoveryLegacyCopyMarkerCanResumeWithoutRemovingOriginalsEarly() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // Before phases existed, nil archive meant that source removal had not begun.
+        try Data(#"{"details":"Copy interrupted"}"#.utf8).write(to: root.appendingPathComponent(PeakDataStore.recoveryMarkerName))
+        XCTAssertEqual(try PeakDataStore.pendingRecovery(in: root)?.phase, .copying)
+        let archive = try PeakDataStore.relocateStoreFiles(in: root)
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testCorruptHistoricalRecoveryReceiptDoesNotBlockHealthyLibrary() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("damaged historical receipt".utf8).write(to: root.appendingPathComponent(PeakDataStore.recoveryRecordName))
+        XCTAssertNil(try PeakDataStore.preservedArchive(in: root))
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(open: { memory }, fallback: {
+            XCTFail("An advisory receipt must not disable persistence")
+            return memory
+        }, recover: {
+            XCTFail("A healthy library must not be archived")
+            return root
+        }, pending: { try PeakDataStore.pendingRecovery(in: root) }, preservedArchive: {
+            throw CocoaError(.fileReadCorruptFile)
+        })
+        XCTAssertEqual(result.outcome, .normal)
+        try assertRecoveryBytes(in: root)
+    }
+
+    func testRecoveryRelativeReceiptSurvivesSandboxDirectoryMove() throws {
+        let root = try makeRecoveryFixture()
+        let movedRoot = root.appendingPathExtension("relocated")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: movedRoot)
+        }
+        let archive = try PeakDataStore.relocateStoreFiles(in: root)
+        let receiptData = try Data(contentsOf: root.appendingPathComponent(PeakDataStore.recoveryRecordName))
+        let stored = try JSONDecoder().decode(StoreRecoveryIssue.self, from: receiptData)
+        XCTAssertNil(stored.archivedPath, "Persist relative identifiers, never sandbox absolute paths")
+        XCTAssertEqual(stored.archiveDirectory, archive.lastPathComponent)
+        try FileManager.default.moveItem(at: root, to: movedRoot)
+        let relocated = movedRoot.appendingPathComponent(archive.lastPathComponent)
+        XCTAssertEqual(try PeakDataStore.preservedArchive(in: movedRoot), relocated.path)
+        try assertRecoveryBytes(in: relocated)
+    }
+
+    func testLegacyAbsoluteRecoveryReceiptRebasesToCurrentSandbox() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let archive = try PeakDataStore.relocateStoreFiles(in: root)
+        let legacy = StoreRecoveryIssue(archivedPath: "/old-sandbox/Library/Application Support/\(archive.lastPathComponent)", details: "Legacy receipt")
+        try JSONEncoder().encode(legacy).write(to: root.appendingPathComponent(PeakDataStore.recoveryRecordName))
+        XCTAssertEqual(try PeakDataStore.preservedArchive(in: root), archive.path)
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testPendingRemovalStaysBlockedAfterSandboxDirectoryMove() throws {
+        let root = try makeRecoveryFixture()
+        let movedRoot = root.appendingPathExtension("relocated")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: movedRoot)
+        }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in throw CocoaError(.fileWriteNoPermission) }))
+        let original = try XCTUnwrap(PeakDataStore.pendingRecovery(in: root))
+        try FileManager.default.moveItem(at: root, to: movedRoot)
+        let pending = try XCTUnwrap(PeakDataStore.pendingRecovery(in: movedRoot))
+        XCTAssertEqual(pending.phase, .removing)
+        let relocatedArchive = movedRoot.appendingPathComponent(try XCTUnwrap(original.archiveDirectory))
+        XCTAssertEqual(pending.archivedPath, relocatedArchive.path)
+        XCTAssertFalse(PeakDataStore.canOpenStore(in: movedRoot))
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: movedRoot))
+        try assertRecoveryBytes(in: relocatedArchive)
+    }
+
+    func testRecoveryReceiptCannotResolveOutsideApplicationSupport() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let invalid = StoreRecoveryIssue(archivedPath: nil, details: "Invalid receipt", phase: .removing, archiveDirectory: "../Archived Store outside")
+        try JSONEncoder().encode(invalid).write(to: root.appendingPathComponent(PeakDataStore.recoveryRecordName))
+        XCTAssertNil(try PeakDataStore.preservedArchive(in: root))
+    }
+
     func testRecoveryReceiptKeepsExportAvailableOnNextNormalLaunch() throws {
         let root = try makeRecoveryFixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -451,6 +671,10 @@ final class ExportImportTests: XCTestCase {
         XCTAssertFalse(PeakDataStore.canOpenStore(in: root))
         try Data("invalid marker".utf8).write(to: marker)
         XCTAssertFalse(PeakDataStore.canOpenStore(in: root), "Unreadable recovery state must fail closed for cold intents")
+        let missingPhase = StoreRecoveryIssue(archivedPath: nil, details: "Damaged relative marker", archiveDirectory: "Archived Store incomplete")
+        try JSONEncoder().encode(missingPhase).write(to: marker)
+        XCTAssertThrowsError(try PeakDataStore.pendingRecovery(in: root))
+        XCTAssertFalse(PeakDataStore.canOpenStore(in: root), "Missing phase in a new marker must not be treated as resumable")
         try assertRecoveryBytes(in: root)
     }
 
@@ -461,7 +685,9 @@ final class ExportImportTests: XCTestCase {
         let exported = try PeakDataStore.recoveryExport(archivedPath: archive.path)
         defer { try? FileManager.default.removeItem(at: exported) }
         XCTAssertEqual(exported.pathExtension, "zip")
-        XCTAssertEqual(Array(try Data(contentsOf: exported).prefix(2)), [0x50, 0x4b])
+        let zipBytes = try Data(contentsOf: exported)
+        XCTAssertEqual(Array(zipBytes.prefix(2)), [0x50, 0x4b])
+        XCTAssertNotNil(zipBytes.range(of: Data("SessionMedia/session-video.mov".utf8)), "ZIP must include the separately stored session video")
         try assertRecoveryBytes(in: archive)
     }
 
@@ -619,14 +845,15 @@ final class ExportImportTests: XCTestCase {
     private func makeRecoveryFixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("PeakRecovery-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root.appendingPathComponent(".default_SUPPORT"), withIntermediateDirectories: true)
-        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin"] {
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("SessionMedia"), withIntermediateDirectories: true)
+        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin", "SessionMedia/session-video.mov"] {
             try Data(name.utf8).write(to: root.appendingPathComponent(name))
         }
         return root
     }
 
     private func assertRecoveryBytes(in directory: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin"] {
+        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin", "SessionMedia/session-video.mov"] {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(name)), Data(name.utf8), file: file, line: line)
         }
     }

@@ -5,6 +5,21 @@ import SwiftData
 nonisolated struct StoreRecoveryIssue: Error, Equatable, Codable, Sendable {
     let archivedPath: String?
     let details: String
+    let phase: Phase?
+    /// Relative to Application Support; survives an iOS sandbox relocation.
+    let archiveDirectory: String?
+
+    nonisolated enum Phase: String, Codable, Sendable {
+        case copying
+        case removing
+    }
+
+    init(archivedPath: String?, details: String, phase: Phase? = nil, archiveDirectory: String? = nil) {
+        self.archivedPath = archivedPath
+        self.details = details
+        self.phase = phase
+        self.archiveDirectory = archiveDirectory
+    }
 }
 
 /// How the persistent store was opened at launch.
@@ -54,18 +69,7 @@ enum PeakDataStore {
         func temporary(_ issue: StoreRecoveryIssue) -> StoreLoadResult {
             StoreLoadResult(container: fallback(), outcome: .inMemoryFallback(recovery: issue))
         }
-        let previousArchive: String?
-        do {
-            if let issue = try pending() { return temporary(issue) }
-            previousArchive = try preservedArchive()
-        } catch {
-            return temporary(StoreRecoveryIssue(archivedPath: nil, details: "Could not check previous recovery: \(error.localizedDescription)"))
-        }
-        do {
-            let container = try open()
-            return StoreLoadResult(container: container, outcome: previousArchive.map { .recoveredFresh(archivedPath: $0) } ?? .normal)
-        } catch {
-            let originalError = error.localizedDescription
+        func recoverAndOpen(reason: String) -> StoreLoadResult {
             let archive: URL
             do {
                 archive = try recover()
@@ -73,7 +77,9 @@ enum PeakDataStore {
                 let issue = error as? StoreRecoveryIssue
                 return temporary(StoreRecoveryIssue(
                     archivedPath: issue?.archivedPath,
-                    details: "Library could not open: \(originalError). Preservation failed: \(issue?.details ?? error.localizedDescription)"
+                    details: "\(reason). Preservation failed: \(issue?.details ?? error.localizedDescription)",
+                    phase: issue?.phase,
+                    archiveDirectory: issue?.archiveDirectory
                 ))
             }
             do {
@@ -81,6 +87,25 @@ enum PeakDataStore {
             } catch {
                 return temporary(StoreRecoveryIssue(archivedPath: archive.path, details: "Old library preserved; fresh library could not open: \(error.localizedDescription)"))
             }
+        }
+        do {
+            if let issue = try pending() {
+                // Only a recorded pre-removal phase proves every original is
+                // intact. Resume preservation before attempting any disk open.
+                if issue.phase == .copying { return recoverAndOpen(reason: issue.details) }
+                return temporary(issue)
+            }
+        } catch {
+            return temporary(StoreRecoveryIssue(archivedPath: nil, details: "Could not check previous recovery: \(error.localizedDescription)"))
+        }
+        // A historical receipt is advisory. Damage to it must never disable a
+        // healthy current library; only the pending marker can block disk access.
+        let previousArchive = try? preservedArchive()
+        do {
+            let container = try open()
+            return StoreLoadResult(container: container, outcome: previousArchive.map { .recoveredFresh(archivedPath: $0) } ?? .normal)
+        } catch {
+            return recoverAndOpen(reason: "Library could not open: \(error.localizedDescription)")
         }
     }
 
@@ -102,22 +127,49 @@ enum PeakDataStore {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     }
 
-    /// A pending marker is deliberately not cleared automatically: a previous
-    /// launch may have stopped between removing two related SQLite components.
+    /// Copying can resume because originals have not been removed. Removing
+    /// remains blocked, including legacy markers that recorded a complete copy.
     nonisolated static func pendingRecovery(in directory: URL) throws -> StoreRecoveryIssue? {
         let marker = directory.appendingPathComponent(recoveryMarkerName)
         guard FileManager.default.fileExists(atPath: marker.path) else { return nil }
-        return try JSONDecoder().decode(StoreRecoveryIssue.self, from: Data(contentsOf: marker))
+        let record = try JSONDecoder().decode(StoreRecoveryIssue.self, from: Data(contentsOf: marker))
+        // A relative-format record without its phase is damaged, not a legacy
+        // pre-removal marker. Never infer copying from that incomplete record.
+        if record.archiveDirectory != nil && record.phase == nil {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        // The previous format wrote nil only before removing any originals.
+        let phase = record.phase ?? (record.archivedPath == nil ? .copying : .removing)
+        return StoreRecoveryIssue(
+            archivedPath: phase == .removing ? archiveURL(for: record, in: directory)?.path : nil,
+            details: record.details,
+            phase: phase,
+            archiveDirectory: record.archiveDirectory
+        )
     }
 
-    /// Unlike the blocking marker, this receipt remains after a successful
-    /// recovery, keeping the recovery notice and export available next launch.
+    /// Historical archive receipts never gate access to the current library.
     nonisolated static func preservedArchive(in directory: URL) throws -> String? {
         let receipt = directory.appendingPathComponent(recoveryRecordName)
-        guard FileManager.default.fileExists(atPath: receipt.path) else { return nil }
-        let issue = try JSONDecoder().decode(StoreRecoveryIssue.self, from: Data(contentsOf: receipt))
-        guard let path = issue.archivedPath, FileManager.default.fileExists(atPath: path) else { return nil }
-        return path
+        guard let data = try? Data(contentsOf: receipt),
+              let record = try? JSONDecoder().decode(StoreRecoveryIssue.self, from: data) else { return nil }
+        guard record.phase != .copying,
+              record.archiveDirectory == nil || record.phase == .removing else { return nil }
+        return archiveURL(for: record, in: directory)?.path
+    }
+
+    /// Resolve only an archive inside the current Application Support directory.
+    /// For old absolute receipts, rebase the archive's basename instead of ever
+    /// following a stale sandbox path (or an arbitrary path outside this folder).
+    nonisolated private static func archiveURL(for record: StoreRecoveryIssue, in directory: URL) -> URL? {
+        guard let name = record.archiveDirectory ?? record.archivedPath.map({ URL(fileURLWithPath: $0).lastPathComponent }),
+              name.hasPrefix("Archived Store "),
+              name == (name as NSString).lastPathComponent,
+              !name.contains("/"), !name.contains("\\") else { return nil }
+        let archive = directory.appendingPathComponent(name, isDirectory: true)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: archive.path),
+              attributes[.type] as? FileAttributeType == .typeDirectory else { return nil }
+        return archive
     }
 
     /// Cold App Intents must also avoid opening an interrupted recovery store.
@@ -147,11 +199,18 @@ enum PeakDataStore {
     ) throws -> URL {
         let fm = FileManager.default
         let marker = directory.appendingPathComponent(recoveryMarkerName)
-        if let issue = try pendingRecovery(in: directory) { throw issue }
+        if let issue = try pendingRecovery(in: directory) {
+            guard issue.phase == .copying else { throw issue }
+            // The marker proves no source removal began. Discard only our own
+            // incomplete archive so retries do not compound an out-of-space error.
+            if let incomplete = archiveURL(for: issue, in: directory) {
+                try removeItem(incomplete)
+            }
+        }
         let stamp = ExportDateFormatter.fileSafeString(from: now)
         let archive = directory.appendingPathComponent("Archived Store \(stamp) \(UUID().uuidString)", isDirectory: true)
         let baseName = (storeName as NSString).deletingPathExtension
-        let sources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT"]
+        let sources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT", "SessionMedia"]
             .map { directory.appendingPathComponent($0) }
             .filter { fm.fileExists(atPath: $0.path) }
         // No source is not proof that a library was preserved.
@@ -161,21 +220,21 @@ enum PeakDataStore {
         var completeArchive: String?
         do {
             try fm.createDirectory(at: archive, withIntermediateDirectories: false)
-            let started = StoreRecoveryIssue(archivedPath: nil, details: "Library preservation was interrupted before a complete copy was confirmed. Original files have not been removed.")
+            let started = StoreRecoveryIssue(archivedPath: nil, details: "Library preservation was interrupted before a complete copy was confirmed. Original files have not been removed.", phase: .copying, archiveDirectory: archive.lastPathComponent)
             try JSONEncoder().encode(started).write(to: marker, options: .atomic)
             for source in sources {
                 try copyItem(source, archive.appendingPathComponent(source.lastPathComponent))
             }
             // Write the complete archive location BEFORE removing any source.
             completeArchive = archive.path
-            let preserved = StoreRecoveryIssue(archivedPath: archive.path, details: "A complete library copy was preserved, but preparing a fresh library did not finish.")
+            let preserved = StoreRecoveryIssue(archivedPath: nil, details: "A complete library copy was preserved, but preparing a fresh library did not finish.", phase: .removing, archiveDirectory: archive.lastPathComponent)
             try JSONEncoder().encode(preserved).write(to: marker, options: .atomic)
             try JSONEncoder().encode(preserved).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
             for source in sources { try removeItem(source) }
             try removeItem(marker)
             return archive
         } catch {
-            throw StoreRecoveryIssue(archivedPath: completeArchive, details: "\(error.localizedDescription) Recovery files: \(archive.path)")
+            throw StoreRecoveryIssue(archivedPath: completeArchive, details: "\(error.localizedDescription) Recovery files: \(archive.path)", phase: completeArchive == nil ? .copying : .removing, archiveDirectory: archive.lastPathComponent)
         }
     }
 

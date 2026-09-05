@@ -211,6 +211,9 @@ private struct RootView: View {
             if archivedPath != nil {
                 return "Peak could not open a saved library. Changes in this temporary library will be lost when Peak closes. A complete copy of your previous library is preserved. Export it to Files for safekeeping or to share with support. It is a recovery archive, not an importable Peak backup. Do not delete Peak before saving a copy."
             }
+            if case .inMemoryFallback(let issue) = outcome, issue.phase == .copying {
+                return "Peak could not finish preserving your library. Your original files have not been removed. Free up device storage, then close and reopen Peak to retry. Changes in this temporary library will be lost when Peak closes. Do not delete Peak."
+            }
             return "Peak could not safely prepare your saved library. Changes in this temporary library will be lost when Peak closes. Existing library files have been left on this device. Do not delete Peak. Contact Peak support for help recovering your library."
         }
     }

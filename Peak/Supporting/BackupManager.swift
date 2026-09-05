@@ -155,24 +155,23 @@ enum BackupManager {
     /// export identity and appended to that session's `media` relationship.
     /// Entries whose session isn't found are skipped.
     ///
-    /// Ordering is deliberate: every byte the backup carries is decoded and
-    /// every restored video is written to disk **before** any existing row or
-    /// media file is touched, so a failure (disk full, corrupt payload) can
-    /// only ever leave stray fresh files behind — which the `catch` removes —
-    /// never a library whose media was deleted ahead of a write that then
-    /// failed. The model mutation phase itself cannot throw, and on any earlier
-    /// throw `context.rollback()` discards the partial import.
+    /// Decode/write new media before mutation. Commit all model changes before
+    /// deleting old videos or returning success. Failure removes only staged
+    /// new files and rolls back only this import, preserving prior caller edits.
     static func restore(
         from url: URL,
         mode: ImportMode,
-        context: ModelContext
+        context: ModelContext,
+        save: (ModelContext) throws -> Void = { try $0.save() }
     ) async throws {
         let (file, preparedMedia) = try await prepareRestore(from: url)
 
         do {
-            try applyRestore(file: file, preparedMedia: preparedMedia, mode: mode, context: context)
+            _ = try PeakExportManager.validateImport(file.export, mode: mode, context: context)
+            try PeakExportManager.withImportTransaction(context: context, save: save) {
+                try applyRestore(file: file, preparedMedia: preparedMedia, mode: mode, context: context)
+            }
         } catch {
-            context.rollback()
             for name in preparedMedia.compactMap(\.videoFileName) {
                 SessionMediaStore.deleteVideoFile(named: name)
             }
@@ -235,8 +234,7 @@ enum BackupManager {
         return (file, prepared)
     }
 
-    /// Main-actor phase: the model mutations. After `applyImport` returns, this
-    /// cannot throw — see `restore` for why that matters.
+    /// Main-actor mutation phase, inside the import transaction.
     private static func applyRestore(
         file: PeakBackupFile,
         preparedMedia: [PreparedMediaEntry],
@@ -251,17 +249,17 @@ enum BackupManager {
         // each restore. `.replace` already wiped everything, so the set stays empty.
         let preexistingSessionKeys: Set<String>
         if mode == .merge {
-            let existing = (try? context.fetch(FetchDescriptor<SurfSession>())) ?? []
+            let existing = try context.fetch(FetchDescriptor<SurfSession>())
             preexistingSessionKeys = Set(existing.map { SessionIntentQueries.identifier(for: $0) })
         } else {
             preexistingSessionKeys = []
         }
 
-        let sessionByKey = try PeakExportManager.applyImport(file.export, mode: mode, context: context)
+        let sessionByKey = try PeakExportManager.stageImport(file.export, mode: mode, context: context)
 
         // Sessions that existed before this merge get their media replaced (not
-        // duplicated): clear once, deleting stored video files first, before the
-        // manifest reattaches the backup's copy.
+        // duplicated): clear rows once before reattaching the backup copy.
+        // The enclosing transaction defers original video deletion until commit.
         var clearedSessionKeys: Set<String> = []
 
         for entry in preparedMedia {
@@ -276,7 +274,6 @@ enum BackupManager {
 
             if preexistingSessionKeys.contains(SessionIntentQueries.identifier(for: session)),
                !clearedSessionKeys.contains(entry.sessionId) {
-                SessionMediaStore.deleteStoredMedia(for: session.media)
                 for existingMedia in session.media {
                     context.delete(existingMedia)
                 }

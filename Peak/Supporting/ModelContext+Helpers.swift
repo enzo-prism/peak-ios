@@ -172,8 +172,8 @@ extension ModelContext {
         }
     }
 
-    func resetAllData() throws {
-        try deleteSessionMediaFiles()
+    func resetAllData(deleteMediaFiles: Bool = true) throws {
+        if deleteMediaFiles { try deleteSessionMediaFiles() }
         try deleteAll(SurfSession.self)
         try deleteAll(SessionMedia.self)
         try deleteAll(Gear.self)

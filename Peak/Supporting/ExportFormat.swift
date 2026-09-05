@@ -521,11 +521,58 @@ enum PeakExportManager {
         return rows.joined(separator: "\n")
     }
 
+    /// Commit the import before reporting success. Existing pending UI edits
+    /// are saved first, so a failed import never rolls those edits back.
     @discardableResult
     static func applyImport(
         _ export: PeakExport,
         mode: ImportMode,
-        context: ModelContext
+        context: ModelContext,
+        save: (ModelContext) throws -> Void = { try $0.save() }
+    ) throws -> [String: SurfSession] {
+        _ = try validateImport(export, mode: mode, context: context)
+        return try withImportTransaction(context: context, save: save) {
+            try stageImport(export, mode: mode, context: context)
+        }
+    }
+
+    /// No filesystem deletion may occur while a database transaction can fail.
+    /// Capture filenames before model invalidation; collect only unreferenced
+    /// originals after the new database state has actually committed.
+    static func withImportTransaction<T>(
+        context: ModelContext,
+        save: (ModelContext) throws -> Void,
+        operation: () throws -> T
+    ) throws -> T {
+        // This save is intentionally outside the rollback scope. A caller may
+        // have unrelated editor changes pending in the shared main context.
+        if context.hasChanges { try context.save() }
+        let originals = try videoFileNames(context: context)
+        let autosaveWasEnabled = context.autosaveEnabled
+        context.autosaveEnabled = false
+        defer { context.autosaveEnabled = autosaveWasEnabled }
+        do {
+            let result = try operation()
+            let retained = try videoFileNames(context: context)
+            try save(context)
+            for name in originals.subtracting(retained) {
+                SessionMediaStore.deleteVideoFile(named: name)
+            }
+            return result
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    private static func videoFileNames(context: ModelContext) throws -> Set<String> {
+        Set(try context.fetch(FetchDescriptor<SessionMedia>()).compactMap(\.videoFileName))
+    }
+
+    /// Identity checks run before changing any model or relationship.
+    @discardableResult
+    static func validateImport(
+        _ export: PeakExport, mode: ImportMode, context: ModelContext
     ) throws -> [String: SurfSession] {
         guard [schemaVersion, "peak_export_v1"].contains(export.schemaVersion) else {
             throw ExportError.unsupportedSchema
@@ -559,9 +606,18 @@ enum PeakExportManager {
                 matched[row.id] = candidate
             }
         }
+        return matched
+    }
+
+    /// Stage only; the caller must use withImportTransaction to commit and
+    /// perform deferred file cleanup. Backup restore adds media in this scope.
+    static func stageImport(
+        _ export: PeakExport, mode: ImportMode, context: ModelContext
+    ) throws -> [String: SurfSession] {
+        let matched = try validateImport(export, mode: mode, context: context)
         var imported: [String: SurfSession] = [:]
         if mode == .replace {
-            try context.resetAllData()
+            try context.resetAllData(deleteMediaFiles: false)
         }
 
         var spotById: [String: Spot] = [:]

@@ -490,6 +490,8 @@ struct SettingsView: View {
                 return AlertMessage(title: title, body: "Failed to encode the export file.")
             case .unsupportedSchema:
                 return AlertMessage(title: title, body: "This backup format is not supported.")
+            case .invalidSessionIdentity, .ambiguousSessionIdentity:
+                return AlertMessage(title: title, body: exportError.localizedDescription)
             }
         }
         return AlertMessage(title: title, body: error.localizedDescription)

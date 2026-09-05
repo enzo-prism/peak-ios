@@ -938,6 +938,9 @@ struct SessionEditorView: View {
         let durationMinutes = SurfSession.normalizedDuration(draft.durationMinutes > 0 ? draft.durationMinutes : nil)
 
         var mediaFailures = 0
+        let mediaChanges = SessionMediaSaveTransaction()
+        let savedSession: SurfSession
+        var previousLegacy: HealthKitLogic.LegacyWorkoutMatch?
 
         switch mode {
         case .new:
@@ -978,9 +981,10 @@ struct SessionEditorView: View {
                 updatedAt: Date()
             )
             modelContext.insert(session)
-            mediaFailures = applyMedia(to: session)
-            HealthKitService.shared.saveOrUpdateWorkout(for: session)
+            mediaFailures = applyMedia(to: session, changes: mediaChanges)
+            savedSession = session
         case .edit(let session):
+            previousLegacy = HealthKitService.shared.legacyWorkoutMatch(for: session)
             session.date = draft.date
             session.spot = spot
             session.gear = draft.selectedGear
@@ -1014,10 +1018,21 @@ struct SessionEditorView: View {
             session.linkedWorkoutID = draft.linkedWorkoutID
             session.notes = draft.notes
             session.updatedAt = Date()
-            mediaFailures = applyMedia(to: session)
-            HealthKitService.shared.saveOrUpdateWorkout(for: session)
+            mediaFailures = applyMedia(to: session, changes: mediaChanges)
+            savedSession = session
         }
 
+        do {
+            try mediaChanges.persist(save: { try modelContext.save() },
+                                     rollbackModel: { modelContext.rollback() })
+        } catch {
+            // Keep the draft open for retry; never write Health data for a failed save.
+            mediaAlertMessage = "Your session could not be saved. Please try again."
+            dismissAfterMediaAlert = false
+            showMediaAlert = true
+            return
+        }
+        HealthKitService.shared.saveOrUpdateWorkout(for: savedSession, previousLegacy: previousLegacy)
         didSave = true
         PeakTips.markSessionSaved()
 
@@ -1384,11 +1399,11 @@ struct SessionEditorView: View {
         draft.removeMediaItem(item)
     }
 
-    private func applyMedia(to session: SurfSession) -> Int {
+    private func applyMedia(to session: SurfSession, changes: SessionMediaSaveTransaction) -> Int {
         let keptExisting = draft.mediaItems.compactMap { $0.existingMedia }
         let keptIds = Set(keptExisting.map(\.persistentModelID))
         let removed = session.media.filter { !keptIds.contains($0.persistentModelID) }
-        SessionMediaStore.deleteStoredMedia(for: removed)
+        changes.removedVideoNames = removed.compactMap(\.videoFileName)
         for media in removed {
             modelContext.delete(media)
         }
@@ -1424,7 +1439,7 @@ struct SessionEditorView: View {
                 updatedMedia.append(media)
             case .newVideo(let temporaryURL, let thumbnailData):
                 do {
-                    let stored = try SessionMediaStore.storeVideo(from: temporaryURL, thumbnailData: thumbnailData)
+                    let stored = try changes.stageVideo(from: temporaryURL, thumbnailData: thumbnailData)
                     let media = SessionMedia(
                         kind: .video,
                         thumbnailData: stored.thumbnailData,
@@ -1440,7 +1455,6 @@ struct SessionEditorView: View {
                     updatedMedia.append(media)
                 } catch {
                     failures += 1
-                    SessionMediaStore.deleteTemporaryFiles([temporaryURL])
                 }
             }
         }
