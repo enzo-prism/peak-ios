@@ -321,17 +321,19 @@ struct OpenGearIntent: OpenIntent {
     }
 }
 
+@available(iOS 17.2, *)
 struct SearchPeakIntent: ShowInAppSearchResultsIntent {
     static let title: LocalizedStringResource = "Search Peak"
     static let description = IntentDescription("Searches logged sessions in Peak.")
     static let openAppWhenRun = true
+    static let searchScopes: [StringSearchScope] = [.general]
 
     @Parameter(title: "Search")
-    var criteria: String
+    var criteria: StringSearchCriteria
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        PeakNavigationCoordinator.shared.handle(.search(query: criteria))
+        PeakNavigationCoordinator.shared.handle(.search(query: criteria.term))
         return .result()
     }
 }

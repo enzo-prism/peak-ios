@@ -45,34 +45,6 @@ extension SurfSession {
         )
     }
 
-    /// Gear detail: to-many `contains` on `gear.key`. A two-board session
-    /// matches each board independently.
-    static func sortedByDateDescending(
-        matchingGearKey gearKey: String,
-        prefetch: [PartialKeyPath<SurfSession>] = []
-    ) -> FetchDescriptor<SurfSession> {
-        let key = gearKey
-        return sortedByDateDescending(
-            prefetch: prefetch,
-            predicate: #Predicate<SurfSession> { session in
-                session.gear.contains { $0.key == key }
-            }
-        )
-    }
-
-    /// Buddy detail: to-many `contains` on `buddies.key`.
-    static func sortedByDateDescending(
-        matchingBuddyKey buddyKey: String,
-        prefetch: [PartialKeyPath<SurfSession>] = []
-    ) -> FetchDescriptor<SurfSession> {
-        let key = buddyKey
-        return sortedByDateDescending(
-            prefetch: prefetch,
-            predicate: #Predicate<SurfSession> { session in
-                session.buddies.contains { $0.key == key }
-            }
-        )
-    }
 }
 
 /// Cheap `@Query` change signature. SwiftData array identity does not change

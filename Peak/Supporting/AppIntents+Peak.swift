@@ -129,15 +129,5 @@ struct PeakAppShortcuts: AppShortcutsProvider {
             shortTitle: "Sessions This Month",
             systemImageName: "chart.bar.xaxis"
         )
-        AppShortcut(
-            intent: SearchPeakIntent(),
-            phrases: [
-                "Search \(.applicationName)",
-                "Find a session in \(.applicationName)",
-                "Search my surfs in \(.applicationName)"
-            ],
-            shortTitle: "Search Peak",
-            systemImageName: "magnifyingglass"
-        )
     }
 }

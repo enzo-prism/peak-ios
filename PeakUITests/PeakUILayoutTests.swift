@@ -255,7 +255,9 @@ final class PeakUILayoutTests: XCTestCase {
 
         let referenceHeight = tabIconHeight(named: "History")
         // Custom vector tab glyphs can have a wider visual-height spread than SF Symbols.
-        let tolerance: CGFloat = 12
+        // iOS 26 renders the system More glyph three points taller than the
+        // largest spread seen on earlier tab bars.
+        let tolerance: CGFloat = 16
         // Guards against absurdly-large glyphs. The ceiling is a ratio of the tab-bar
         // height; the iOS 26 Liquid Glass tab bar is a touch shorter than earlier bars,
         // so a normal ~54pt system symbol sits right at 0.65 — 0.72 keeps the guard
@@ -307,7 +309,7 @@ final class PeakUILayoutTests: XCTestCase {
     func testMoreLayoutFits() {
         tapTab(named: "More")
 
-        let settings = app.staticTexts["Settings"]
+        let settings = app.buttons["more.settings"]
         assertExists(settings)
         assertFits(settings)
 
@@ -401,7 +403,9 @@ final class PeakUILayoutTests: XCTestCase {
 
     func testSettingsResetConfirmationDialogLayout() {
         tapTab(named: "More")
-        tapElement(named: "Settings")
+        let settings = app.buttons["more.settings"]
+        assertExists(settings)
+        settings.tap()
 
         // Reset now sits below the Full Backup + Apple Health sections; swipe it
         // into the realized hierarchy before asserting.
@@ -1080,7 +1084,10 @@ private extension PeakUILayoutTests {
         let containerWidth = container.frame.width
         XCTAssertGreaterThan(containerWidth, 0, "Missing container width for \(name)", file: file, line: line)
 
-        let expectedMinWidth = containerWidth - horizontalPadding
+        // Regular-width screens intentionally cap the app's readable content
+        // at 720 pt. After the root's 16 pt padding on each side, a full-width
+        // row is 688 pt even though the enclosing ScrollView is wider.
+        let expectedMinWidth = min(containerWidth - horizontalPadding, 688)
         XCTAssertGreaterThanOrEqual(
             element.frame.width,
             expectedMinWidth,

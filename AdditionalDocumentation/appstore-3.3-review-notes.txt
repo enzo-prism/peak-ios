@@ -1,9 +1,9 @@
-Peak 3.3 is the next train after 3.2 (already in review). Do not attach this binary to the 3.2 version in App Store Connect.
+Peak 3.3 is an update to the live 3.2 release. This submission uses version 3.3 and its own build 1.
 
 NO SIGN-IN. No account system, no server, no demo credentials. Everything is stored locally with SwiftData.
 
 WHAT 3.3 ADDS ON TOP OF 3.2
-- Spotlight / Siri: sessions, spots, and gear are IndexedEntity types; Open intents; SearchPeakIntent lands on History.
+- Spotlight / Siri: sessions, spots, and gear are IndexedEntity types; Open intents; the system search intent opens History with the requested query.
 - iPad: sidebar-adaptable tabs (regular width), Search tab, Library sidebar, NavigationSplitView on History / Quiver / Spots. Compact iPhone keeps the five-tab shell. Sidebar/split are off under UI tests.
 - Health: Log-tab UnloggedWorkoutCard; HKObserverQuery + immediate background delivery behind healthSyncEnabled; optional notifyUnloggedSurfWorkouts (off by default). Session route map from linkedWorkoutID; GPS never persisted.
 - Widgets: Last Session deep-links to peak://session?id=; Start Session on medium/extraLarge; configurable spot from snapshot glances; extraLarge family.

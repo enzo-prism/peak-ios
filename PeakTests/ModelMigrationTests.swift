@@ -11,7 +11,7 @@ final class ModelMigrationTests: XCTestCase {
     }
 
     func testContainerInitializesAtLatestSchema() {
-        let schema = Schema(versionedSchema: PeakSchemaV10.self)
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         XCTAssertNoThrow(try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration]))
     }
@@ -40,7 +40,7 @@ final class ModelMigrationTests: XCTestCase {
         }
 
         // 2. Reopen the SAME store at the latest schema; the V7 -> V8 stage must run and backfill.
-        let schema = Schema(versionedSchema: PeakSchemaV10.self)
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
         let context = ModelContext(container)
@@ -87,7 +87,7 @@ final class ModelMigrationTests: XCTestCase {
             try context.save()
         }
 
-        let schema = Schema(versionedSchema: PeakSchemaV10.self)
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
         let context = ModelContext(container)
@@ -153,7 +153,7 @@ final class ModelMigrationTests: XCTestCase {
             try context.save()
         }
 
-        let schema = Schema(versionedSchema: PeakSchemaV10.self)
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
         let configuration = ModelConfiguration(schema: schema, url: storeURL)
         let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
         let context = ModelContext(container)
@@ -197,7 +197,133 @@ final class ModelMigrationTests: XCTestCase {
         XCTAssertTrue(session.hasWaveStats)
     }
 
-    /// Guards the "HEAD schema references the live models" convention. `PeakSchemaV10` is HEAD and its
+    /// Real on-disk V10 -> V11 round-trip. The public 3.2 store used one-way
+    /// gear and buddy relationships; V11 adds the inverse collections required
+    /// for one board or buddy to remain linked to multiple sessions.
+    func testV10ToV11MigrationAddsManyToManyInverses() throws {
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("peak-migration-v11-\(UUID().uuidString)")
+            .appendingPathExtension("store")
+        addTeardownBlock {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+            }
+        }
+
+        let firstDate = Date(timeIntervalSince1970: 1_720_000_000)
+        do {
+            let schema = Schema(versionedSchema: PeakSchemaV10.self)
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+            let context = ModelContext(container)
+            let board = PeakSchemaV10.Gear(name: "Migration Fish", kind: .board)
+            let buddy = PeakSchemaV10.Buddy(name: "Migration Kai")
+            context.insert(board)
+            context.insert(buddy)
+            context.insert(PeakSchemaV10.SurfSession(
+                date: firstDate,
+                spot: nil,
+                gear: [board],
+                buddies: [buddy],
+                rating: 4
+            ))
+            try context.save()
+        }
+
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+        let context = ModelContext(container)
+
+        let board = try XCTUnwrap(context.fetch(FetchDescriptor<Gear>()).first)
+        let buddy = try XCTUnwrap(context.fetch(FetchDescriptor<Buddy>()).first)
+        let migrated = try XCTUnwrap(context.fetch(FetchDescriptor<SurfSession>()).first)
+        XCTAssertEqual(migrated.date, firstDate)
+        XCTAssertEqual(migrated.gear.map(\.key), [board.key])
+        XCTAssertEqual(migrated.buddies.map(\.key), [buddy.key])
+        XCTAssertEqual(board.sessions.map(\.persistentModelID), [migrated.persistentModelID])
+        XCTAssertEqual(buddy.sessions.map(\.persistentModelID), [migrated.persistentModelID])
+
+        let second = SurfSession(
+            date: firstDate.addingTimeInterval(86_400),
+            spot: nil,
+            gear: [board],
+            buddies: [buddy],
+            rating: 5
+        )
+        context.insert(second)
+        try context.save()
+
+        let sessions = try context.fetch(
+            FetchDescriptor<SurfSession>(sortBy: [SortDescriptor(\.date)])
+        )
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertEqual(sessions.flatMap(\.gear).map(\.key), [board.key, board.key])
+        XCTAssertEqual(sessions.flatMap(\.buddies).map(\.key), [buddy.key, buddy.key])
+        XCTAssertEqual(board.sessions.count, 2)
+        XCTAssertEqual(buddy.sessions.count, 2)
+    }
+
+    /// Creation timestamps come from backups and are not unique identifiers.
+    /// The migration must preserve each session's own links even when two rows
+    /// carry the same timestamp.
+    func testV10ToV11MigrationUsesPersistentIdentityForDuplicateCreatedAt() throws {
+        let storeURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("peak-migration-v11-duplicate-date-\(UUID().uuidString)")
+            .appendingPathExtension("store")
+        addTeardownBlock {
+            for suffix in ["", "-wal", "-shm"] {
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: storeURL.path + suffix))
+            }
+        }
+
+        let sharedCreatedAt = Date(timeIntervalSince1970: 1_725_000_000)
+        do {
+            let schema = Schema(versionedSchema: PeakSchemaV10.self)
+            let configuration = ModelConfiguration(schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+            let context = ModelContext(container)
+            let fish = PeakSchemaV10.Gear(name: "Duplicate Fish", kind: .board)
+            let log = PeakSchemaV10.Gear(name: "Duplicate Log", kind: .board)
+            let kai = PeakSchemaV10.Buddy(name: "Duplicate Kai")
+            let nia = PeakSchemaV10.Buddy(name: "Duplicate Nia")
+            [fish, log].forEach(context.insert)
+            [kai, nia].forEach(context.insert)
+            context.insert(PeakSchemaV10.SurfSession(
+                date: sharedCreatedAt,
+                spot: nil,
+                gear: [fish],
+                buddies: [kai],
+                rating: 4,
+                createdAt: sharedCreatedAt
+            ))
+            context.insert(PeakSchemaV10.SurfSession(
+                date: sharedCreatedAt.addingTimeInterval(3_600),
+                spot: nil,
+                gear: [log],
+                buddies: [nia],
+                rating: 5,
+                createdAt: sharedCreatedAt
+            ))
+            try context.save()
+        }
+
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let configuration = ModelConfiguration(schema: schema, url: storeURL)
+        let container = try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+        let context = ModelContext(container)
+        let sessions = try context.fetch(
+            FetchDescriptor<SurfSession>(sortBy: [SortDescriptor(\.rating)])
+        )
+
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertEqual(sessions[0].gear.map(\.name), ["Duplicate Fish"])
+        XCTAssertEqual(sessions[0].buddies.map(\.name), ["Duplicate Kai"])
+        XCTAssertEqual(sessions[1].gear.map(\.name), ["Duplicate Log"])
+        XCTAssertEqual(sessions[1].buddies.map(\.name), ["Duplicate Nia"])
+    }
+
+    /// Guards the "HEAD schema references the live models" convention. `PeakSchemaV11` is HEAD and its
     /// `models` are the live `@Model` classes, so editing a model field silently redefines the shipped
     /// 1.9.0 schema — and a store already at 1.9.0 then fails to open and is shunted to the recovery
     /// archive. This test pins HEAD's shape. When it fails: FREEZE the current HEAD as an inline
@@ -206,6 +332,28 @@ final class ModelMigrationTests: XCTestCase {
     /// (SwiftData rejects two identical-shape schemas in one plan — "duplicate version checksums" — so
     /// the freeze is only valid alongside a genuine shape change, which is exactly when this fires.)
     func testHeadSchemaShapeIsPinned() throws {
+        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        var actual: [String: [String]] = [:]
+        for entity in schema.entities {
+            actual[entity.name] = (entity.attributes.map(\.name) + entity.relationships.map(\.name)).sorted()
+        }
+
+        let expected: [String: [String]] = [
+            "Spot": ["createdAt", "key", "latitude", "locationName", "longitude", "name", "tideStationId"],
+            "Gear": ["brand", "createdAt", "isArchived", "key", "kind", "model", "name", "notes", "photoData", "sessions", "size", "volumeLiters"],
+            "Buddy": ["createdAt", "key", "name", "sessions"],
+            "SessionMedia": ["createdAt", "cropHeight", "cropOriginX", "cropOriginY", "cropWidth", "kind", "photoData", "sortIndex", "thumbnailData", "videoFileName"],
+            "SurfSession": ["buddies", "conditionsFetchedAt", "conditionsLatitude", "conditionsLongitude", "conditionsSource", "createdAt", "date", "durationMinutes", "gear", "linkedWorkoutID", "longestRideMeters", "longestRideSeconds", "media", "notes", "paddleDistanceMeters", "rating", "seaLevelHeightM", "seaSurfaceTemperatureC", "spot", "swellWaveDirectionDegrees", "swellWaveHeightMeters", "swellWavePeriodSeconds", "tideTrend", "topSpeedKph", "updatedAt", "waveCount", "waveHeight", "waveHeightMeters", "waveStatsSource", "windCondition", "windDirectionDegrees", "windSpeedKph", "windWaveDirectionDegrees", "windWaveHeightMeters", "windWavePeriodSeconds"],
+        ]
+
+        XCTAssertEqual(
+            actual,
+            expected,
+            "HEAD (PeakSchemaV11) model shape changed. Freeze it as a versioned snapshot + add a new HEAD/stage before changing model fields, then update `expected`."
+        )
+    }
+
+    func testFrozenV10SnapshotShapeIsPinned() throws {
         let schema = Schema(versionedSchema: PeakSchemaV10.self)
         var actual: [String: [String]] = [:]
         for entity in schema.entities {
@@ -220,11 +368,7 @@ final class ModelMigrationTests: XCTestCase {
             "SurfSession": ["buddies", "conditionsFetchedAt", "conditionsLatitude", "conditionsLongitude", "conditionsSource", "createdAt", "date", "durationMinutes", "gear", "linkedWorkoutID", "longestRideMeters", "longestRideSeconds", "media", "notes", "paddleDistanceMeters", "rating", "seaLevelHeightM", "seaSurfaceTemperatureC", "spot", "swellWaveDirectionDegrees", "swellWaveHeightMeters", "swellWavePeriodSeconds", "tideTrend", "topSpeedKph", "updatedAt", "waveCount", "waveHeight", "waveHeightMeters", "waveStatsSource", "windCondition", "windDirectionDegrees", "windSpeedKph", "windWaveDirectionDegrees", "windWaveHeightMeters", "windWavePeriodSeconds"],
         ]
 
-        XCTAssertEqual(
-            actual,
-            expected,
-            "HEAD (PeakSchemaV10) model shape changed. Freeze it as a versioned snapshot + add a new HEAD/stage before changing model fields, then update `expected`."
-        )
+        XCTAssertEqual(actual, expected, "The frozen PeakSchemaV10 snapshot changed. It must never change again.")
     }
 
     /// The frozen 1.8.0 snapshot must stay frozen. If a later change accidentally edits `PeakSchemaV9`

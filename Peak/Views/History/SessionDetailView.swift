@@ -97,7 +97,7 @@ struct SessionDetailView: View {
             activity.isEligibleForSearch = true
             activity.isEligibleForPrediction = true
             activity.isEligibleForHandoff = false
-            if #available(iOS 18.0, *) {
+            if #available(iOS 18.2, *) {
                 activity.appEntityIdentifier = EntityIdentifier(for: SurfSessionEntity(session: session))
             }
         }

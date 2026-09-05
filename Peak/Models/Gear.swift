@@ -14,6 +14,7 @@ final class Gear {
     @Attribute(.externalStorage) var photoData: Data?
     var isArchived: Bool = false
     var createdAt: Date
+    @Relationship(deleteRule: .nullify) var sessions: [SurfSession] = []
 
     init(
         name: String,

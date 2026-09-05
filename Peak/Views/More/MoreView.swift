@@ -24,6 +24,9 @@ struct MoreView: View {
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityLabel("Settings")
+                            .accessibilityHint("Opens app settings")
+                            .accessibilityIdentifier("more.settings")
 
                             NavigationLink {
                                 YearInReviewView()
@@ -35,6 +38,9 @@ struct MoreView: View {
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityLabel("Year in Review")
+                            .accessibilityHint("Opens your yearly surf summary")
+                            .accessibilityIdentifier("more.yearInReview")
 
                             NavigationLink {
                                 SpotLibraryView()
@@ -46,6 +52,9 @@ struct MoreView: View {
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityLabel("Spots")
+                            .accessibilityHint("Opens your surf spot library")
+                            .accessibilityIdentifier("more.spots")
 
                             NavigationLink {
                                 BuddyLibraryView()
@@ -57,6 +66,9 @@ struct MoreView: View {
                                     .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityLabel("Buddies")
+                            .accessibilityHint("Opens your surf buddy library")
+                            .accessibilityIdentifier("more.buddies")
                         }
                     }
                     .padding()
@@ -81,10 +93,7 @@ struct MoreView: View {
         }
     }
 
-    /// iOS 18 hosts Spots as its own tab, so `SpotLibraryView` owns the pending
-    /// id there. On iOS 17 the coordinator lands on More instead.
     private func consumePendingSpotIfNeeded() {
-        if #available(iOS 18.0, *) { return }
         guard navigation.selectedTab == .more else { return }
         guard let id = navigation.pendingSpotID else { return }
         _ = navigation.consumePendingSpot()

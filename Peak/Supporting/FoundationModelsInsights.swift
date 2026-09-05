@@ -67,8 +67,12 @@ nonisolated enum InsightsModel {
 
     /// `nil` whenever there is nothing to ask. Callers must treat that as normal.
     static func makeGenerator() -> (any InsightsGenerating)? {
-        if let stub = stubGenerator() {
-            return stub
+        // UI tests explicitly cover both states: no model by default, and the
+        // model-written layout only when the stub scenario is requested. Do not
+        // let a simulator runtime that reports a transiently available system
+        // model make those two contracts nondeterministic.
+        if TestingDefaults.isUITest {
+            return stubGenerator()
         }
         #if canImport(FoundationModels)
         if #available(iOS 26.0, *), availability.isAvailable {

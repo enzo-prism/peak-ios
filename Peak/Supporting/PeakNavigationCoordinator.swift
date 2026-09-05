@@ -78,7 +78,9 @@ final class PeakNavigationCoordinator {
             selectedTab = .history
             pendingSessionID = id
         case .spot(let id):
-            selectedTab = sidebarLibraryTabAvailable ? .spots : .more
+            // More exists in every shell and can always resolve the pending
+            // spot. Sidebar-only tabs are intentionally absent on iPhone.
+            selectedTab = .more
             pendingSpotID = id
         case .gear(let id):
             selectedTab = .quiver
@@ -116,11 +118,4 @@ final class PeakNavigationCoordinator {
         return value
     }
 
-    /// iOS 18+ tab view can host Spots / Search as real tabs. Below that, those
-    /// destinations live under History / More and the selected-tab binding must
-    /// point at a tab that actually exists.
-    private var sidebarLibraryTabAvailable: Bool {
-        if #available(iOS 18.0, *) { return true }
-        return false
-    }
 }
