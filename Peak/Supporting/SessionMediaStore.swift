@@ -184,12 +184,14 @@ enum SessionMediaStore {
 
 /// Stages editor video copies while originals and picker sources remain intact.
 /// File deletion is committed only after the model save succeeds.
-final class SessionMediaSaveTransaction {
+// Value semantics also avoid the isolated-class destructor back-deployment
+// path, which crashes on affected runtimes when released outside a Swift task.
+struct SessionMediaSaveTransaction {
     var removedVideoNames: [String] = []
     private var createdVideoNames: [String] = []
     private var stagedSources: [URL] = []
 
-    func stageVideo(from source: URL, thumbnailData: Data?) throws -> StoredSessionVideo {
+    mutating func stageVideo(from source: URL, thumbnailData: Data?) throws -> StoredSessionVideo {
         let copy = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension(source.pathExtension.isEmpty ? "mov" : source.pathExtension)

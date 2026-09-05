@@ -522,47 +522,41 @@ enum PeakExportManager {
     }
 
     /// Commit the import before reporting success. Existing pending UI edits
-    /// are saved first, so a failed import never rolls those edits back.
-    @discardableResult
+    /// are saved first, so a failed import never loses those edits.
     static func applyImport(
         _ export: PeakExport,
         mode: ImportMode,
         context: ModelContext,
         save: (ModelContext) throws -> Void = { try $0.save() }
-    ) throws -> [String: SurfSession] {
+    ) throws {
         _ = try validateImport(export, mode: mode, context: context)
-        return try withImportTransaction(context: context, save: save) {
-            try stageImport(export, mode: mode, context: context)
+        try withImportTransaction(context: context, save: save) { transaction in
+            _ = try stageImport(export, mode: mode, context: transaction)
         }
     }
 
-    /// No filesystem deletion may occur while a database transaction can fail.
-    /// Capture filenames before model invalidation; collect only unreferenced
-    /// originals after the new database state has actually committed.
-    static func withImportTransaction<T>(
+    /// Use a private context for deletion-heavy imports. SwiftData rollback of
+    /// a cascade-deleted SessionMedia graph can trap while creating snapshots
+    /// of external-storage backing data. Failed work is instead discarded with
+    /// this autosave-disabled context; the caller's live models are untouched.
+    /// No model escapes this scope. Successful callers must refresh their UI
+    /// context in response to peakLibraryDidImport to avoid stale cached models.
+    static func withImportTransaction(
         context: ModelContext,
         save: (ModelContext) throws -> Void,
-        operation: () throws -> T
-    ) throws -> T {
-        // This save is intentionally outside the rollback scope. A caller may
-        // have unrelated editor changes pending in the shared main context.
+        operation: (ModelContext) throws -> Void
+    ) throws {
         if context.hasChanges { try context.save() }
-        let originals = try videoFileNames(context: context)
-        let autosaveWasEnabled = context.autosaveEnabled
-        context.autosaveEnabled = false
-        defer { context.autosaveEnabled = autosaveWasEnabled }
-        do {
-            let result = try operation()
-            let retained = try videoFileNames(context: context)
-            try save(context)
-            for name in originals.subtracting(retained) {
-                SessionMediaStore.deleteVideoFile(named: name)
-            }
-            return result
-        } catch {
-            context.rollback()
-            throw error
+        let transaction = ModelContext(context.container)
+        transaction.autosaveEnabled = false
+        let originals = try videoFileNames(context: transaction)
+        try operation(transaction)
+        let retained = try videoFileNames(context: transaction)
+        try save(transaction)
+        for name in originals.subtracting(retained) {
+            SessionMediaStore.deleteVideoFile(named: name)
         }
+        NotificationCenter.default.post(name: .peakLibraryDidImport, object: context.container)
     }
 
     private static func videoFileNames(context: ModelContext) throws -> Set<String> {
@@ -829,4 +823,12 @@ enum ExportDateFormatter {
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter.string(from: date)
     }
+}
+
+
+extension Notification.Name {
+    static let peakLibraryDidChange = Notification.Name("peakLibraryDidChange")
+    /// A private import context committed. Recreate the UI model context before
+    /// showing completion so existing @Query/model caches cannot show old rows.
+    static let peakLibraryDidImport = Notification.Name("peakLibraryDidImport")
 }

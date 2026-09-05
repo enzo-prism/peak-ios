@@ -30,7 +30,7 @@ jobs:
           DESTINATION_OS: latest
         run: ./scripts/test.sh
       - name: Verify test count and record source
-        run: python3 scripts/check-test-results.py .build/TestResults.xcresult 591
+        run: python3 scripts/check-test-results.py .build/TestResults.xcresult 594
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,7 +54,7 @@ jobs:
         run: ./scripts/design-check.sh
       - name: Verify complete suites and record source
         run: |
-          python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 591
+          python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 594
           python3 scripts/check-test-results.py artifacts/design-check/iphone/UITests.xcresult 63
           python3 scripts/check-test-results.py artifacts/design-check/ipad/UITests.xcresult 63
       - name: Upload device test evidence

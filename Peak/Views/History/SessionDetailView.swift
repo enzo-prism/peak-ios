@@ -120,20 +120,22 @@ struct SessionDetailView: View {
         }
         .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
-                let videoNames = session.media.compactMap(\.videoFileName)
-                let healthDeletion = HealthKitService.shared.workoutDeletion(for: session)
-                modelContext.delete(session)
                 do {
-                    try modelContext.save()
+                    let transaction = try SessionPersistence.stagingContext(from: modelContext)
+                    let deleting = try SessionPersistence.resolve(session, in: transaction)
+                    let videoNames = deleting.media.compactMap(\.videoFileName)
+                    let healthDeletion = HealthKitService.shared.workoutDeletion(for: deleting)
+                    transaction.delete(deleting)
+                    try transaction.save()
+                    videoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+                    HealthKitService.shared.deleteWorkout(healthDeletion)
                 } catch {
-                    modelContext.rollback()
                     showDeleteError = true
                     return
                 }
-                videoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
-                HealthKitService.shared.deleteWorkout(healthDeletion)
                 didDelete = true
                 dismiss()
+                NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container)
             }
             Button("Cancel", role: .cancel) {}
         }

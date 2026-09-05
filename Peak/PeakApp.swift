@@ -65,7 +65,7 @@ struct PeakApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(outcome: storeOutcome)
+            RootView(outcome: storeOutcome, container: container)
                 .modelContainer(container)
         }
     }
@@ -75,6 +75,11 @@ struct PeakApp: App {
 /// recovery to the user without modifying `ContentView` itself.
 private struct RootView: View {
     let outcome: StoreLoadOutcome
+    private let container: ModelContainer
+    @State private var libraryContext: ModelContext
+    @State private var libraryGeneration = UUID()
+    @State private var isImportCompletePresented = false
+    @State private var savedSessionWarning: String?
 
     @AppStorage(WelcomeExperience.hasSeenWelcomeKey) private var hasSeenWelcome = false
     @State private var didEvaluateOutcome = false
@@ -86,8 +91,39 @@ private struct RootView: View {
     @State private var isPreparingRecoveryCopy = false
     @State private var isExportErrorPresented = false
 
+    init(outcome: StoreLoadOutcome, container: ModelContainer) {
+        self.outcome = outcome
+        self.container = container
+        _libraryContext = State(initialValue: container.mainContext)
+    }
+
     var body: some View {
         ContentView()
+            .id(libraryGeneration)
+            .environment(\.modelContext, libraryContext)
+            .onReceive(NotificationCenter.default.publisher(for: .peakLibraryDidImport)) { notification in
+                if refreshLibrary(after: notification) {
+                    isImportCompletePresented = true
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .peakLibraryDidChange)) { notification in
+                if refreshLibrary(after: notification) {
+                    savedSessionWarning = notification.userInfo?["message"] as? String
+                }
+            }
+            .alert("Import Complete", isPresented: $isImportCompletePresented) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Your backup has been saved. Your updated library is ready.")
+            }
+            .alert("Session Saved", isPresented: Binding(
+                get: { savedSessionWarning != nil },
+                set: { if !$0 { savedSessionWarning = nil } }
+            )) {
+                Button("OK", role: .cancel) { savedSessionWarning = nil }
+            } message: {
+                Text(savedSessionWarning ?? "")
+            }
             .safeAreaInset(edge: .bottom) {
                 if outcome != .normal {
                     HStack {
@@ -140,6 +176,20 @@ private struct RootView: View {
             } message: {
                 Text("Your recovery files are still on this device. Free up device storage and try again. Do not delete Peak while your library needs recovery.")
             }
+    }
+
+    private func refreshLibrary(after notification: Notification) -> Bool {
+        guard let changedContainer = notification.object as? ModelContainer,
+              changedContainer === container else { return false }
+        // Private-context commits must retire old query models and navigation
+        // selections together. The shared navigation coordinator keeps the tab.
+        let refreshed = ModelContext(container)
+        refreshed.autosaveEnabled = true
+        libraryContext = refreshed
+        PeakIntentStore.register(container, context: refreshed)
+        QuickLogCoordinator.shared.showNewSession = false
+        libraryGeneration = UUID()
+        return true
     }
 
     private var archivedPath: String? {

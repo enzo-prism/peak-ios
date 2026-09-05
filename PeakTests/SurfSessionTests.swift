@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 
 @testable import Peak
@@ -188,7 +189,7 @@ final class SurfSessionTests: XCTestCase {
             SessionMediaStore.deleteTemporaryFiles([source, oldSource])
             SessionMediaStore.deleteVideoFile(named: original.fileName)
         }
-        let changes = SessionMediaSaveTransaction()
+        var changes = SessionMediaSaveTransaction()
         changes.removedVideoNames = [original.fileName]
         let staged = try changes.stageVideo(from: source, thumbnailData: nil)
         var rolledBack = false
@@ -199,7 +200,7 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: SessionMediaStore.videoURL(for: original.fileName)), Data("original".utf8))
         XCTAssertFalse(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: staged.fileName).path))
         // Retry uses the same still-usable draft source.
-        let retry = SessionMediaSaveTransaction()
+        var retry = SessionMediaSaveTransaction()
         let retried = try retry.stageVideo(from: source, thumbnailData: nil)
         defer { SessionMediaStore.deleteVideoFile(named: retried.fileName) }
         try retry.persist(save: {}, rollbackModel: { XCTFail("Successful retry must not roll back") })
@@ -213,7 +214,7 @@ final class SurfSessionTests: XCTestCase {
         try Data("draft".utf8).write(to: source)
         try Data("original".utf8).write(to: oldSource)
         let original = try SessionMediaStore.storeVideo(from: oldSource, thumbnailData: nil)
-        let changes = SessionMediaSaveTransaction()
+        var changes = SessionMediaSaveTransaction()
         changes.removedVideoNames = [original.fileName]
         let staged = try changes.stageVideo(from: source, thumbnailData: nil)
         defer {
@@ -228,6 +229,87 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: original.fileName).path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: staged.fileName).path))
+    }
+
+    @MainActor
+    private func sessionPersistenceFixture() throws -> (ModelContext, SurfSession, String) {
+        let schema = Schema(versionedSchema: PeakDataStore.headSchema)
+        let container = try ModelContainer(for: schema, configurations: [
+            ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        ])
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let spot = Spot(name: "Private transaction break")
+        let gear = Gear(name: "Private transaction board", kind: .board)
+        let buddy = Buddy(name: "Private transaction buddy")
+        context.insert(spot)
+        context.insert(gear)
+        context.insert(buddy)
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent("fixture-\(UUID()).mov")
+        try Data("original video".utf8).write(to: source)
+        let video = try SessionMediaStore.storeVideo(from: source, thumbnailData: nil)
+        let media = SessionMedia(kind: .video, videoFileName: video.fileName)
+        context.insert(media)
+        let session = SurfSession(date: Date(), spot: spot, gear: [gear], buddies: [buddy], media: [media], notes: "original")
+        context.insert(session)
+        try context.save()
+        return (context, session, video.fileName)
+    }
+
+    @MainActor
+    func testPrivateEditorMediaDeletionFailedSavePreservesSourceModelsAndVideo() throws {
+        enum ExpectedFailure: Error { case save }
+        let (source, original, fileName) = try sessionPersistenceFixture()
+        defer { SessionMediaStore.deleteVideoFile(named: fileName) }
+        do {
+            let transaction = try SessionPersistence.stagingContext(from: source)
+            let edited = try SessionPersistence.resolve(original, in: transaction)
+            XCTAssertTrue(edited.modelContext === transaction)
+            XCTAssertTrue(edited.spot?.modelContext === transaction)
+            XCTAssertTrue(edited.gear[0].modelContext === transaction)
+            XCTAssertTrue(edited.buddies[0].modelContext === transaction)
+            let removed = try XCTUnwrap(edited.media.first)
+            XCTAssertTrue(removed.modelContext === transaction)
+            edited.notes = "changed only in failed transaction"
+            transaction.delete(removed)
+            edited.media = []
+            var changes = SessionMediaSaveTransaction()
+            changes.removedVideoNames = [fileName]
+            XCTAssertThrowsError(try changes.persist(save: { throw ExpectedFailure.save }, rollbackModel: {}))
+            // Discard this context; never invoke rollback with invalidated media.
+        }
+        XCTAssertEqual(original.notes, "original")
+        XCTAssertEqual(original.media.map(\.videoFileName), [fileName])
+        let readback = ModelContext(source.container)
+        XCTAssertEqual(try readback.fetch(FetchDescriptor<SessionMedia>()).count, 1)
+        XCTAssertEqual(try readback.fetch(FetchDescriptor<SurfSession>()).first?.notes, "original")
+        XCTAssertEqual(try Data(contentsOf: SessionMediaStore.videoURL(for: fileName)), Data("original video".utf8))
+    }
+
+    @MainActor
+    func testPrivateSessionCascadeFailedSavePreservesSessionMediaAndAllowsRetry() throws {
+        enum ExpectedFailure: Error { case save }
+        let (source, original, fileName) = try sessionPersistenceFixture()
+        defer { SessionMediaStore.deleteVideoFile(named: fileName) }
+        do {
+            let transaction = try SessionPersistence.stagingContext(from: source)
+            let deleted = try SessionPersistence.resolve(original, in: transaction)
+            transaction.delete(deleted)
+            var changes = SessionMediaSaveTransaction()
+            changes.removedVideoNames = [fileName]
+            XCTAssertThrowsError(try changes.persist(save: { throw ExpectedFailure.save }, rollbackModel: {}))
+        }
+        XCTAssertEqual(original.media.map(\.videoFileName), [fileName])
+        let readback = ModelContext(source.container)
+        XCTAssertEqual(try readback.fetch(FetchDescriptor<SurfSession>()).count, 1)
+        XCTAssertEqual(try readback.fetch(FetchDescriptor<SessionMedia>()).count, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: SessionMediaStore.videoURL(for: fileName).path))
+        let retry = try SessionPersistence.stagingContext(from: source)
+        retry.delete(try SessionPersistence.resolve(original, in: retry))
+        try retry.save()
+        let verified = ModelContext(source.container)
+        XCTAssertEqual(try verified.fetch(FetchDescriptor<SurfSession>()).count, 0)
+        XCTAssertEqual(try verified.fetch(FetchDescriptor<SessionMedia>()).count, 0)
     }
 
     func testOverlapMatcherTreatsSharedBoundaryAsNonOverlapping() {

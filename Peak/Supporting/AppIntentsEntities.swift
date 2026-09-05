@@ -11,12 +11,14 @@ import UniformTypeIdentifiers
 @MainActor
 enum PeakIntentStore {
     private static var registered: ModelContainer?
+    private static var registeredContext: ModelContext?
     private static var fallback: ModelContainer?
 
     /// Called by `PeakApp` so intents share the app's container — and, under UI
     /// tests, its seeded in-memory store — instead of opening a second one.
-    static func register(_ container: ModelContainer) {
+    static func register(_ container: ModelContainer, context: ModelContext? = nil) {
         registered = container
+        registeredContext = context ?? container.mainContext
     }
 
     static var container: ModelContainer? {
@@ -50,7 +52,7 @@ enum PeakIntentStore {
 
     private static func fetch<T: PersistentModel>(_ descriptor: FetchDescriptor<T>) -> [T] {
         guard let container else { return [] }
-        return (try? container.mainContext.fetch(descriptor)) ?? []
+        return (try? (registeredContext ?? container.mainContext).fetch(descriptor)) ?? []
     }
 }
 

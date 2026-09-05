@@ -157,7 +157,7 @@ enum BackupManager {
     ///
     /// Decode/write new media before mutation. Commit all model changes before
     /// deleting old videos or returning success. Failure removes only staged
-    /// new files and rolls back only this import, preserving prior caller edits.
+    /// new files and discards the private import context, preserving caller edits.
     static func restore(
         from url: URL,
         mode: ImportMode,
@@ -168,8 +168,8 @@ enum BackupManager {
 
         do {
             _ = try PeakExportManager.validateImport(file.export, mode: mode, context: context)
-            try PeakExportManager.withImportTransaction(context: context, save: save) {
-                try applyRestore(file: file, preparedMedia: preparedMedia, mode: mode, context: context)
+            try PeakExportManager.withImportTransaction(context: context, save: save) { transaction in
+                try applyRestore(file: file, preparedMedia: preparedMedia, mode: mode, context: transaction)
             }
         } catch {
             for name in preparedMedia.compactMap(\.videoFileName) {

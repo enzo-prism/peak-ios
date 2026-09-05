@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Status at a glance:
 
-- **3.4 development candidate:** build **1**, schema V12. Expected gate: **591 unit / 63 UI cases per device**; final execution evidence is required before release.
+- **3.4 development candidate:** build **1**, schema V12. Expected gate: **594 unit / 63 UI cases per device**; final execution evidence is required before release.
 
 - **App Store (live):** `3.2` build **1** — `READY_FOR_DISTRIBUTION` in App Store Connect.
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
@@ -16,6 +16,8 @@ Status at a glance:
 ## [3.4] — Unreleased reliability update
 
 ### Changed
+
+- Stage imports, session edits, and deletions in private contexts so failed saves leave original models and videos intact without SwiftData rollback crashes. Refresh the visible library and intent queries after successful commits. Use value semantics for editor media bookkeeping to avoid an isolated-destructor runtime crash.
 
 - Added portable session UUIDs with a frozen V11 schema and V12 migration. New v2 exports/backups retain distinct sessions and media even when creation timestamps match; legacy v1 input remains supported and ambiguous identities fail before changes are applied.
 - Updated Health workout identity and retained conservative matching for older Peak workouts, so ambiguous legacy records are preserved instead of deleting another session's workout.

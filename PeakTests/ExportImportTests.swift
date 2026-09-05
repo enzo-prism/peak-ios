@@ -23,8 +23,8 @@ final class ExportImportTests: XCTestCase {
         let target = ModelContext(try makeContainer())
         for _ in 0..<2 {
             try await BackupManager.restore(from: url, mode: .merge, context: target)
-            try target.save()
-            let sessions = try target.fetch(FetchDescriptor<SurfSession>())
+            let readback = ModelContext(target.container)
+            let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
             XCTAssertEqual(sessions.count, 2)
             XCTAssertEqual(Set(sessions.compactMap(\.sessionID)), Set([a, b].compactMap(\.sessionID)))
             XCTAssertEqual(sessions.first { $0.notes == "A" }?.media.map(\.photoData), [Data([1, 2, 3])])
@@ -62,7 +62,8 @@ final class ExportImportTests: XCTestCase {
         object["schema_version"] = "peak_export_v1"
         let legacy = try PeakExportManager.decodeJSON(JSONSerialization.data(withJSONObject: object))
         try PeakExportManager.applyImport(legacy, mode: .merge, context: context)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<SurfSession>()).compactMap(\.sessionID), [try XCTUnwrap(id)])
+        let readback = ModelContext(context.container)
+        XCTAssertEqual(try readback.fetch(FetchDescriptor<SurfSession>()).compactMap(\.sessionID), [try XCTUnwrap(id)])
     }
 
     private enum InjectedImportSaveFailure: Error { case failed }
@@ -101,6 +102,9 @@ final class ExportImportTests: XCTestCase {
                 })
                 XCTFail("Injected commit failure must be reported")
             } catch InjectedImportSaveFailure.failed { }
+            XCTAssertEqual(original.notes, "Pending local edit")
+            XCTAssertEqual(original.media.first?.videoFileName, name)
+            XCTAssertFalse(context.hasChanges)
             let fresh = ModelContext(container)
             let persisted = try fresh.fetch(FetchDescriptor<SurfSession>())
             XCTAssertEqual(persisted.count, 1)
@@ -136,7 +140,8 @@ final class ExportImportTests: XCTestCase {
             XCTAssertTrue(committed)
             XCTAssertFalse(context.hasChanges)
             XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
-            let persisted = try ModelContext(container).fetch(FetchDescriptor<SurfSession>())
+            let readback = ModelContext(container)
+            let persisted = try readback.fetch(FetchDescriptor<SurfSession>())
             XCTAssertEqual(persisted.count, 1)
             let restoredName = try XCTUnwrap(persisted.first?.media.first?.videoFileName)
             defer { SessionMediaStore.deleteVideoFile(named: restoredName) }
@@ -161,11 +166,40 @@ final class ExportImportTests: XCTestCase {
         XCTAssertThrowsError(try PeakExportManager.applyImport(empty, mode: .replace, context: context, save: { _ in
             throw InjectedImportSaveFailure.failed
         }))
-        XCTAssertEqual(try ModelContext(container).fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Keep me"])
+        let failureReadback = ModelContext(container)
+        XCTAssertEqual(try failureReadback.fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Keep me"])
+        XCTAssertEqual(original.notes, "Keep me", "Failure must leave caller models usable")
         XCTAssertEqual(try Data(contentsOf: originalURL), bytes)
         try PeakExportManager.applyImport(empty, mode: .replace, context: context)
-        XCTAssertTrue(try ModelContext(container).fetch(FetchDescriptor<SurfSession>()).isEmpty)
+        let successReadback = ModelContext(container)
+        XCTAssertTrue(try successReadback.fetch(FetchDescriptor<SurfSession>()).isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: originalURL.path))
+    }
+
+    func testCommittedImportRequestsFreshUIContextWithUpdatedLibrary() async throws {
+        let container = try makeDiskImportContainer()
+        let context = ModelContext(container)
+        let previousIntentContainer = PeakIntentStore.container
+        defer {
+            if let previousIntentContainer { PeakIntentStore.register(previousIntentContainer) }
+        }
+        let original = SurfSession(date: Date(), spot: nil, notes: "Original")
+        context.insert(original)
+        try context.save()
+        PeakIntentStore.register(container, context: context)
+        XCTAssertEqual(PeakIntentStore.sessions().map(\.notes), ["Original"])
+        let replacement = SurfSession(date: Date(), spot: nil, notes: "Imported")
+        let payload = PeakExportManager.makeExport(sessions: [replacement], spots: [], gear: [], buddies: [])
+        let refreshed = expectation(forNotification: .peakLibraryDidImport, object: container)
+        try PeakExportManager.applyImport(payload, mode: .replace, context: context)
+        await fulfillment(of: [refreshed], timeout: 1)
+        // The UI refresh listener creates this context instead of reusing the
+        // original context's cached model graph.
+        let refreshedContext = ModelContext(container)
+        PeakIntentStore.register(container, context: refreshedContext)
+        XCTAssertEqual(PeakIntentStore.sessions().map(\.notes), ["Imported"])
+        XCTAssertEqual(try refreshedContext.fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Imported"])
+        XCTAssertFalse(context.hasChanges)
     }
 
     func testExportImportMergeRoundTrip() throws {
@@ -230,9 +264,10 @@ final class ExportImportTests: XCTestCase {
         targetContext.insert(existingSpot)
 
         try PeakExportManager.applyImport(decoded, mode: .merge, context: targetContext)
+        let readback = ModelContext(targetContext.container)
 
-        let spots = try targetContext.fetch(FetchDescriptor<Spot>())
-        let sessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        let spots = try readback.fetch(FetchDescriptor<Spot>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
 
         XCTAssertEqual(spots.count, 2)
         XCTAssertEqual(sessions.count, 1)
@@ -244,7 +279,7 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(importedSpot?.locationName, "San Clemente, CA")
         XCTAssertEqual(importedSpot?.latitude ?? 0, 33.384, accuracy: 0.0001)
         XCTAssertEqual(importedSpot?.longitude ?? 0, -117.593, accuracy: 0.0001)
-        let importedGear = try targetContext.fetch(FetchDescriptor<Gear>()).first { $0.name == "6'2\" Fish" }
+        let importedGear = try readback.fetch(FetchDescriptor<Gear>()).first { $0.name == "6'2\" Fish" }
         XCTAssertEqual(importedGear?.brand, "Channel Islands")
         XCTAssertEqual(importedGear?.model, "Fishbeard")
         XCTAssertEqual(importedGear?.size, "6'2\"")
@@ -282,9 +317,10 @@ final class ExportImportTests: XCTestCase {
         targetContext.insert(existingSpot)
 
         try PeakExportManager.applyImport(decoded, mode: .replace, context: targetContext)
+        let readback = ModelContext(targetContext.container)
 
-        let spots = try targetContext.fetch(FetchDescriptor<Spot>())
-        let sessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        let spots = try readback.fetch(FetchDescriptor<Spot>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
 
         XCTAssertEqual(spots.count, 1)
         XCTAssertEqual(spots.first?.name, "Trestles")
@@ -379,12 +415,13 @@ final class ExportImportTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
         try PeakExportManager.applyImport(export, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let spots = try context.fetch(FetchDescriptor<Spot>())
+        let spots = try readback.fetch(FetchDescriptor<Spot>())
         XCTAssertEqual(spots.count, 1)
         XCTAssertEqual(spots.first?.name, "New Spot")
 
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1)
         XCTAssertTrue(sessions.first?.gear.isEmpty ?? false)
     }
@@ -451,8 +488,9 @@ final class ExportImportTests: XCTestCase {
         let targetContainer = try makeContainer()
         let targetContext = ModelContext(targetContainer)
         try await BackupManager.restore(from: backupURL, mode: .merge, context: targetContext)
+        let readback = ModelContext(targetContext.container)
 
-        let restoredSessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        let restoredSessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(restoredSessions.count, 1)
         let restored = try XCTUnwrap(restoredSessions.first)
         XCTAssertEqual(restored.spot?.name, "Uluwatu")
@@ -914,8 +952,9 @@ final class ExportImportTests: XCTestCase {
         let decoded = try PeakExportManager.decodeJSON(try PeakExportManager.jsonData(from: export))
 
         try PeakExportManager.applyImport(decoded, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1, "Re-importing an export must not duplicate the existing session")
     }
 
@@ -941,8 +980,9 @@ final class ExportImportTests: XCTestCase {
 
         // Restore the same backup into the library that still holds the original.
         try await BackupManager.restore(from: backupURL, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.media.count, 1, "Merge restore must not duplicate media on an existing session")
     }
@@ -986,8 +1026,9 @@ final class ExportImportTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
         try await BackupManager.restore(from: url, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.media.count, 0, "Corrupt video payloads must be skipped, not restored as broken rows")
     }
@@ -1044,8 +1085,9 @@ final class ExportImportTests: XCTestCase {
         let container = try makeContainer()
         let context = ModelContext(container)
         try PeakExportManager.applyImport(export, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let sessions = try context.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.first?.rating, 5, "Out-of-range imported rating must clamp to the 0...5 scale")
     }
 
@@ -1110,8 +1152,9 @@ final class ExportImportTests: XCTestCase {
 
         let targetContext = ModelContext(try makeContainer())
         try PeakExportManager.applyImport(decoded, mode: .merge, context: targetContext)
+        let readback = ModelContext(targetContext.container)
 
-        let sessions = try targetContext.fetch(FetchDescriptor<SurfSession>())
+        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(sessions.count, 1)
         let round = try XCTUnwrap(sessions.first)
         XCTAssertEqual(round.waveCount, 13)
@@ -1139,8 +1182,9 @@ final class ExportImportTests: XCTestCase {
         let decoded = try PeakExportManager.decodeJSON(PeakExportManager.jsonData(from: export))
         let targetContext = ModelContext(try makeContainer())
         try PeakExportManager.applyImport(decoded, mode: .merge, context: targetContext)
+        let readback = ModelContext(targetContext.container)
 
-        let round = try XCTUnwrap(try targetContext.fetch(FetchDescriptor<SurfSession>()).first)
+        let round = try XCTUnwrap(try readback.fetch(FetchDescriptor<SurfSession>()).first)
         XCTAssertNil(round.waveCount)
         XCTAssertNil(round.waveStatsSource)
         XCTAssertNil(round.linkedWorkoutID)
@@ -1174,8 +1218,9 @@ final class ExportImportTests: XCTestCase {
         let decoded = try PeakExportManager.decodeJSON(Data(json.utf8))
         let context = ModelContext(try makeContainer())
         try PeakExportManager.applyImport(decoded, mode: .merge, context: context)
+        let readback = ModelContext(context.container)
 
-        let session = try XCTUnwrap(try context.fetch(FetchDescriptor<SurfSession>()).first)
+        let session = try XCTUnwrap(try readback.fetch(FetchDescriptor<SurfSession>()).first)
         XCTAssertEqual(session.rating, 3)
         XCTAssertNil(session.waveCount)
         XCTAssertNil(session.waveStatsSource)

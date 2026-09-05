@@ -418,7 +418,6 @@ struct SettingsView: View {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             try await BackupManager.restore(from: url, mode: mode, context: modelContext)
-            alertMessage = AlertMessage(title: "Restore Complete", body: "Your backup has been restored.")
         }
     }
 
@@ -439,7 +438,6 @@ struct SettingsView: View {
         guard let payload = importPayload else { return }
         runWork("Importing Backup...", errorTitle: "Import Failed") {
             try PeakExportManager.applyImport(payload, mode: mode, context: modelContext)
-            alertMessage = AlertMessage(title: "Import Complete", body: "Your data has been updated.")
         }
     }
 
