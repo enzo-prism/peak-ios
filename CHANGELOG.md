@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Status at a glance:
 
+- **3.4 development candidate:** build **1**, schema V12. Expected gate: **591 unit / 63 UI cases per device**; final execution evidence is required before release.
+
 - **App Store (live):** `3.2` build **1** — `READY_FOR_DISTRIBUTION` in App Store Connect.
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
 - **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
-## [Unreleased] — System integration: Spotlight, iPad, Health loop, widgets, route map
+## [3.4] — Unreleased reliability update
 
-### Reliability follow-up (after submitted 3.3 build 1)
+### Changed
 
 - Added portable session UUIDs with a frozen V11 schema and V12 migration. New v2 exports/backups retain distinct sessions and media even when creation timestamps match; legacy v1 input remains supported and ambiguous identities fail before changes are applied.
 - Updated Health workout identity and retained conservative matching for older Peak workouts, so ambiguous legacy records are preserved instead of deleting another session's workout.
@@ -21,6 +23,8 @@ Status at a glance:
 - Enabled production iPad navigation in dedicated UI tests and fixed inactive Spots navigation consuming a deep link intended for More.
 - Preserved complete copies before removing unreadable store files, blocked interrupted recovery in the app and App Intents, and retained honest recovery warnings and an explicit recovery-copy export across launches.
 - Added source-linked test receipts, minimum suite-count validation, full iPhone/iPad CI, source/build release records, and a real-surfer validation protocol. Physical-device and ocean acceptance remain distinct from simulator tests.
+
+## [3.3] — Submitted August 31, 2026
 
 Five Apple-platform improvements, with a local-only schema migration for
 explicit gear and buddy inverse relationships. HealthKit
