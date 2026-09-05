@@ -164,7 +164,7 @@ struct ContentView: View {
     /// of compact tab bars prevents iOS from replacing Peak's fifth tab with
     /// the system overflow screen.
     private var showsSidebarTabs: Bool {
-        horizontalSizeClass == .regular && !TestingDefaults.isUITest
+        horizontalSizeClass == .regular && !TestingDefaults.usesClassicNavigation
     }
 
     private func handleDeepLink(_ url: URL) {
@@ -180,12 +180,28 @@ struct ContentView: View {
     }
 
     /// Cheap change signature covering inserts, deletes, and edits (via
-    /// `updatedAt`); also counts spots/gear so new library rows refresh widgets.
+    /// `updatedAt`), plus the indexed library fields so renames and replacements
+    /// refresh Spotlight even when library counts are unchanged.
     private var sessionsStamp: Int {
         var hasher = Hasher()
         hasher.combine(SessionQueryStamp.make(sessions))
-        hasher.combine(spots.count)
-        hasher.combine(gear.count)
+        for session in sessions {
+            hasher.combine(SessionIntentQueries.identifier(for: session))
+            hasher.combine(session.spot?.name)
+            hasher.combine(session.date)
+            hasher.combine(session.rating)
+            hasher.combine(session.durationMinutes)
+        }
+        for spot in spots {
+            hasher.combine(spot.key)
+            hasher.combine(spot.name)
+            hasher.combine(spot.locationName)
+        }
+        for item in gear {
+            hasher.combine(item.key)
+            hasher.combine(item.name)
+            hasher.combine(item.kind.rawValue)
+        }
         return hasher.finalize()
     }
 }
@@ -210,7 +226,7 @@ private struct SearchHistoryTab: View {
 }
 
 /// iPad regular width uses the sidebar-adaptable tab style. Compact (iPhone)
-/// and UI tests keep the classic tab bar so existing XCUI tab taps still work.
+/// keeps the classic tab bar. Legacy flow tests opt into that shell explicitly.
 private struct SidebarAdaptableTabStyle: ViewModifier {
     var enabled: Bool
 

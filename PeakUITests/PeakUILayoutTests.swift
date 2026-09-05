@@ -10,6 +10,7 @@ final class PeakUILayoutTests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         app.launch()
@@ -387,9 +388,17 @@ final class PeakUILayoutTests: XCTestCase {
         tapTab(named: "Quiver")
         tapElement(named: "6'2\" Fish")
 
+        // Prove the row opened its detail before looking for the action.
+        // Gear detail is a LazyVStack: the archive action follows the report,
+        // usage chart and recent sessions, so it may not exist in the AX tree
+        // until scrolling realizes that section on a smaller iPhone viewport.
+        assertExists(app.buttons["library.detail.edit"])
+        let detailScroll = app.scrollViews.firstMatch
+        assertExists(detailScroll)
         let archiveButton = app.buttons["Archive Gear"]
+        scrollToVisible(archiveButton, in: detailScroll)
         assertExists(archiveButton)
-        scrollToVisible(archiveButton, in: app.scrollViews.firstMatch)
+        XCTAssertTrue(archiveButton.isHittable, "Archive action must be reachable in gear detail")
         archiveButton.tap()
 
         assertPopupLayout(

@@ -13,6 +13,9 @@ source "${SCRIPT_DIR}/_common.sh"
 detect_container
 detect_scheme
 
+DESIGN_DEVICE="${DESIGN_DEVICE:-all}"
+case "${DESIGN_DEVICE}" in all|iphone|ipad) ;; *) echo "DESIGN_DEVICE must be all, iphone, or ipad" >&2; exit 2 ;; esac
+
 SUMMARY_READY=0
 IPHONE_NAME=""
 IPHONE_UDID=""
@@ -25,13 +28,15 @@ print_summary() {
   if [[ "${SUMMARY_READY}" -ne 1 ]]; then
     return
   fi
-  echo "Design check summary:"
-  echo "- iPhone: ${IPHONE_NAME} (${IPHONE_UDID})"
-  echo "- iPad: ${IPAD_NAME} (${IPAD_UDID})"
-  echo "- iPhone unit xcresult: ${IPHONE_DIR}/UnitTests.xcresult"
-  echo "- iPhone UI xcresult: ${IPHONE_DIR}/UITests.xcresult"
-  echo "- iPad xcresult: ${IPAD_DIR}/UITests.xcresult"
-  echo "- Screenshots: ${IPHONE_DIR}/screenshot.png, ${IPAD_DIR}/screenshot.png"
+  echo "Design check summary (${DESIGN_DEVICE}):"
+  if [[ "${DESIGN_DEVICE}" != "ipad" ]]; then
+    echo "- iPhone: ${IPHONE_NAME} (${IPHONE_UDID})"
+    echo "- Unit/UI results and screenshot: ${IPHONE_DIR}"
+  fi
+  if [[ "${DESIGN_DEVICE}" != "iphone" ]]; then
+    echo "- iPad: ${IPAD_NAME} (${IPAD_UDID})"
+    echo "- UI results and screenshot: ${IPAD_DIR}"
+  fi
 }
 
 trap 'exit_code=$?; print_summary; if [[ $exit_code -ne 0 ]]; then echo "Design check failed (exit ${exit_code})."; fi' EXIT
@@ -193,12 +198,14 @@ IPAD_DIR="${ARTIFACTS_DIR}/ipad"
 mkdir -p "${IPHONE_DIR}" "${IPAD_DIR}"
 SUMMARY_READY=1
 
-echo "Running unit tests on iPhone: ${IPHONE_NAME}"
-RESULT_BUNDLE="${IPHONE_DIR}/UnitTests.xcresult" \
-DESTINATION_NAME="${IPHONE_NAME}" \
-DERIVED_DATA="${DERIVED_DATA}" \
-CONFIGURATION="${CONFIGURATION}" \
-"${SCRIPT_DIR}/test-unit.sh"
+if [[ "${DESIGN_DEVICE}" != "ipad" ]]; then
+  echo "Running unit tests on iPhone: ${IPHONE_NAME}"
+  RESULT_BUNDLE="${IPHONE_DIR}/UnitTests.xcresult" \
+  DESTINATION_NAME="${IPHONE_NAME}" \
+  DERIVED_DATA="${DERIVED_DATA}" \
+  CONFIGURATION="${CONFIGURATION}" \
+  "${SCRIPT_DIR}/test-unit.sh"
+fi
 
 UI_TEST_TARGET="${UI_TEST_TARGET:-$(detect_ui_test_target)}"
 if [[ -z "${UI_TEST_TARGET}" ]]; then
@@ -206,18 +213,17 @@ if [[ -z "${UI_TEST_TARGET}" ]]; then
   echo "warning: UI test target not found via xcodebuild -list; defaulting to ${UI_TEST_TARGET}."
 fi
 
-run_ui_tests "iPhone: ${IPHONE_NAME}" "${IPHONE_UDID}" "${IPHONE_DIR}/UITests.xcresult"
+if [[ "${DESIGN_DEVICE}" != "ipad" ]]; then
+  run_ui_tests "iPhone: ${IPHONE_NAME}" "${IPHONE_UDID}" "${IPHONE_DIR}/UITests.xcresult"
+  if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
+    capture_screenshot "${IPHONE_UDID}" "${IPHONE_DIR}/screenshot.png" "iPhone"
+  fi
+fi
 
-echo "Booting iPad simulator: ${IPAD_NAME} (${IPAD_UDID})"
-xcrun simctl boot "${IPAD_UDID}" >/dev/null 2>&1 || true
-xcrun simctl bootstatus "${IPAD_UDID}" -b
-open -a Simulator
-
-run_ui_tests "iPad: ${IPAD_NAME}" "${IPAD_UDID}" "${IPAD_DIR}/UITests.xcresult"
-
-if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
-  capture_screenshot "${IPHONE_UDID}" "${IPHONE_DIR}/screenshot.png" "iPhone"
-  capture_screenshot "${IPAD_UDID}" "${IPAD_DIR}/screenshot.png" "iPad"
-else
-  echo "Skipping screenshots because SKIP_SCREENSHOTS=1."
+if [[ "${DESIGN_DEVICE}" != "iphone" ]]; then
+  DESTINATION_NAME="${IPAD_NAME}" DESTINATION_UDID="${IPAD_UDID}" "${SCRIPT_DIR}/boot-sim.sh"
+  run_ui_tests "iPad: ${IPAD_NAME}" "${IPAD_UDID}" "${IPAD_DIR}/UITests.xcresult"
+  if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
+    capture_screenshot "${IPAD_UDID}" "${IPAD_DIR}/screenshot.png" "iPad"
+  fi
 fi

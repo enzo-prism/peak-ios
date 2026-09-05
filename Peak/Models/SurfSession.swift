@@ -3,6 +3,8 @@ import SwiftData
 
 @Model
 final class SurfSession {
+    /// Optional for additive migration; populated and saved by the V12 migration.
+    var sessionID: UUID?
     var date: Date
     var spot: Spot?
     var notes: String
@@ -87,6 +89,7 @@ final class SurfSession {
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
+        self.sessionID = UUID()
         self.date = date
         self.spot = spot
         self.gear = gear

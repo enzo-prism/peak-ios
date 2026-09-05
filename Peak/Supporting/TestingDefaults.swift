@@ -5,6 +5,12 @@ nonisolated enum TestingDefaults {
         ProcessInfo.processInfo.environment["UITESTS"] == "1"
     }
 
+    /// Explicit compatibility lane for older tests that exercise compact flows.
+    /// UI tests otherwise use the same adaptive navigation as the shipped app.
+    static var usesClassicNavigation: Bool {
+        isUITest && ProcessInfo.processInfo.environment["UITESTS_CLASSIC_NAVIGATION"] == "1"
+    }
+
     static var isAdCapture: Bool {
         ProcessInfo.processInfo.environment["PEAK_AD_CAPTURE"] == "1"
     }

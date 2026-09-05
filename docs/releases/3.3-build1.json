@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "state": "historical_observation",
+  "observed_at": "2026-09-05T02:03:10.845332+00:00",
+  "version": "3.3",
+  "build": "1",
+  "recorded_intended_source": {
+    "commit": "9ad9d601dc28ad9481cd714d23cba15492936e6c",
+    "tree": "3b343671d0a37fb679b9eeaff531dd2ca1575f0e"
+  },
+  "provenance": {
+    "source_stamped_in_original_build": false,
+    "cryptographically_proven_source_build_link": false,
+    "limitation": "The original build was not source-stamped and no before/after receipt exists. The commit is the recorded intended release source, not cryptographically proven compiler input. Artifact hashes identify the locally observed archive and IPA; ASC does not establish that this exact IPA hash was uploaded."
+  },
+  "artifacts": {
+    "archive": {
+      "name": "Peak-3.3-1.xcarchive",
+      "sha256": "50f3df69088a1f2185d585e605174e183dd97234b973ad958d9398b469d5f120",
+      "hash_format": "sha256(sorted compact JSON [relative path, file|symlink, file sha256|link target] manifest)"
+    },
+    "ipa": {
+      "name": "Peak-3.3-1.ipa",
+      "sha256": "3c1f57cf7530958c78accd74d8d1e791cf099a9a0d93eacc4e2e4d7757213920"
+    },
+    "bundles": [
+      {
+        "bundle_id": "com.designprism.peak",
+        "version": "3.3",
+        "build": "1"
+      },
+      {
+        "bundle_id": "com.designprism.peak.PeakWidgets",
+        "version": "3.3",
+        "build": "1"
+      }
+    ]
+  },
+  "asc": {
+    "app_id": "6757644027",
+    "version_id": "665a2895-80a4-4ddd-acb8-809c5af84256",
+    "attached_build_id": "ab4bafd7-d734-4b4f-ae6d-b75b0328abc6",
+    "version": "3.3",
+    "build": "1",
+    "state": "WAITING_FOR_REVIEW",
+    "release_type": "MANUAL",
+    "version_created_at": "2026-08-31T12:50:24-07:00",
+    "verification": "asc versions view --version-id 665a2895-80a4-4ddd-acb8-809c5af84256 --include-build; release type supplied by release_validation live ASC inspection"
+  }
+}

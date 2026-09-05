@@ -4,28 +4,19 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 
 ## Current state
 
-- **App Store (live):** `2.6`
-- **App Store (in review):** `3.2` build **1** (submitted 2026-07-29) — first public
-  release since 2.6; carries the 2.7–3.2 trains plus both audit-fix rounds.
-- **`main` (unreleased):** 3.3 system integration on top of 3.2 — Spotlight/`OpenIntent`,
-  iPad sidebar + split navigation, unlogged Watch-surf Log card, Last Session
-  widget deep links, session route map, plus the performance and library-UX
-  passes (predicate library fetches, dedicated Search prompt, HIG detail chrome).
-  No schema change. See `CHANGELOG.md`. Does not replace the in-review 3.2 App
-  Store binary.
-- **`prod`:** git snapshot at the same SHA as `main`. App Store production remains
-  the in-review `3.2` train; pushing `prod` is not a store submit. See
-  `RELEASE_PLAYBOOK.md`.
-- **Not merged, not shipped:** the `3.1` watchOS companion lives on
-  `feature/3.1-watchos`. It is code-complete and its pure logic is unit-tested, but
-  it has never recorded a real surf; it stays off `main` until it passes real-device
-  ocean testing.
-- **Test baseline on `main`:** 546 unit, 54 UI after the performance and library-UX passes (was 525; iPhone; 8 of the 54 currently fail on the iPad leg of `design-check.sh` — pre-existing breakage, see AGENTS.md).
-- **App Group** `group.com.designprism.peak` is registered (2026-07-29). Device
-  archives use manual signing — see `RELEASE_PLAYBOOK.md`.
+Verified September 4, 2026:
+
+- **App Store public:** `3.2`.
+- **Pending:** `3.3`, `WAITING_FOR_REVIEW`, manual release after approval.
+- **Release source:** `9ad9d60`; 549 unit tests passed on this source during the audit. Reliability changes after that commit require separate checks and are not in the submitted binary.
+- **Source of truth:** exact commit + ASC version/build, not the `prod` branch name. See [RELEASE_PLAYBOOK.md](RELEASE_PLAYBOOK.md).
+- **Watch companion:** `feature/3.1-watchos` remains separate until physical Watch/ocean validation.
+- **Next release gates:** persistent session identity, data-preserving migrations/restores, production iPad navigation, Spotlight deletion and truthful recovery diagnostics.
+- **Real-user pilot:** [surfer protocol, recruitment draft and device checklist](docs/SURFER_VALIDATION.md). Device and ocean checks are not established by simulator test results.
+- App Group `group.com.designprism.peak` was registered July 29. Recheck signing profiles before device archives.
 
 ## Product scope
-- Offline-first, on-device storage only — no accounts, social features, or analytics
+- Offline-first, on-device storage only — no accounts, social features, or in-app analytics SDK
 - Quick session logging (date + spot required; location/pin optional)
 - Optional wind, wave height, and tide conditions
 - Optional auto-fill of surf conditions via Open-Meteo (only when triggered)
@@ -79,7 +70,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 
 ## Architecture overview
 - **UI**: SwiftUI tabs (`Log`, `History`, `Stats`, `Quiver`, `More`) with shared glass styling in `Peak/Supporting/Theme.swift`. iOS 18 adds a Search tab and a Library sidebar (Spots / Buddies) via `.sidebarAdaptable` on regular width.
-- **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage, currently at schema **V10**.
+- **Data**: SwiftData models (`SurfSession`, `Spot`, `Gear`, `Buddy`, `SessionMedia`) with local-only storage, currently at schema **V12**.
 - **Navigation**: `PeakNavigationCoordinator` routes widget, Spotlight, and Siri opens (`peak://session`, `spot`, `gear`, `search`, `new-session`).
 - **Editing**: `SessionDraft` stages changes before saving to a `SurfSession`.
 - **Media**: Photos stored inline; videos stored in `Application Support/SessionMedia` and referenced by filename.
@@ -104,7 +95,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 
 ## Platform decisions
 - Platform: Minimum iOS: 17.0 (SwiftData) — unchanged by every release through 3.3
-- Data store: SwiftData (local only), schema V10
+- Data store: SwiftData (local only), schema V12
 - UI: SwiftUI
 - Targets: `Peak` (app), `PeakWidgets` (widget extension: widgets, Control Center control, Live Activity), `PeakTests`, `PeakUITests`
 - App Group: `group.com.designprism.peak`, shared by the app and widget extension

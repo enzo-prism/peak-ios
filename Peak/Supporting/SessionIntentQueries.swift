@@ -14,12 +14,10 @@ enum SessionIntentQueries {
 
     // MARK: - Stable identifiers
 
-    /// Sessions are identified by creation instant, in whole milliseconds since
-    /// the epoch. `createdAt` never changes once a session exists (edits touch
-    /// `updatedAt`), so a Siri result or Spotlight hit keeps resolving to the
-    /// same session across launches and edits.
+    /// Portable UUID identity survives edits, export and restore. The timestamp
+    /// fallback only covers an unmigrated in-memory legacy fixture.
     static func identifier(for session: SurfSession) -> String {
-        String(Int64((session.createdAt.timeIntervalSince1970 * 1000).rounded()))
+        session.sessionID?.uuidString ?? String(SurfSession.millisecondsKey(for: session.createdAt))
     }
 
     /// Spots already carry a unique, normalized key — reuse it rather than
@@ -38,7 +36,14 @@ enum SessionIntentQueries {
     static func sessions(withIdentifiers identifiers: [String], in sessions: [SurfSession]) -> [SurfSession] {
         let wanted = Set(identifiers)
         guard !wanted.isEmpty else { return [] }
-        return sessions.filter { wanted.contains(identifier(for: $0)) }
+        let legacyGroups = Dictionary(grouping: sessions) {
+            String(SurfSession.millisecondsKey(for: $0.createdAt))
+        }
+        return sessions.filter { session in
+            if session.sessionID != nil && wanted.contains(identifier(for: session)) { return true }
+            let legacy = String(SurfSession.millisecondsKey(for: session.createdAt))
+            return wanted.contains(legacy) && legacyGroups[legacy]?.count == 1
+        }
     }
 
     static func spots(withIdentifiers identifiers: [String], in spots: [Spot]) -> [Spot] {

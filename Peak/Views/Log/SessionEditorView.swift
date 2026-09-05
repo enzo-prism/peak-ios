@@ -935,17 +935,45 @@ struct SessionEditorView: View {
             showSpotAlert = true
             return
         }
+        let transaction: ModelContext
+        let transactionSpot: Spot
+        let transactionGear: [Gear]
+        let transactionBuddies: [Buddy]
+        let existingMedia: [PersistentIdentifier: SessionMedia]
+        let editingSession: SurfSession?
+        do {
+            transaction = try SessionPersistence.stagingContext(from: modelContext)
+            transactionSpot = try SessionPersistence.resolve(spot, in: transaction)
+            transactionGear = try draft.selectedGear.map { try SessionPersistence.resolve($0, in: transaction) }
+            transactionBuddies = try draft.selectedBuddies.map { try SessionPersistence.resolve($0, in: transaction) }
+            existingMedia = try Dictionary(uniqueKeysWithValues: draft.mediaItems.compactMap(\.existingMedia).map {
+                ($0.persistentModelID, try SessionPersistence.resolve($0, in: transaction))
+            })
+            if case .edit(let original) = mode {
+                editingSession = try SessionPersistence.resolve(original, in: transaction)
+            } else {
+                editingSession = nil
+            }
+        } catch {
+            mediaAlertMessage = "Your session could not be saved. Please try again."
+            dismissAfterMediaAlert = false
+            showMediaAlert = true
+            return
+        }
         let durationMinutes = SurfSession.normalizedDuration(draft.durationMinutes > 0 ? draft.durationMinutes : nil)
 
         var mediaFailures = 0
+        var mediaChanges = SessionMediaSaveTransaction()
+        let savedSession: SurfSession
+        var previousLegacy: HealthKitLogic.LegacyWorkoutMatch?
 
         switch mode {
         case .new:
             let session = SurfSession(
                 date: draft.date,
-                spot: spot,
-                gear: draft.selectedGear,
-                buddies: draft.selectedBuddies,
+                spot: transactionSpot,
+                gear: transactionGear,
+                buddies: transactionBuddies,
                 rating: draft.rating,
                 durationMinutes: durationMinutes,
                 windCondition: draft.windCondition,
@@ -977,14 +1005,16 @@ struct SessionEditorView: View {
                 createdAt: Date(),
                 updatedAt: Date()
             )
-            modelContext.insert(session)
-            mediaFailures = applyMedia(to: session)
-            HealthKitService.shared.saveOrUpdateWorkout(for: session)
-        case .edit(let session):
+            transaction.insert(session)
+            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia, changes: &mediaChanges)
+            savedSession = session
+        case .edit:
+            guard let session = editingSession else { return }
+            previousLegacy = HealthKitService.shared.legacyWorkoutMatch(for: session)
             session.date = draft.date
-            session.spot = spot
-            session.gear = draft.selectedGear
-            session.buddies = draft.selectedBuddies
+            session.spot = transactionSpot
+            session.gear = transactionGear
+            session.buddies = transactionBuddies
             session.rating = draft.rating
             session.durationMinutes = durationMinutes
             session.windCondition = draft.windCondition
@@ -1014,23 +1044,33 @@ struct SessionEditorView: View {
             session.linkedWorkoutID = draft.linkedWorkoutID
             session.notes = draft.notes
             session.updatedAt = Date()
-            mediaFailures = applyMedia(to: session)
-            HealthKitService.shared.saveOrUpdateWorkout(for: session)
+            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia, changes: &mediaChanges)
+            savedSession = session
         }
 
+        do {
+            try mediaChanges.persist(save: { try transaction.save() },
+                                     rollbackModel: {})
+        } catch {
+            // Keep the draft open for retry; never write Health data for a failed save.
+            mediaAlertMessage = "Your session could not be saved. Please try again."
+            dismissAfterMediaAlert = false
+            showMediaAlert = true
+            return
+        }
+        HealthKitService.shared.saveOrUpdateWorkout(for: savedSession, previousLegacy: previousLegacy)
         didSave = true
         PeakTips.markSessionSaved()
 
-        if mediaFailures > 0 {
-            mediaAlertMessage = mediaFailures == 1
-                ? "One media item could not be saved."
-                : "\(mediaFailures) media items could not be saved."
-            showMediaAlert = true
-            dismissAfterMediaAlert = true
-        } else {
-            dismissAfterMediaAlert = false
-            dismiss()
-        }
+        let message: String? = mediaFailures > 0
+            ? (mediaFailures == 1 ? "Your session was saved, but one media item could not be saved."
+               : "Your session was saved, but \(mediaFailures) media items could not be saved.")
+            : nil
+        cleanupPendingMedia()
+        dismissAfterMediaAlert = false
+        dismiss()
+        NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container,
+                                        userInfo: message.map { ["message": $0] })
     }
 
     private var filteredSpots: [Spot] {
@@ -1384,13 +1424,16 @@ struct SessionEditorView: View {
         draft.removeMediaItem(item)
     }
 
-    private func applyMedia(to session: SurfSession) -> Int {
+    private func applyMedia(
+        to session: SurfSession, context: ModelContext,
+        existingMedia: [PersistentIdentifier: SessionMedia], changes: inout SessionMediaSaveTransaction
+    ) -> Int {
         let keptExisting = draft.mediaItems.compactMap { $0.existingMedia }
         let keptIds = Set(keptExisting.map(\.persistentModelID))
         let removed = session.media.filter { !keptIds.contains($0.persistentModelID) }
-        SessionMediaStore.deleteStoredMedia(for: removed)
+        changes.removedVideoNames = removed.compactMap(\.videoFileName)
         for media in removed {
-            modelContext.delete(media)
+            context.delete(media)
         }
 
         var updatedMedia: [SessionMedia] = []
@@ -1401,7 +1444,11 @@ struct SessionEditorView: View {
         for (offset, item) in draft.mediaItems.enumerated() {
             let crop = item.cropRect
             switch item.source {
-            case .existing(let media):
+            case .existing(let original):
+                guard let media = existingMedia[original.persistentModelID] else {
+                    failures += 1
+                    continue
+                }
                 media.sortIndex = offset
                 media.cropOriginX = crop.origin.x
                 media.cropOriginY = crop.origin.y
@@ -1420,11 +1467,11 @@ struct SessionEditorView: View {
                     cropHeight: crop.height,
                     createdAt: item.createdAt
                 )
-                modelContext.insert(media)
+                context.insert(media)
                 updatedMedia.append(media)
             case .newVideo(let temporaryURL, let thumbnailData):
                 do {
-                    let stored = try SessionMediaStore.storeVideo(from: temporaryURL, thumbnailData: thumbnailData)
+                    let stored = try changes.stageVideo(from: temporaryURL, thumbnailData: thumbnailData)
                     let media = SessionMedia(
                         kind: .video,
                         thumbnailData: stored.thumbnailData,
@@ -1436,11 +1483,10 @@ struct SessionEditorView: View {
                         cropHeight: crop.height,
                         createdAt: item.createdAt
                     )
-                    modelContext.insert(media)
+                    context.insert(media)
                     updatedMedia.append(media)
                 } catch {
                     failures += 1
-                    SessionMediaStore.deleteTemporaryFiles([temporaryURL])
                 }
             }
         }

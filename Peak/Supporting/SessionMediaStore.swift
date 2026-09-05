@@ -181,3 +181,37 @@ enum SessionMediaStore {
         return UIImage(cgImage: cgImage)
     }
 }
+
+/// Stages editor video copies while originals and picker sources remain intact.
+/// File deletion is committed only after the model save succeeds.
+// Value semantics also avoid the isolated-class destructor back-deployment
+// path, which crashes on affected runtimes when released outside a Swift task.
+struct SessionMediaSaveTransaction {
+    var removedVideoNames: [String] = []
+    private var createdVideoNames: [String] = []
+    private var stagedSources: [URL] = []
+
+    mutating func stageVideo(from source: URL, thumbnailData: Data?) throws -> StoredSessionVideo {
+        let copy = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(source.pathExtension.isEmpty ? "mov" : source.pathExtension)
+        try FileManager.default.copyItem(at: source, to: copy)
+        defer { try? FileManager.default.removeItem(at: copy) }
+        let stored = try SessionMediaStore.storeVideo(from: copy, thumbnailData: thumbnailData)
+        createdVideoNames.append(stored.fileName)
+        stagedSources.append(source)
+        return stored
+    }
+
+    func persist(save: () throws -> Void, rollbackModel: () -> Void) throws {
+        do {
+            try save()
+        } catch {
+            rollbackModel()
+            createdVideoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+            throw error
+        }
+        removedVideoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+        SessionMediaStore.deleteTemporaryFiles(stagedSources)
+    }
+}

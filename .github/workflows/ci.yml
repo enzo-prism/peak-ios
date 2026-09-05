@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: peak-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -21,10 +29,58 @@ jobs:
         env:
           DESTINATION_OS: latest
         run: ./scripts/test.sh
-      - name: Upload test result bundle on failure
-        if: failure()
+      - name: Verify test count and record source
+        run: python3 scripts/check-test-results.py .build/TestResults.xcresult 594
+      - name: Upload test evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-xcresult
-          path: .build/TestResults.xcresult
+          path: |
+            .build/TestResults.xcresult
+            .build/TestResults.receipt.json
           if-no-files-found: ignore
+          include-hidden-files: true
+
+  device_ui:
+    name: UI (${{ matrix.device }})
+    runs-on: macos-15
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, ipad]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'
+      - name: Test production device flows
+        env:
+          DESIGN_DEVICE: ${{ matrix.device }}
+        run: ./scripts/design-check.sh
+      - name: Verify complete suite and record source
+        env:
+          DESIGN_DEVICE: ${{ matrix.device }}
+        run: |
+          if [[ "$DESIGN_DEVICE" == "iphone" ]]; then
+            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 594
+          fi
+          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 63
+      - name: Upload device test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-check-${{ matrix.device }}
+          path: artifacts/design-check/${{ matrix.device }}/
+          if-no-files-found: ignore
+
+  design:
+    needs: device_ui
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both device suites
+        env:
+          DEVICE_UI_RESULT: ${{ needs.device_ui.result }}
+        run: test "$DEVICE_UI_RESULT" = success

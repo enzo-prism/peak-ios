@@ -23,6 +23,7 @@ struct HistoryView: View {
     @State private var editingSession: SurfSession?
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
+    @State private var showDeleteError = false
     /// Deep-link / split-column selection. Compact user taps still use
     /// `NavigationLink` so iPhone UI tests that hit `history.row` keep working.
     @State private var openedSession: PeakEntityRef?
@@ -30,7 +31,7 @@ struct HistoryView: View {
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.isUITest
+        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {
@@ -65,6 +66,11 @@ struct HistoryView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This permanently removes the session and its media.")
+        }
+        .alert("Session could not be deleted", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your session and its media were kept. Please try again.")
         }
         .sensoryFeedback(.success, trigger: deletionCount)
         .task(id: searchText) {
@@ -297,7 +303,7 @@ struct HistoryView: View {
     }
 
     private func sessionMatching(_ ref: PeakEntityRef) -> SurfSession? {
-        sessions.first { SessionIntentQueries.identifier(for: $0) == ref.id }
+        SessionIntentQueries.sessions(withIdentifiers: [ref.id], in: sessions).first
     }
 
     // MARK: - Pending navigation
@@ -455,10 +461,21 @@ struct HistoryView: View {
     private func deletePendingSession() {
         guard let session = sessionPendingDelete else { return }
         sessionPendingDelete = nil
-        SessionMediaStore.deleteStoredMedia(for: session.media)
-        HealthKitService.shared.deleteWorkout(for: session)
-        modelContext.delete(session)
+        do {
+            let transaction = try SessionPersistence.stagingContext(from: modelContext)
+            let deleting = try SessionPersistence.resolve(session, in: transaction)
+            let videoNames = deleting.media.compactMap(\.videoFileName)
+            let healthDeletion = HealthKitService.shared.workoutDeletion(for: deleting)
+            transaction.delete(deleting)
+            try transaction.save()
+            videoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+            HealthKitService.shared.deleteWorkout(healthDeletion)
+        } catch {
+            showDeleteError = true
+            return
+        }
         deletionCount += 1
+        NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container)
     }
 
     /// Cheap change signature for the session list: covers inserts, deletes,

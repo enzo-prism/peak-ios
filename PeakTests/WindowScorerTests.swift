@@ -1783,7 +1783,7 @@ final class WindowScorerRobustnessTests: XCTestCase {
 final class TodayWindowServiceTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
     }
@@ -2050,7 +2050,7 @@ final class ManualConditionEstimateTests: XCTestCase {
 final class TodayWindowServiceInputTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
     }
@@ -2471,7 +2471,7 @@ final class TodayWindowServiceInputTests: XCTestCase {
 final class SpotCoordinateResolverTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
     }
@@ -2597,7 +2597,7 @@ final class SpotCoordinateResolverTests: XCTestCase {
 final class ConditionsBackfillTests: XCTestCase {
 
     private func makeContext() throws -> ModelContext {
-        let schema = Schema(versionedSchema: PeakSchemaV11.self)
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         return ModelContext(try ModelContainer(for: schema, configurations: [configuration]))
     }

@@ -9,6 +9,19 @@ final class SessionIntentQueriesTests: XCTestCase {
     private let now = TestCalendar.makeDate(year: 2026, month: 2, day: 18, hour: 12)
     private var calendar: Calendar { TestCalendar.gmt }
 
+    func testUUIDDistinguishesDuplicateDatesAndLegacyLookupRefusesAmbiguity() {
+        let date = Date(timeIntervalSince1970: 1_725_000_000)
+        let a = TestFixture.session(createdAt: date)
+        let b = TestFixture.session(createdAt: date)
+        let id = SessionIntentQueries.identifier(for: a)
+        XCTAssertNotNil(UUID(uuidString: id))
+        XCTAssertNotEqual(id, SessionIntentQueries.identifier(for: b))
+        XCTAssertEqual(SessionIntentQueries.sessions(withIdentifiers: [id], in: [a, b]).count, 1)
+        let legacy = String(SurfSession.millisecondsKey(for: date))
+        XCTAssertTrue(SessionIntentQueries.sessions(withIdentifiers: [legacy], in: [a, b]).isEmpty)
+        XCTAssertEqual(SessionIntentQueries.sessions(withIdentifiers: [legacy], in: [a]).count, 1)
+    }
+
     // MARK: - Identifiers
 
     /// Editing a session changes `updatedAt`, never `createdAt` — so the
@@ -368,5 +381,75 @@ final class SessionIntentQueriesTests: XCTestCase {
         XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak://new-session")!))
         XCTAssertTrue(PeakDeepLink.isNewSession(URL(string: "peak:///new-session")!))
         XCTAssertNil(PeakDeepLink.parse(URL(string: "peak://not-a-real-destination")!))
+    }
+}
+
+/// Exercises ordering independently of the system Spotlight service. A delayed
+/// write models an API operation that keeps running after a new snapshot arrives.
+@MainActor
+final class SpotlightReconciliationTests: XCTestCase {
+    func testQueuedSnapshotsCoalesceToTheLatestIncludingEmptyReset() async {
+        let queue = SpotlightReconciliationQueue()
+        var indexed = ["old-session", "old-spot", "old-gear"]
+        var writes = 0
+        queue.submit {
+            writes += 1
+            indexed = ["renamed-spot"]
+        }
+        let reset = queue.submit {
+            writes += 1
+            indexed = []
+        }
+        await reset.value
+        XCTAssertEqual(writes, 1)
+        XCTAssertTrue(indexed.isEmpty)
+    }
+
+    func testResetWaitsForInFlightDonationAndCannotBeResurrected() async {
+        let queue = SpotlightReconciliationQueue()
+        var indexed: [String] = []
+        var finishDonation: CheckedContinuation<Void, Never>?
+        await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+            queue.submit {
+                await withCheckedContinuation { finish in
+                    finishDonation = finish
+                    started.resume()
+                }
+                indexed = ["deleted-session"]
+            }
+        }
+        let reset = queue.submit { indexed = [] }
+        finishDonation?.resume()
+        await reset.value
+        XCTAssertTrue(indexed.isEmpty, "An older write must finish before the reset removes it")
+    }
+
+    func testRenameSkipsIntermediateSnapshotAfterInFlightWrite() async {
+        let queue = SpotlightReconciliationQueue()
+        var indexed: [String] = []
+        var history: [[String]] = []
+        var finishDonation: CheckedContinuation<Void, Never>?
+        await withCheckedContinuation { (started: CheckedContinuation<Void, Never>) in
+            queue.submit {
+                await withCheckedContinuation { finish in
+                    finishDonation = finish
+                    started.resume()
+                }
+                indexed = ["old-spot", "old-gear"]
+                history.append(indexed)
+            }
+        }
+        queue.submit {
+            indexed = ["intermediate-spot"]
+            history.append(indexed)
+        }
+        let latest = queue.submit {
+            indexed = ["renamed-spot", "renamed-gear"]
+            history.append(indexed)
+        }
+        finishDonation?.resume()
+        await latest.value
+        XCTAssertEqual(indexed, ["renamed-spot", "renamed-gear"])
+        XCTAssertEqual(history, [["old-spot", "old-gear"], ["renamed-spot", "renamed-gear"]])
     }
 }

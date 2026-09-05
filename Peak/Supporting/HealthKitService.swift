@@ -4,6 +4,27 @@ import HealthKit
 import SwiftData
 import UIKit
 
+/// FIFO per session, including fire-and-forget hooks. Enqueue synchronously so
+/// a later delete cannot be overtaken by an earlier save task starting late.
+@MainActor
+final class HealthWorkoutQueue {
+    private var pending: [String: (id: UUID, task: Task<Void, Error>)] = [:]
+
+    func enqueue(key: String, operation: @escaping @MainActor () async throws -> Void) -> Task<Void, Error> {
+        let previous = pending[key]?.task
+        let id = UUID()
+        let task = Task { @MainActor in
+            _ = try? await previous?.value
+            defer {
+                if self.pending[key]?.id == id { self.pending[key] = nil }
+            }
+            try await operation()
+        }
+        pending[key] = (id, task)
+        return task
+    }
+}
+
 // MARK: - Pure logic (unit-testable without HKHealthStore)
 
 /// HealthKit-free logic for the Apple Health integration: stable session keys,
@@ -11,6 +32,24 @@ import UIKit
 /// mapping. Kept free of HealthKit types so it is unit-testable without
 /// entitlements or an HKHealthStore.
 enum HealthKitLogic {
+    static func shouldWriteWorkout(linkedWorkoutID: String?) -> Bool {
+        linkedWorkoutID?.trimmedNonEmpty == nil
+    }
+
+    /// Snapshot old objects before creating the replacement. A failed create
+    /// never removes old data; deletion only sees captured old objects.
+    static func replacePreservingOld<Value>(
+        capture: () async throws -> [Value],
+        create: () async throws -> UUID,
+        identifier: (Value) -> UUID,
+        delete: ([Value]) async throws -> Void
+    ) async throws {
+        let old = try await capture()
+        let replacementID = try await create()
+        let obsolete = old.filter { identifier($0) != replacementID }
+        if !obsolete.isEmpty { try await delete(obsolete) }
+    }
+
     /// Metadata key written on every workout Peak saves, so our own workouts can
     /// be found again (update/delete) and excluded from import suggestions.
     static let sessionKeyMetadataKey = "com.designprism.peak.sessionKey"
@@ -20,8 +59,33 @@ enum HealthKitLogic {
     /// fabricate a workout duration.
     static let assumedDurationMinutes = 60
 
-    /// Stable identifier for a session, derived from `createdAt` (which never
-    /// changes across edits) at millisecond precision.
+    /// New writes use persistent session identity, independent of timestamps.
+    static func sessionKey(forSessionID id: UUID) -> String {
+        "peak-session-\(id.uuidString.lowercased())"
+    }
+
+    struct LegacyWorkoutMatch: Equatable {
+        let key: String
+        let interval: DateInterval
+
+        func matches(start: Date, end: Date) -> Bool {
+            interval.start == start && interval.end == end
+        }
+    }
+
+    /// A legacy key is safe only when the local store proves a single owner.
+    /// Unknown duration cannot establish an exact legacy workout interval.
+    static func legacyWorkoutMatch(
+        createdAt: Date, date: Date, durationMinutes: Int?, matchingSessionCount: Int
+    ) -> LegacyWorkoutMatch? {
+        guard matchingSessionCount == 1, let durationMinutes, durationMinutes > 0 else { return nil }
+        return LegacyWorkoutMatch(
+            key: sessionKey(forSessionCreatedAt: createdAt),
+            interval: sessionWindow(date: date, durationMinutes: durationMinutes)
+        )
+    }
+
+    /// Legacy metadata format retained only for safe backward-compatible lookup.
     static func sessionKey(forSessionCreatedAt createdAt: Date) -> String {
         "peak-\(Int64((createdAt.timeIntervalSince1970 * 1000).rounded()))"
     }
@@ -189,6 +253,7 @@ enum HealthKitServiceError: LocalizedError {
 /// `HealthKitLogic.sessionKeyMetadataKey` so a session's workout can be
 /// replaced or deleted later without storing a HealthKit UUID on the model.
 final class HealthKitService {
+    private let workoutQueue = HealthWorkoutQueue()
     static let shared = HealthKitService()
 
     /// AppStorage/UserDefaults key for the Settings toggle.
@@ -319,26 +384,38 @@ final class HealthKitService {
     /// Writes (or rewrites) the Health workout for a session. Call after a
     /// session is created or edited. No-op when the feature is off, Health is
     /// unavailable/denied, or the session has no logged duration.
-    func saveOrUpdateWorkout(for session: SurfSession) {
+    func saveOrUpdateWorkout(
+        for session: SurfSession, previousLegacy: HealthKitLogic.LegacyWorkoutMatch? = nil
+    ) {
         guard canWrite, let values = workoutValues(for: session) else { return }
-        Task {
-            try? await self.replaceWorkout(sessionKey: values.key, interval: values.interval)
+        _ = workoutQueue.enqueue(key: values.key) {
+            guard self.canWrite else { return }
+            try await self.replaceWorkout(sessionKey: values.key, interval: values.interval,
+                                          legacy: previousLegacy ?? values.legacy)
         }
     }
 
-    /// Deletes the Health workout for a session. IMPORTANT: call BEFORE
-    /// `modelContext.delete(session)` — the stable key is derived from
-    /// `session.createdAt`, which is read synchronously here.
-    func deleteWorkout(for session: SurfSession) {
-        deleteWorkout(sessionKey: HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt))
+    struct WorkoutDeletion {
+        let key: String
+        let legacy: HealthKitLogic.LegacyWorkoutMatch?
     }
 
-    /// Delete by pre-captured session key (for callers that must delete the
-    /// model object first).
-    func deleteWorkout(sessionKey key: String) {
-        guard canWrite else { return }
-        Task {
-            try? await self.deletePeakWorkouts(sessionKey: key)
+    /// Capture before model deletion; this performs no HealthKit work.
+    func workoutDeletion(for session: SurfSession) -> WorkoutDeletion? {
+        guard canWrite, let id = session.sessionID else { return nil }
+        return WorkoutDeletion(key: HealthKitLogic.sessionKey(forSessionID: id),
+                               legacy: legacyWorkoutMatch(for: session))
+    }
+
+    /// Schedule only after the corresponding local deletion has saved.
+    func deleteWorkout(_ deletion: WorkoutDeletion?) {
+        guard canWrite, let deletion else { return }
+        _ = workoutQueue.enqueue(key: deletion.key) {
+            guard self.canWrite else { return }
+            try await self.deletePeakWorkouts(sessionKey: deletion.key)
+            if let legacy = deletion.legacy {
+                try await self.deletePeakWorkouts(sessionKey: legacy.key, exactInterval: legacy)
+            }
         }
     }
 
@@ -350,12 +427,14 @@ final class HealthKitService {
     @discardableResult
     func saveWorkout(for session: SurfSession) async throws -> Bool {
         guard canWrite, let values = workoutValues(for: session) else { return false }
-        try await replaceWorkout(sessionKey: values.key, interval: values.interval)
+        try await workoutQueue.enqueue(key: values.key) {
+            guard self.canWrite else { return }
+            try await self.replaceWorkout(sessionKey: values.key, interval: values.interval, legacy: values.legacy)
+        }.value
         return true
     }
 
-    /// Delete-then-resave; same behavior as `saveWorkout(for:)` because saves
-    /// are always replace-by-key (keeps the operation idempotent).
+    /// Replacement preserves the existing workout until the new one is saved.
     @discardableResult
     func updateWorkout(for session: SurfSession) async throws -> Bool {
         try await saveWorkout(for: session)
@@ -384,7 +463,10 @@ final class HealthKitService {
             }
             if let values = workoutValues(for: session) {
                 do {
-                    try await replaceWorkout(sessionKey: values.key, interval: values.interval)
+                    try await workoutQueue.enqueue(key: values.key) {
+                        guard self.canWrite else { return }
+                        try await self.replaceWorkout(sessionKey: values.key, interval: values.interval, legacy: values.legacy)
+                    }.value
                     summary.written += 1
                 } catch {
                     summary.failed += 1
@@ -577,35 +659,74 @@ final class HealthKitService {
 
     /// Write inputs for a session; nil when the session has no logged duration
     /// (we never fabricate a workout length).
-    private func workoutValues(for session: SurfSession) -> (key: String, interval: DateInterval)? {
-        guard let duration = session.durationMinutes, duration > 0 else { return nil }
+    private func workoutValues(for session: SurfSession) -> (
+        key: String, interval: DateInterval, legacy: HealthKitLogic.LegacyWorkoutMatch?
+    )? {
+        guard !session.isDeleted, session.modelContext != nil,
+              HealthKitLogic.shouldWriteWorkout(linkedWorkoutID: session.linkedWorkoutID),
+              let id = session.sessionID, let duration = session.durationMinutes, duration > 0 else { return nil }
         return (
-            key: HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt),
-            interval: HealthKitLogic.sessionWindow(date: session.date, durationMinutes: duration)
+            key: HealthKitLogic.sessionKey(forSessionID: id),
+            interval: HealthKitLogic.sessionWindow(date: session.date, durationMinutes: duration),
+            legacy: legacyWorkoutMatch(for: session)
         )
     }
 
-    /// Delete any previous Peak workout carrying this session key, then write a
-    /// fresh HKWorkoutBuilder workout spanning the interval.
-    private func replaceWorkout(sessionKey key: String, interval: DateInterval) async throws {
-        try await deletePeakWorkouts(sessionKey: key)
-
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = .surfingSports
-        configuration.locationType = .outdoor
-
-        let builder = HKWorkoutBuilder(
-            healthStore: healthStore,
-            configuration: configuration,
-            device: .local()
+    func legacyWorkoutMatch(for session: SurfSession) -> HealthKitLogic.LegacyWorkoutMatch? {
+        guard let context = session.modelContext,
+              let sessions = try? context.fetch(FetchDescriptor<SurfSession>()) else { return nil }
+        let key = HealthKitLogic.sessionKey(forSessionCreatedAt: session.createdAt)
+        let owners = sessions.filter {
+            HealthKitLogic.sessionKey(forSessionCreatedAt: $0.createdAt) == key
+        }
+        guard owners.count == 1, owners[0].persistentModelID == session.persistentModelID else { return nil }
+        return HealthKitLogic.legacyWorkoutMatch(
+            createdAt: session.createdAt, date: session.date,
+            durationMinutes: session.durationMinutes, matchingSessionCount: owners.count
         )
-        try await builder.beginCollection(at: interval.start)
-        try await builder.addMetadata([HealthKitLogic.sessionKeyMetadataKey: key])
-        try await builder.endCollection(at: interval.end)
-        _ = try await builder.finishWorkout()
     }
 
-    private func deletePeakWorkouts(sessionKey key: String) async throws {
+    /// Create replacement first, then remove captured prior Peak workouts.
+    private func replaceWorkout(
+        sessionKey key: String, interval: DateInterval, legacy: HealthKitLogic.LegacyWorkoutMatch?
+    ) async throws {
+        try await HealthKitLogic.replacePreservingOld(
+            capture: {
+                var old = try await self.peakWorkouts(sessionKey: key)
+                if let legacy {
+                    old += try await self.peakWorkouts(sessionKey: legacy.key, exactInterval: legacy)
+                }
+                return old
+            },
+            create: {
+                let configuration = HKWorkoutConfiguration()
+                configuration.activityType = .surfingSports
+                configuration.locationType = .outdoor
+                let builder = HKWorkoutBuilder(healthStore: self.healthStore,
+                                               configuration: configuration, device: .local())
+                try await builder.beginCollection(at: interval.start)
+                try await builder.addMetadata([HealthKitLogic.sessionKeyMetadataKey: key])
+                try await builder.endCollection(at: interval.end)
+                guard let workout = try await builder.finishWorkout() else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                return workout.uuid
+            },
+            identifier: { $0.uuid },
+            delete: { try await self.healthStore.delete($0) }
+        )
+    }
+
+    private func deletePeakWorkouts(
+        sessionKey key: String, exactInterval: HealthKitLogic.LegacyWorkoutMatch? = nil
+    ) async throws {
+        let workouts = try await peakWorkouts(sessionKey: key, exactInterval: exactInterval)
+        if !workouts.isEmpty { try await healthStore.delete(workouts) }
+    }
+
+    private func peakWorkouts(
+        sessionKey key: String, exactInterval: HealthKitLogic.LegacyWorkoutMatch? = nil
+    ) async throws -> [HKWorkout] {
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForObjects(
                 withMetadataKey: HealthKitLogic.sessionKeyMetadataKey,
@@ -617,9 +738,13 @@ final class HealthKitService {
             predicates: [.workout(predicate)],
             sortDescriptors: []
         )
-        let workouts = try await descriptor.result(for: healthStore)
-        guard !workouts.isEmpty else { return }
-        try await healthStore.delete(workouts)
+        let candidates = try await descriptor.result(for: healthStore)
+        let workouts = candidates.filter { workout in
+            guard let exactInterval else { return true }
+            return workout.workoutActivityType == .surfingSports
+                && exactInterval.matches(start: workout.startDate, end: workout.endDate)
+        }
+        return workouts
     }
 }
 

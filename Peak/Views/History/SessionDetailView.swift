@@ -12,6 +12,7 @@ struct SessionDetailView: View {
     @State private var showEdit = false
     @State private var showDeleteConfirm = false
     @State private var didDelete = false
+    @State private var showDeleteError = false
     @State private var selectedMedia: SessionMedia?
     @State private var showSurfReportSection = true
     @State private var showGearSection = false
@@ -119,17 +120,29 @@ struct SessionDetailView: View {
         }
         .confirmationDialog("Delete this session?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
-                // Capture + remove the Health workout BEFORE deleting the model:
-                // the stable key is derived from `session.createdAt`, read
-                // synchronously inside deleteWorkout(for:). No-op when Health
-                // sync is off/unauthorized.
-                HealthKitService.shared.deleteWorkout(for: session)
-                SessionMediaStore.deleteStoredMedia(for: session.media)
-                modelContext.delete(session)
+                do {
+                    let transaction = try SessionPersistence.stagingContext(from: modelContext)
+                    let deleting = try SessionPersistence.resolve(session, in: transaction)
+                    let videoNames = deleting.media.compactMap(\.videoFileName)
+                    let healthDeletion = HealthKitService.shared.workoutDeletion(for: deleting)
+                    transaction.delete(deleting)
+                    try transaction.save()
+                    videoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+                    HealthKitService.shared.deleteWorkout(healthDeletion)
+                } catch {
+                    showDeleteError = true
+                    return
+                }
                 didDelete = true
                 dismiss()
+                NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container)
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .alert("Session could not be deleted", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your session and its media were kept. Please try again.")
         }
         .sensoryFeedback(.success, trigger: didDelete)
         .sheet(isPresented: $showEdit) {

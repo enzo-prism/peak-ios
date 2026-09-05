@@ -14,6 +14,7 @@ final class PeakUISmokeTests: XCTestCase {
     private func launchAppWithUITestEnvironment(surfConditionsScenario: String) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_SURF_CONDITIONS_SCENARIO"] = surfConditionsScenario
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
@@ -81,6 +82,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(beginsWith: "Filled from Open-Meteo")
@@ -129,6 +131,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(contains: "Mock surf report service error")
@@ -156,6 +159,7 @@ final class PeakUISmokeTests: XCTestCase {
         let autoFillButton = app.buttons["session.editor.autoFillConditions"]
         scrollToVisible(autoFillButton, in: scrollView)
         assertExists(autoFillButton)
+        XCTAssertTrue(isCentreVisible(autoFillButton, in: scrollView), "Auto-fill must be below the editor navigation bar before tapping")
         autoFillButton.tap()
 
         assertConditionsNotice(contains: "Surf report data is unavailable")
@@ -355,6 +359,7 @@ final class PeakWindowCardUITests: XCTestCase {
     private func launch(windowScenario: String?) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
         if let windowScenario {
@@ -544,6 +549,7 @@ final class PeakWindowCardUITests: XCTestCase {
     func testFillingInPastConditionsReportsWhatItManaged() {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         // Deliberately no fixed seed date: eligibility is measured against the
         // provider's ~92-day archive horizon and the real clock, so the seeded
@@ -727,8 +733,21 @@ private extension PeakUISmokeTests {
         guard scrollView.exists else { return }
         var attempts = 0
         while !isCentreVisible(element, in: scrollView) && attempts < maxSwipes {
-            if element.exists && element.frame.midY < scrollView.frame.minY {
-                scrollView.swipeDown()
+            if element.exists, element.frame.height > 0 {
+                let visible = visibleContentFrame(in: scrollView)
+                // Full swipes can alternate above/below a short iPad sheet
+                // forever. Once AX has a frame, move toward the visible centre
+                // by a measured distance and release without flick momentum.
+                let limit = visible.height * 0.45
+                let delta = min(limit, max(-limit, visible.midY - element.frame.midY))
+                guard abs(delta) > 1 else { break }
+                let origin = scrollView.coordinate(withNormalizedOffset: .zero)
+                // Trailing scroll padding avoids dragging an editable slider.
+                let x = visible.maxX - scrollView.frame.minX - 4
+                let startY = visible.midY - delta / 2 - scrollView.frame.minY
+                let start = origin.withOffset(CGVector(dx: x, dy: startY))
+                let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
             } else {
                 scrollView.swipeUp()
             }
@@ -740,10 +759,25 @@ private extension PeakUISmokeTests {
         guard element.exists, element.isHittable else { return false }
         let frame = element.frame
         guard frame.height > 0 else { return false }
-        // Keep a margin so a centre resting exactly on the edge still counts as
-        // off-screen; taps there are unreliable.
-        let visible = scrollView.frame.insetBy(dx: 0, dy: 8)
-        return visible.minY <= frame.midY && frame.midY <= visible.maxY
+        return visibleContentFrame(in: scrollView).contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    private func visibleContentFrame(in scrollView: XCUIElement) -> CGRect {
+        var visible = scrollView.frame
+        // A sheet's ScrollView extends behind its navigation bar on iPad.
+        // AX can call a partly covered button hittable even when its centre is
+        // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll
+        // direction; otherwise a target above the usable viewport scrolls away.
+        for bar in app.navigationBars.allElementsBoundByIndex where bar.exists {
+            let frame = bar.frame
+            if frame.intersects(visible), frame.maxY < visible.maxY {
+                let bottom = visible.maxY
+                visible.origin.y = frame.maxY
+                visible.size.height = bottom - frame.maxY
+            }
+        }
+        // A centre resting exactly on an edge is not reliably tappable.
+        return visible.insetBy(dx: 8, dy: 8)
     }
 
     func showOptionalFields(in scrollView: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
@@ -871,6 +905,7 @@ final class MarketingScreenshotCapture: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-06-10T12:00:00Z"
         app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
@@ -946,6 +981,7 @@ final class PeakWelcomeUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = "2026-02-01T12:00:00Z"
     }
@@ -1054,6 +1090,7 @@ final class PeakInsightsUITests: XCTestCase {
     private func launch(insightsScenario: String? = nil) {
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_FIXED_DATE"] = Self.currentMonthAnchor()
         if let insightsScenario {
@@ -1238,6 +1275,7 @@ final class PeakMarketingCaptureTests: XCTestCase {
 
         app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
         app.launchEnvironment["PEAK_SCREENSHOTS"] = "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         // Deliberately no UITESTS_FIXED_DATE: the seed dates every session
