@@ -964,6 +964,8 @@ struct SessionEditorView: View {
 
         var mediaFailures = 0
         var mediaChanges = SessionMediaSaveTransaction()
+        // Media removed by this save is deleted, and a view may still hold it.
+        var retiredMedia = false
         let savedSession: SurfSession
         var previousLegacy: HealthKitLogic.LegacyWorkoutMatch?
 
@@ -1006,7 +1008,8 @@ struct SessionEditorView: View {
                 updatedAt: Date()
             )
             transaction.insert(session)
-            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia, changes: &mediaChanges)
+            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia,
+                                       changes: &mediaChanges, retiredMedia: &retiredMedia)
             savedSession = session
         case .edit:
             guard let session = editingSession else { return }
@@ -1044,7 +1047,8 @@ struct SessionEditorView: View {
             session.linkedWorkoutID = draft.linkedWorkoutID
             session.notes = draft.notes
             session.updatedAt = Date()
-            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia, changes: &mediaChanges)
+            mediaFailures = applyMedia(to: session, context: transaction, existingMedia: existingMedia,
+                                       changes: &mediaChanges, retiredMedia: &retiredMedia)
             savedSession = session
         }
 
@@ -1069,8 +1073,13 @@ struct SessionEditorView: View {
         cleanupPendingMedia()
         dismissAfterMediaAlert = false
         dismiss()
-        NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container,
-                                        userInfo: message.map { ["message": $0] })
+        var userInfo: [String: Any] = [:]
+        if let message { userInfo["message"] = message }
+        // Removing media deletes models, so that save takes the full refresh
+        // path deletes use; plain inserts/edits update in place.
+        NotificationCenter.default.post(name: retiredMedia ? .peakLibraryDidChange : .peakSessionDidSave,
+                                        object: modelContext.container,
+                                        userInfo: userInfo)
     }
 
     private var filteredSpots: [Spot] {
@@ -1426,11 +1435,13 @@ struct SessionEditorView: View {
 
     private func applyMedia(
         to session: SurfSession, context: ModelContext,
-        existingMedia: [PersistentIdentifier: SessionMedia], changes: inout SessionMediaSaveTransaction
+        existingMedia: [PersistentIdentifier: SessionMedia], changes: inout SessionMediaSaveTransaction,
+        retiredMedia: inout Bool
     ) -> Int {
         let keptExisting = draft.mediaItems.compactMap { $0.existingMedia }
         let keptIds = Set(keptExisting.map(\.persistentModelID))
         let removed = session.media.filter { !keptIds.contains($0.persistentModelID) }
+        retiredMedia = !removed.isEmpty
         changes.removedVideoNames = removed.compactMap(\.videoFileName)
         for media in removed {
             context.delete(media)

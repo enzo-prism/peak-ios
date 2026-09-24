@@ -213,4 +213,55 @@ final class ModelContextHelpersTests: XCTestCase {
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(second, SessionQueryStamp.make([session]))
     }
+
+    // MARK: - Staged saves reach the library context (no tree rebuild)
+
+    /// The editor commits through `SessionPersistence`'s private staging
+    /// context. On iOS 18+ Peak no longer rebuilds the whole view tree after a
+    /// save; that relies on the library context seeing the commit — an edit on
+    /// a model it already holds, and an insert it can fetch — for both the
+    /// container's main context and the fresh context a delete/import swaps in.
+    func testStagedSaveReachesTheMainLibraryContext() throws {
+        let container = try TestModelContainer.make()
+        try assertStagedSaveIsVisible(in: container.mainContext)
+    }
+
+    func testStagedSaveReachesARefreshedLibraryContext() throws {
+        let container = try TestModelContainer.make()
+        let refreshed = ModelContext(container)
+        refreshed.autosaveEnabled = true
+        try assertStagedSaveIsVisible(in: refreshed)
+    }
+
+    private func assertStagedSaveIsVisible(
+        in library: ModelContext,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let spot = TestFixture.spot(name: "Trestles")
+        library.insert(spot)
+        let session = TestFixture.session(spot: spot, rating: 2, notes: "before")
+        library.insert(session)
+        try library.save()
+
+        let staging = try SessionPersistence.stagingContext(from: library)
+        let staged = try SessionPersistence.resolve(session, in: staging)
+        staged.rating = 5
+        staged.notes = "after"
+        let added = TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 3, hour: 7),
+            spot: try SessionPersistence.resolve(spot, in: staging),
+            rating: 4
+        )
+        staging.insert(added)
+        try staging.save()
+
+        // Let any main-queue merge land, as it would between two frames.
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(session.rating, 5, "the held model did not pick up the staged edit", file: file, line: line)
+        XCTAssertEqual(session.notes, "after", file: file, line: line)
+        let fetched = try library.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(fetched.count, 2, "the staged insert is not fetchable from the library context", file: file, line: line)
+    }
 }

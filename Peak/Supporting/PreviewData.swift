@@ -38,8 +38,8 @@ enum PreviewData {
             longitude: -117.5656
         )
 
-        let board = Gear(name: "6'2\" Fish", kind: .board)
-        let wetsuit = Gear(name: "3/2 Full", kind: .wetsuit)
+        let board = Gear(name: "6'0\" Twin", kind: .board)
+        let wetsuit = Gear(name: "3/2 Chest Zip", kind: .wetsuit)
         let fins = Gear(name: "Thruster", kind: .fins)
         let longBoard = Gear(
             name: "7'4\" Midlength Performance Egg",
@@ -158,6 +158,65 @@ enum PreviewData {
                 ))
             }
         }
+    }
+
+    /// A synthetic logbook of `count` sessions over roughly the last five years,
+    /// for measuring Peak at the size a committed surfer reaches (the default
+    /// seed is a dozen sessions, which hides every O(n) cost). Deterministic —
+    /// index arithmetic, no RNG — and media-free, so it measures the logbook
+    /// rather than photo decoding. Launch with `UITESTS=1
+    /// UITESTS_LARGE_LIBRARY=1000` to profile it in Instruments.
+    static func largeLibrary(count: Int, baseDate: Date) -> (spots: [Spot], gear: [Gear], buddies: [Buddy], sessions: [SurfSession]) {
+        // Names distinct from `seed`'s: spots, gear and buddies are unique by key.
+        let spots = ["Swamis", "Blacks", "Rincon", "Malibu", "Steamer Lane", "Pipeline", "Uluwatu", "Hossegor"]
+            .enumerated()
+            .map { index, name in
+                Spot(name: name, latitude: 33.0 + Double(index) * 0.3, longitude: -117.5 - Double(index) * 0.3)
+            }
+        let gear = [
+            Gear(name: "6'0\" Twin", kind: .board),
+            Gear(name: "5'8\" Shortboard", kind: .board),
+            Gear(name: "9'4\" Noserider", kind: .board),
+            Gear(name: "3/2 Chest Zip", kind: .wetsuit),
+            Gear(name: "4/3 Winter", kind: .wetsuit),
+            Gear(name: "Quad fins", kind: .fins)
+        ]
+        let buddies = ["Mika", "Jonah", "Tess", "Rafe"].map { Buddy(name: $0) }
+        let calendar = Calendar.current
+        let sessions = (0..<max(0, count)).map { index -> SurfSession in
+            // ~1.8 days apart, so 1,000 sessions span about five years.
+            let hoursBack = index * 43 + (index % 5) * 3
+            let date = calendar.date(byAdding: .hour, value: -hoursBack, to: baseDate) ?? baseDate
+            let board = gear[index % 3]
+            let suit = gear[3 + index % 2]
+            let session = SurfSession(
+                date: date,
+                spot: spots[(index * 7 + index / 11) % spots.count],
+                gear: index % 4 == 0 ? [board, suit, gear[5]] : [board, suit],
+                buddies: index % 3 == 0 ? [buddies[index % buddies.count]] : [],
+                rating: 1 + (index * 3 + index / 7) % 5,
+                durationMinutes: 45 + (index % 8) * 15,
+                notes: index % 6 == 0 ? "Session \(index)" : ""
+            )
+            if index % 2 == 0 {
+                session.waveHeightMeters = 0.6 + Double(index % 9) * 0.2
+                session.swellWavePeriodSeconds = 8 + Double(index % 7)
+                session.windSpeedKph = Double(4 + index % 25)
+                session.conditionsSource = "Open-Meteo"
+                session.conditionsFetchedAt = date
+            }
+            return session
+        }
+        return (spots, gear, buddies, sessions)
+    }
+
+    static func seedLargeLibrary(context: ModelContext, count: Int, baseDate: Date = Date()) {
+        let library = largeLibrary(count: count, baseDate: baseDate)
+        library.spots.forEach(context.insert)
+        library.gear.forEach(context.insert)
+        library.buddies.forEach(context.insert)
+        library.sessions.forEach(context.insert)
+        try? context.save()
     }
 
     /// A believable logbook at one spot: dawn glass rated well, blown-out

@@ -259,6 +259,70 @@ final class PeakUISmokeTests: XCTestCase {
         )
     }
 
+    /// Saving an edit from a session's detail page keeps you there and shows the
+    /// change in place. Before 3.5 every save rebuilt the whole view tree, which
+    /// popped this screen back to the History list.
+    func testEditingFromDetailUpdatesInPlaceWithoutPoppingToHistory() {
+        tapTab(named: "History")
+
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        let edit = app.buttons["Edit"]
+        assertExists(edit)
+        edit.tap()
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        assertExists(notes)
+        notes.tap()
+        notes.typeText(" Edited in place")
+        saveSession()
+
+        // Still on the detail page (its own toolbar is back), not the list…
+        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5), "saving an edit left the session detail page")
+        // …and the page already shows the edit.
+        let edited = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Edited in place")).firstMatch
+        XCTAssertTrue(edited.waitForExistence(timeout: 5), "the detail page did not refresh with the saved edit")
+    }
+
+    /// A delete swaps in a fresh library context; a save made after it must
+    /// still reach every list without another rebuild.
+    func testSessionSavedAfterADeleteStillAppearsInHistory() {
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
+        scrollToVisible(deleteButton, in: app.scrollViews.firstMatch)
+        deleteButton.tap()
+        let confirm = app.buttons["Delete"]
+        assertExists(confirm)
+        confirm.tap()
+        XCTAssertTrue(deleteButton.waitForNonExistence(timeout: 5), "deleting did not leave the session page")
+
+        tapTab(named: "Log")
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        assertExists(notes)
+        notes.tap()
+        notes.typeText(e2eSessionMarker)
+        saveSession()
+
+        tapTab(named: "History")
+        let saved = latestHistoryRow(markerSessionNote: e2eSessionMarker)
+        XCTAssertTrue(saved.waitForExistence(timeout: 5), "a session saved after a delete did not reach History")
+    }
+
     /// Sessions with no wave stats are completely unaffected: no tag, no caption,
     /// no empty row. Most Peak users will never record a wave stat, and their
     /// session detail must look exactly as it did before 3.0.

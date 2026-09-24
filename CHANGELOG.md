@@ -13,6 +13,18 @@ Status at a glance:
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
 - **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
+## [3.5] — Unreleased
+
+### Performance
+
+- **Saving a session no longer rebuilds the whole app.** Every editor save used to post `peakLibraryDidChange`, which swapped in a fresh model context and regenerated the entire `ContentView` tree: every tab re-fetched the full logbook, Stats re-ran all its calculators, Spotlight re-indexed, and every navigation stack popped to its root (an edit saved from a session's page dropped you back on the History list). Saves now post `peakSessionDidSave`; on iOS 18+ the library context merges the staging commit and lists update in place. Commits still go through the 3.4 private staging context, so a failed save still leaves the originals intact. Deletes, imports and edits that remove media keep the full refresh, since they retire models a view may still hold, and so does iOS 17, whose SwiftData does not reliably refresh `@Query` after a commit from another context.
+- **Unlogged-Watch-surf checks look back 30 days**, not the whole Health history. The Log-tab card and the notification run on every Log-tab appearance, session change and observer wake, and used to materialise every surf workout ever recorded, then compare each one against every session on the main actor. Settings → Import from Health still reads everything.
+
+### Added
+
+- **Signposts** (`PeakSignposts`, Points of Interest) around Stats refresh, library rebuilds, in-place saves, the unlogged-workout query, Spotlight donation and backup creation, so Instruments shows where time goes.
+- **`UITESTS_LARGE_LIBRARY=<n>`** seeds a deterministic, media-free logbook of *n* sessions (`PreviewData.largeLibrary`) for profiling at a committed surfer's scale. `testStatsRefreshAtOneThousandSessions` records the Stats refresh cost at 1,000 store-backed sessions as a baseline.
+
 ## [3.4] — Unreleased reliability update
 
 ### Changed

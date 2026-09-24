@@ -106,6 +106,24 @@ enum HealthKitLogic {
         windows.contains { overlaps(interval, $0) }
     }
 
+    /// How far back the Log-tab card and the unlogged-surf notification look.
+    /// Both only offer the newest surf still waiting; a month comfortably covers
+    /// "I haven't opened Peak in a while" without re-reading years of workouts.
+    static let recentUnloggedLookbackDays = 30
+
+    static func recentUnloggedWindowStart(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: -recentUnloggedLookbackDays, to: now) ?? now
+    }
+
+    /// Whether a session starting at `sessionDate` can overlap any workout that
+    /// starts at or after `windowStart`. Session windows are capped at
+    /// `SurfSession.maxDurationMinutes`, so anything that began earlier than
+    /// that before the window cannot reach into it.
+    static func mayOverlapWindow(startingAt windowStart: Date, sessionDate: Date) -> Bool {
+        let longest = TimeInterval(max(SurfSession.maxDurationMinutes, assumedDurationMinutes)) * 60
+        return sessionDate.addingTimeInterval(longest) > windowStart
+    }
+
     /// Plain-value snapshot of an HKWorkout, so filtering and views never touch
     /// HealthKit types.
     struct WorkoutSummary: Identifiable, Equatable {
@@ -530,14 +548,43 @@ final class HealthKitService {
 
     /// Surf workouts from any source that Peak did not write and that do not
     /// overlap an already-logged session — candidates for import.
-    func fetchUnloggedSurfWorkouts(existingSessions: [SurfSession]) async throws -> [HealthKitLogic.WorkoutSummary] {
+    ///
+    /// `since` bounds the Health query. The Log-tab card and the notification
+    /// only ever offer the newest recent surf, and they run on every Log-tab
+    /// appearance, session change and observer wake — so they pass
+    /// `HealthKitLogic.recentUnloggedWindowStart()` instead of materialising a
+    /// Watch user's entire surf history each time. Import from Health passes
+    /// nil: it is the one place that wants every workout ever recorded.
+    func fetchUnloggedSurfWorkouts(
+        existingSessions: [SurfSession],
+        since: Date? = nil
+    ) async throws -> [HealthKitLogic.WorkoutSummary] {
         guard canRead else { return [] }
-        let surfPredicate = HKQuery.predicateForWorkouts(with: .surfingSports)
+        return try await PeakSignposts.interval("Fetch unlogged surf workouts") {
+            try await unloggedSurfWorkouts(existingSessions: existingSessions, since: since)
+        }
+    }
+
+    private func unloggedSurfWorkouts(
+        existingSessions: [SurfSession],
+        since: Date?
+    ) async throws -> [HealthKitLogic.WorkoutSummary] {
+        var predicate = HKQuery.predicateForWorkouts(with: .surfingSports)
+        if let since {
+            predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                predicate,
+                HKQuery.predicateForSamples(withStart: since, end: nil, options: [])
+            ])
+        }
         let descriptor = HKSampleQueryDescriptor(
-            predicates: [.workout(surfPredicate)],
+            predicates: [.workout(predicate)],
             sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)]
         )
         let workouts = try await descriptor.result(for: healthStore)
+        // Only sessions that could overlap a fetched workout need a window.
+        let relevantSessions = since.map { start in
+            existingSessions.filter { HealthKitLogic.mayOverlapWindow(startingAt: start, sessionDate: $0.date) }
+        } ?? existingSessions
         let summaries = workouts.map { workout in
             HealthKitLogic.WorkoutSummary(
                 id: workout.uuid,
@@ -547,7 +594,7 @@ final class HealthKitService {
                 isFromPeak: workout.metadata?[HealthKitLogic.sessionKeyMetadataKey] != nil
             )
         }
-        let windows = existingSessions.map {
+        let windows = relevantSessions.map {
             HealthKitLogic.sessionWindow(date: $0.date, durationMinutes: $0.durationMinutes)
         }
         return HealthKitLogic.unloggedWorkouts(from: summaries, sessionWindows: windows)

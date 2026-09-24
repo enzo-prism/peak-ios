@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 
 @testable import Peak
@@ -784,5 +785,43 @@ final class WaveStatsFormatterTests: XCTestCase {
         XCTAssertTrue(WaveStatsSource.auto.isEstimate)
         XCTAssertFalse(WaveStatsSource.edited.isEstimate)
         XCTAssertFalse(WaveStatsSource.manual.isEstimate)
+    }
+}
+
+extension StatsCalculatorTests {
+    // MARK: - Scale
+
+    /// Baseline for the Stats tab's synchronous refresh at the size a committed
+    /// surfer reaches. Not an assertion — `measure` records the time so a
+    /// regression (or the planned move off the main thread) shows up in the
+    /// Xcode report — but it does prove every calculator copes with 1,000 real,
+    /// store-backed sessions.
+    func testStatsRefreshAtOneThousandSessions() throws {
+        let container = try TestModelContainer.make()
+        let context = container.mainContext
+        PreviewData.seedLargeLibrary(
+            context: context,
+            count: 1_000,
+            baseDate: TestCalendar.makeDate(year: 2026, month: 9, day: 1, hour: 8)
+        )
+        let sessions = try context.fetch(SurfSession.sortedByDateDescending())
+        let boards = try context.fetch(FetchDescriptor<Gear>()).filter { $0.kind == .board }
+        XCTAssertEqual(sessions.count, 1_000)
+
+        measure(metrics: [XCTClockMetric()]) {
+            _ = StatsCalculator.summarize(sessions: sessions)
+            _ = StatsCalculator.surfDaysThisYear(sessions: sessions)
+            _ = StatsCalculator.timeInWater(sessions: sessions)
+            _ = StatsCalculator.longestWeekStreak(sessions: sessions)
+            _ = StatsCalculator.sessionHeatmap(sessions: sessions)
+            _ = StatsCalculator.spotMix(sessions: sessions)
+            _ = StatsCalculator.waveHeightRatingSamples(sessions: sessions)
+            _ = StatsCalculator.bestConditions(sessions: sessions)
+            _ = StatsCalculator.monthlySurfDays(sessions: sessions)
+            _ = GearInsightsCalculator.reports(for: boards, sessions: sessions)
+            _ = WaveStatsCalculator.records(sessions: sessions)
+            _ = WaveStatsCalculator.wavesPerSession(sessions: sessions)
+            _ = InsightsEngine.monthlyFacts(sessions: sessions, boards: boards)
+        }
     }
 }
