@@ -23,6 +23,12 @@ struct SessionEditorView: View {
         case notes
     }
 
+    /// Scroll targets for the quick-log card's shortcuts into the sections below.
+    private enum EditorAnchor: Hashable {
+        case details
+        case gear
+    }
+
     /// Identifies + carries the data needed to present the crop sheet for one media item.
     private struct CropTarget: Identifiable {
         let id: UUID
@@ -67,12 +73,16 @@ struct SessionEditorView: View {
     @State private var showDetails: Bool
     @State private var showGear: Bool
     @State private var showBuddies: Bool
-    @State private var showRating: Bool
     @State private var showMedia: Bool
     @State private var showNotes: Bool
-    // The new-session sheet opens at a focused medium height and grows to large the moment the
-    // user starts entering text, so the keyboard never crowds the spot field and its chips.
+    // The quick-log card (time, spot, gear, rating) needs the full height to be one glance, so the
+    // sheet opens large; medium stays available as a peek, and focusing a field grows it back.
     @State private var sheetDetent: PresentationDetent
+    /// What the draft looked like once it was ready for the surfer — after history
+    /// defaults landed. Cancel only asks before discarding when the draft moved off it.
+    @State private var baselineSignature: SessionDraft.ChangeSignature?
+    @State private var showDiscardConfirmation = false
+    @State private var scrollTarget: EditorAnchor?
     @State private var croppingItem: CropTarget?
     @State private var showArrange = false
     @State private var spotSnapshots: [String: UsageSnapshot] = [:]
@@ -81,9 +91,11 @@ struct SessionEditorView: View {
     @FocusState private var focusedField: FocusField?
     @StateObject private var keyboardObserver = KeyboardObserver()
 
-    /// `prefill` seeds a `.new` editor with values Peak already knows — today
-    /// that's a session ended from the Live Activity or the in-app timer, which
-    /// arrives with its start time, duration and spot filled in. Defaulted so
+    /// `prefill` seeds a `.new` editor with values Peak already knows — a session
+    /// ended from the Live Activity or the in-app timer, or an Apple Watch surf,
+    /// both of which arrive with real start/end times. A blank new draft is being
+    /// logged just after the surf, so its end is anchored to now. Either way the
+    /// setup (spot, gear) is then filled from history on appear. Defaulted so
     /// every existing call site is unchanged.
     init(mode: SessionEditorMode, prefill: SessionDraft? = nil) {
         self.mode = mode
@@ -91,7 +103,13 @@ struct SessionEditorView: View {
         let initialDraft: SessionDraft
         switch mode {
         case .new:
-            initialDraft = prefill ?? SessionDraft()
+            if let prefill {
+                initialDraft = prefill
+            } else {
+                var blank = SessionDraft()
+                blank.isAnchoredToNow = true
+                initialDraft = blank
+            }
         case .edit(let session):
             initialDraft = SessionDraft(session: session)
         }
@@ -105,13 +123,39 @@ struct SessionEditorView: View {
         _showDetails = State(initialValue: forceOpen || initialDraft.hasSurfConditions || initialDraft.durationMinutes > 0)
         _showGear = State(initialValue: forceOpen || !initialDraft.selectedGear.isEmpty)
         _showBuddies = State(initialValue: forceOpen || !initialDraft.selectedBuddies.isEmpty)
-        _showRating = State(initialValue: forceOpen || initialDraft.rating > 0)
         _showMedia = State(initialValue: forceOpen || !initialDraft.mediaItems.isEmpty)
         _showNotes = State(initialValue: forceOpen || initialDraft.notes.trimmedNonEmpty != nil)
 
-        // UI tests need the full-height sheet so every identifier is scroll-reachable; real users
-        // get the lighter medium first paint that grows on focus.
-        _sheetDetent = State(initialValue: forceOpen ? .large : .medium)
+        _sheetDetent = State(initialValue: .large)
+    }
+
+    private var isNewSession: Bool {
+        if case .new = mode { return true }
+        return false
+    }
+
+    private var hasUnsavedChanges: Bool {
+        guard let baselineSignature else { return false }
+        return draft.changeSignature != baselineSignature
+    }
+
+    /// Runs once, when the sheet first appears: a new draft takes its setup from
+    /// history, then the baseline is captured so those guesses don't count as
+    /// "changes" the surfer would lose.
+    private func prepareDraftIfNeeded() {
+        guard baselineSignature == nil else { return }
+        if isNewSession {
+            QuickLogDefaults.apply(to: &draft, sessions: sessions)
+        }
+        baselineSignature = draft.changeSignature
+    }
+
+    private func cancelTapped() {
+        if hasUnsavedChanges {
+            showDiscardConfirmation = true
+        } else {
+            dismiss()
+        }
     }
 
     private var sheetDetents: Set<PresentationDetent> {
@@ -134,7 +178,18 @@ struct SessionEditorView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            dismiss()
+                            cancelTapped()
+                        }
+                        // Anchored here so iPad shows the choice as a popover from Cancel.
+                        .confirmationDialog(
+                            isNewSession ? "Discard this session?" : "Discard your changes?",
+                            isPresented: $showDiscardConfirmation,
+                            titleVisibility: .visible
+                        ) {
+                            Button(isNewSession ? "Discard Session" : "Discard Changes", role: .destructive) {
+                                dismiss()
+                            }
+                            Button("Keep Editing", role: .cancel) {}
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
@@ -147,6 +202,9 @@ struct SessionEditorView: View {
                 }
         }
         .tint(Theme.textPrimary)
+        // A swipe-down would drop typed notes and picked photos without a word;
+        // once there is something to lose, only Cancel (which asks) closes the sheet.
+        .interactiveDismissDisabled(hasUnsavedChanges)
         .presentationDetents(sheetDetents, selection: $sheetDetent)
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
@@ -207,9 +265,13 @@ struct SessionEditorView: View {
         .sensoryFeedback(.success, trigger: didSave)
         .onAppear {
             refreshUsageSnapshots()
+            prepareDraftIfNeeded()
         }
         .onChange(of: sessions) { _, _ in
             refreshUsageSnapshots()
+        }
+        .onChange(of: draft.selectedSpot?.persistentModelID) { _, _ in
+            QuickLogDefaults.spotDidChange(in: &draft, sessions: sessions)
         }
     }
 
@@ -234,17 +296,15 @@ struct SessionEditorView: View {
                 editorDisclosureSection("Details", isExpanded: $showDetails) {
                     detailsBody
                 }
+                .id(EditorAnchor.details)
 
                 editorDisclosureSection("Gear", isExpanded: $showGear) {
                     gearBody
                 }
+                .id(EditorAnchor.gear)
 
                 editorDisclosureSection("Buddies", isExpanded: $showBuddies) {
                     buddiesBody
-                }
-
-                editorDisclosureSection("Rating", isExpanded: $showRating) {
-                    ratingBody
                 }
 
                 editorDisclosureSection("Media", isExpanded: $showMedia) {
@@ -280,64 +340,179 @@ struct SessionEditorView: View {
                 proxy.scrollTo(FocusField.notes, anchor: .bottom)
             }
         }
+        .onChange(of: scrollTarget) { _, target in
+            guard let target else { return }
+            // Next run loop: the section has just been told to expand, so let it
+            // lay out before scrolling to its top.
+            DispatchQueue.main.async {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                    proxy.scrollTo(target, anchor: .top)
+                }
+                scrollTarget = nil
+            }
+        }
     }
 
-    // MARK: - Primary (always-visible) essentials
+    /// Expands a collapsed section and brings it into view.
+    private func reveal(_ anchor: EditorAnchor) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+            switch anchor {
+            case .details: showDetails = true
+            case .gear: showGear = true
+            }
+        }
+        scrollTarget = anchor
+    }
 
-    /// The only always-expanded card. It asks for the single thing required to save — a spot —
-    /// with the date prefilled to now. Everything else lives below in collapsed disclosures.
+    // MARK: - Primary (always-visible) quick-log card
+
+    /// Everything a typical repeat log needs, in one glance: when and how long,
+    /// where, what you rode, and how it was. Spot and gear arrive filled from
+    /// history (`QuickLogDefaults`) and a blank draft ends "now", so the usual
+    /// log is a duration chip, a star, and Save. Only the spot is required;
+    /// everything below the card stays in collapsed disclosures.
     private var primarySpotCard: some View {
         EditorSection("Session") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("WHEN")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textMuted)
-                DatePicker(
-                    "When",
-                    selection: $draft.date,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                .labelsHidden()
-                .datePickerStyle(.compact)
-                .tint(Theme.textPrimary)
-                .foregroundStyle(Theme.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .glassInput()
-                .accessibilityIdentifier("session.editor.date")
+            whenField
+
+            spotField
+
+            gearSummary
+
+            VStack(alignment: .leading, spacing: 4) {
+                fieldLabel("RATING")
+                ratingBody
             }
 
+            if isNewSession, let lastSession = sessions.first, hasSetupToCopy(lastSession) {
+                Button {
+                    applySameSetup(from: lastSession)
+                } label: {
+                    Label("Same setup as last session", systemImage: "clock.arrow.circlepath")
+                        .frame(maxWidth: .infinity)
+                }
+                .glassButtonStyle(prominent: false)
+                .accessibilityHint("Uses the spot, gear and buddies from your last session")
+                .accessibilityIdentifier("session.editor.useLastSession")
+            }
+        }
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.textMuted)
+    }
+
+    /// Start time plus "time in water" chips. On a blank draft the end is pinned
+    /// to now, so a chip walks the start back; the range caption says exactly
+    /// what will be saved.
+    private var whenField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            fieldLabel("WHEN")
+            DatePicker(
+                "When",
+                selection: startDateBinding,
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(Theme.textPrimary)
+            .foregroundStyle(Theme.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .glassInput()
+            .accessibilityIdentifier("session.editor.date")
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(QuickLogDefaults.durationPresets, id: \.self) { minutes in
+                        SelectableChip(
+                            label: SessionDurationFormatter.string(from: minutes),
+                            systemImage: nil,
+                            isSelected: draft.durationMinutes == minutes
+                        ) {
+                            draft.setDuration(draft.durationMinutes == minutes ? 0 : minutes)
+                        }
+                        .accessibilityLabel(durationAccessibilityLabel(minutes))
+                        .accessibilityIdentifier("session.editor.duration.preset.\(minutes)")
+                    }
+                    SelectableChip(
+                        label: hasCustomDuration ? durationLabel : "Other",
+                        systemImage: hasCustomDuration ? nil : "slider.horizontal.3",
+                        isSelected: hasCustomDuration
+                    ) {
+                        reveal(.details)
+                    }
+                    .accessibilityLabel(hasCustomDuration ? durationAccessibilityLabel(draft.durationMinutes) : "Other duration")
+                    .accessibilityHint("Opens the duration slider")
+                    .accessibilityIdentifier("session.editor.duration.other")
+                }
+                .padding(.vertical, 4)
+            }
+            .clipped()
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Time in water")
+
+            Text(timeInWaterCaption)
+                .font(.caption)
+                .foregroundStyle(Theme.textMuted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("session.editor.timeCaption")
+        }
+    }
+
+    private var spotField: some View {
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("SPOT")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.textMuted)
-                TextField(
-                    "Spot",
-                    text: $draft.spotName,
-                    prompt: Text("Search or add a break").foregroundStyle(Theme.textMuted)
-                )
-                    .textFieldStyle(.plain)
-                    .textInputAutocapitalization(.words)
-                    .foregroundStyle(Theme.textPrimary)
-                    .padding(12)
-                    .glassInput()
-                    .accessibilityIdentifier("session.editor.spot")
-                    .focused($focusedField, equals: .spot)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        focusedField = nil
-                    }
-                    .onChange(of: draft.spotName) { _, newValue in
-                        let exactKey = newValue.trimmedNonEmpty.map(Spot.makeKey(from:))
-                        if let selected = draft.selectedSpot, selected.key != exactKey {
-                            draft.selectedSpot = nil
+                fieldLabel("SPOT")
+                HStack(spacing: 8) {
+                    TextField(
+                        "Spot",
+                        text: $draft.spotName,
+                        prompt: Text("Search or add a break").foregroundStyle(Theme.textMuted)
+                    )
+                        .textFieldStyle(.plain)
+                        .textInputAutocapitalization(.words)
+                        .foregroundStyle(Theme.textPrimary)
+                        .accessibilityIdentifier("session.editor.spot")
+                        .focused($focusedField, equals: .spot)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            focusedField = nil
                         }
-                        if draft.selectedSpot == nil,
-                           let exactKey,
-                           let exactSpot = spots.first(where: { $0.key == exactKey }) {
-                            draft.selectedSpot = exactSpot
+                        .onChange(of: draft.spotName) { _, newValue in
+                            let exactKey = newValue.trimmedNonEmpty.map(Spot.makeKey(from:))
+                            if let selected = draft.selectedSpot, selected.key != exactKey {
+                                draft.selectedSpot = nil
+                            }
+                            if draft.selectedSpot == nil,
+                               let exactKey,
+                               let exactSpot = spots.first(where: { $0.key == exactKey }) {
+                                draft.selectedSpot = exactSpot
+                            }
                         }
+                    // The spot now usually arrives filled in; searching for a
+                    // different one shouldn't start with deleting it by hand.
+                    if !draft.spotName.isEmpty {
+                        Button {
+                            draft.spotName = ""
+                            focusedField = .spot
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Theme.textMuted)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear spot")
+                        .accessibilityIdentifier("session.editor.spot.clear")
                     }
+                }
+                .padding(.leading, 12)
+                .padding(.trailing, draft.spotName.isEmpty ? 12 : 0)
+                .frame(minHeight: 44)
+                .glassInput()
             }
 
             if !filteredSpots.isEmpty {
@@ -409,18 +584,104 @@ struct SessionEditorView: View {
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)
             }
+        }
+    }
 
-            if case .new = mode, sessions.first != nil {
-                Button {
-                    if let lastSession = sessions.first {
-                        applyTemplateFromLastSession(lastSession)
-                    }
-                } label: {
-                    Label("Use last session", systemImage: "clock.arrow.circlepath")
-                        .frame(maxWidth: .infinity)
+    /// The selected gear, visible without opening the Gear section — a guessed
+    /// setup must never ride along unseen. Tapping jumps to the full picker.
+    private var gearSummary: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            fieldLabel("GEAR")
+            Button {
+                reveal(.gear)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: GearKind.board.systemImage)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.textSecondary)
+                        .accessibilityHidden(true)
+                    Text(gearSummaryText)
+                        .font(.subheadline)
+                        .foregroundStyle(draft.selectedGear.isEmpty ? Theme.textMuted : Theme.textPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 8)
+                    Text(draft.selectedGear.isEmpty ? "Add" : "Change")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
                 }
-                .glassButtonStyle(prominent: false)
-                .accessibilityIdentifier("session.editor.useLastSession")
+                .padding(12)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .glassInput()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PressFeedbackButtonStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(draft.selectedGear.isEmpty ? "Gear, none selected" : "Gear, \(gearSummaryText)")
+            .accessibilityHint(draft.selectedGear.isEmpty ? "Opens the gear picker" : "Opens the gear picker to change it")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("session.editor.gearSummary")
+
+            if draft.gearIsSuggested, !draft.selectedGear.isEmpty {
+                Text("Suggested from your recent sessions.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+                    .accessibilityIdentifier("session.editor.gearSuggestionHint")
+            }
+        }
+    }
+
+    private var gearSummaryText: String {
+        guard !draft.selectedGear.isEmpty else { return "No gear" }
+        // Boards first, then wetsuits, fins… — the order the Gear section uses.
+        let order = Dictionary(uniqueKeysWithValues: GearKind.allCases.enumerated().map { ($1, $0) })
+        return draft.selectedGear
+            .sorted { (order[$0.kind] ?? 0, $0.name) < (order[$1.kind] ?? 0, $1.name) }
+            .map(\.name)
+            .joined(separator: ", ")
+    }
+
+    private var startDateBinding: Binding<Date> {
+        Binding(
+            get: { draft.date },
+            set: { draft.setStartDate($0) }
+        )
+    }
+
+    private var hasCustomDuration: Bool {
+        draft.durationMinutes > 0 && !QuickLogDefaults.durationPresets.contains(draft.durationMinutes)
+    }
+
+    private var timeInWaterCaption: String {
+        guard let end = draft.endDate else {
+            return draft.isAnchoredToNow
+                ? "How long were you out? Peak counts back from now."
+                : "Add how long you were out."
+        }
+        let range = (draft.date..<end).formatted(.interval.hour().minute())
+        return draft.isAnchoredToNow ? "In the water \(range), ending now." : "In the water \(range)."
+    }
+
+    private func durationAccessibilityLabel(_ minutes: Int) -> String {
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        var parts: [String] = []
+        if hours > 0 { parts.append(hours == 1 ? "1 hour" : "\(hours) hours") }
+        if remainder > 0 { parts.append("\(remainder) minutes") }
+        return parts.joined(separator: " ")
+    }
+
+    private func hasSetupToCopy(_ session: SurfSession) -> Bool {
+        session.spot != nil || !session.gear.isEmpty || !session.buddies.isEmpty
+    }
+
+    private func applySameSetup(from session: SurfSession) {
+        QuickLogDefaults.applySameSetup(from: session, to: &draft)
+        focusedField = nil
+        // Buddies live in a collapsed section; show what was just filled in.
+        if !draft.selectedBuddies.isEmpty {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
+                showBuddies = true
             }
         }
     }
@@ -465,8 +726,8 @@ struct SessionEditorView: View {
 
     // MARK: - Disclosure section bodies
 
-    /// Duration + surf conditions. Duration lives here (not in the primary card) because its only
-    /// consumer is the auto-fill precondition; it is placed first so it stays scroll-reachable.
+    /// Fine-grained duration + surf conditions. The common durations are chips in the quick-log card;
+    /// this slider is the "Other" path and sits first so it stays scroll-reachable.
     private var detailsBody: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
@@ -647,13 +908,6 @@ struct SessionEditorView: View {
             .glassButtonStyle(prominent: false)
             .disabled(newGearName.trimmedNonEmpty == nil)
 
-            if let lastSession = sessions.first, !lastSession.gear.isEmpty {
-                Button("Use last gear setup") {
-                    draft.selectedGear = lastSession.gear.filter { !$0.isArchived }
-                }
-                .frame(maxWidth: .infinity)
-                .glassButtonStyle(prominent: false)
-            }
         }
     }
 
@@ -836,7 +1090,7 @@ struct SessionEditorView: View {
         Binding(
             get: { Double(draft.durationMinutes) },
             set: { newValue in
-                draft.durationMinutes = Int(newValue.rounded())
+                draft.setDuration(Int(newValue.rounded()))
             }
         )
     }
@@ -879,6 +1133,7 @@ struct SessionEditorView: View {
         if !draft.selectedGear.contains(where: { $0.persistentModelID == stored.persistentModelID }) {
             draft.selectedGear.append(stored)
         }
+        draft.gearIsSuggested = false
         newGearName = ""
     }
 
@@ -889,44 +1144,6 @@ struct SessionEditorView: View {
             draft.selectedBuddies.append(stored)
         }
         newBuddyName = ""
-    }
-
-    private func applyTemplateFromLastSession(_ session: SurfSession) {
-        draft.selectedSpot = session.spot
-        draft.spotName = session.spot?.name ?? ""
-        draft.selectedGear = session.gear
-        draft.selectedBuddies = session.buddies
-        draft.rating = session.rating
-        draft.durationMinutes = session.durationMinutes ?? 0
-        draft.windCondition = session.windCondition
-        draft.waveHeight = session.waveHeight
-        draft.windSpeedKph = session.windSpeedKph
-        draft.windDirectionDegrees = session.windDirectionDegrees
-        draft.waveHeightMeters = session.waveHeightMeters
-        draft.swellWaveHeightMeters = session.swellWaveHeightMeters
-        draft.swellWavePeriodSeconds = session.swellWavePeriodSeconds
-        draft.swellWaveDirectionDegrees = session.swellWaveDirectionDegrees
-        draft.windWaveHeightMeters = session.windWaveHeightMeters
-        draft.windWavePeriodSeconds = session.windWavePeriodSeconds
-        draft.windWaveDirectionDegrees = session.windWaveDirectionDegrees
-        draft.seaSurfaceTemperatureC = session.seaSurfaceTemperatureC
-        draft.seaLevelHeightM = session.seaLevelHeightM
-        draft.tideTrend = session.tide
-        draft.conditionsSource = session.conditionsSource
-        draft.conditionsFetchedAt = session.conditionsFetchedAt
-        draft.conditionsLatitude = session.conditionsLatitude
-        draft.conditionsLongitude = session.conditionsLongitude
-        draft.notes = session.notes
-        draft.mediaItems = []
-        surfConditionsNotice = nil
-        // Reveal the sections we just pre-filled so the loaded setup is visible, not hidden.
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
-            showDetails = true
-            showGear = true
-            showBuddies = true
-            showRating = true
-            showNotes = true
-        }
     }
 
     private func saveSession() {
@@ -1073,8 +1290,13 @@ struct SessionEditorView: View {
                                         userInfo: message.map { ["message": $0] })
     }
 
+    /// The field doubles as a search box, but a name that is simply the selected
+    /// spot (a history default, or a chip just tapped) is not a search: keep every
+    /// chip on screen so switching spots is one tap, not clear-and-retype.
     private var filteredSpots: [Spot] {
-        let filteredSpots = draft.spotName.trimmedNonEmpty.map { query in
+        let isShowingSelection = draft.selectedSpot.map { $0.name == draft.spotName } ?? false
+        let query = isShowingSelection ? nil : draft.spotName.trimmedNonEmpty
+        let filteredSpots = query.map { query in
             spots.filter { $0.name.localizedCaseInsensitiveContains(query) }
         } ?? spots
         return sortedSpots(filteredSpots)

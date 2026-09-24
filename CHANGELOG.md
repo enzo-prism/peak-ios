@@ -13,6 +13,26 @@ Status at a glance:
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
 - **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
+## [3.5] — Unreleased quick log
+
+Repeat logging after a surf becomes spot-and-gear-from-history, a duration
+chip, a star, and Save. Only the *setup* is ever guessed; conditions, rating
+and notes are never carried from another session.
+
+### Added
+
+- **History defaults.** A new session starts on the last spot surfed and the gear last ridden *at that spot* (falling back to the most recent setup; archived gear is never suggested). Changing the spot swaps a suggested setup for that spot's, but never touches gear picked by hand. The guessed gear is shown in the Session card and labelled "Suggested from your recent sessions." (`QuickLogDefaults`).
+- **Time in water chips** (1h / 1h 30m / 2h / 3h / Other) in the Session card. A blank draft ends *now*, so a chip walks the start time back and the caption reads "In the water 6:30 – 8:00 AM, ending now." Editing the start time hands the clock back to the surfer. Besides being honest about when the surf happened, this makes a manual log overlap the Watch workout for the same surf, so the "Watch surf ready to log" card no longer invites a duplicate.
+- **Discard guard.** Cancel asks "Discard this session?" / "Discard your changes?" once a draft has moved off its starting state, and swipe-to-dismiss is disabled until then. Untouched drafts (including timer and Watch prefills) still close immediately.
+- **Apple Watch opt-in in onboarding.** Where Apple Health exists, the welcome gains a "Surf with an Apple Watch?" page with the same opt-in as Settings → Apple Health. Skipping it leaves Health off.
+
+### Changed
+
+- **Rating and gear moved into the Session card**; the Rating disclosure is gone. The new-session sheet opens at full height (medium stays available).
+- **"Use last session" is now "Same setup as last session"** and copies spot, gear and buddies only. It used to copy the previous rating, notes and fetched conditions — including their source and fetch time — which put last week's swell on today's session as if it had been fetched for it. The separate "Use last gear setup" button is removed.
+- **Watch surfs open the editor** instead of saving silently. "Log this surf" (Log tab) and the notification's Log action build a draft with the workout's own times, the nearest pinned spot and route-derived wave stats (marked estimates), then gear from history — so the result is a reviewed, rated session rather than an "Unknown spot" row with an "Imported from Apple Health" note. The workout link still prevents a duplicate Health write. Settings → Import from Health stays a direct bulk import. The Watch card now sits directly under the Log hero.
+- **Spot field:** a clear button, and all spot chips stay visible while the field just shows the selected spot, so switching spots is one tap instead of clear-and-retype.
+
 ## [3.4] — Unreleased reliability update
 
 ### Changed

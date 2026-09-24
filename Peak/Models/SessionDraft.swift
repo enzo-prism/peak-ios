@@ -37,6 +37,16 @@ struct SessionDraft {
     var linkedWorkoutID: String?
     var notes: String = ""
     var mediaItems: [SessionMediaDraftItem] = []
+    /// True while a new session is being logged "just now": the surfer is out of
+    /// the water, so the session *ends* at the moment of logging and picking a
+    /// duration walks the start time back from there. Any direct edit of the
+    /// start time hands the clock back to the surfer. Prefilled drafts (timer,
+    /// Watch workout) and edits carry real times and never anchor.
+    var isAnchoredToNow = false
+    /// True while `selectedGear` is Peak's guess from history rather than the
+    /// surfer's pick, so a spot change can swap in the setup last used there.
+    /// Any manual gear change clears it.
+    var gearIsSuggested = false
 
     init() {}
 
@@ -88,7 +98,29 @@ struct SessionDraft {
         spotName = spot.name
     }
 
+    /// Duration writes go through here so an anchored draft keeps its end
+    /// pinned to `now` (rounded down to the minute, which is all the start-time
+    /// picker shows).
+    mutating func setDuration(_ minutes: Int, now: Date = Date()) {
+        durationMinutes = max(0, minutes)
+        guard isAnchoredToNow else { return }
+        let end = Calendar.current.dateInterval(of: .minute, for: now)?.start ?? now
+        date = end.addingTimeInterval(-TimeInterval(durationMinutes) * 60)
+    }
+
+    /// The surfer set the start time themselves; from here on it is theirs.
+    mutating func setStartDate(_ newDate: Date) {
+        date = newDate
+        isAnchoredToNow = false
+    }
+
+    /// When the session ends, if a duration is known.
+    var endDate: Date? {
+        durationMinutes > 0 ? date.addingTimeInterval(TimeInterval(durationMinutes) * 60) : nil
+    }
+
     mutating func toggleGear(_ gear: Gear) {
+        gearIsSuggested = false
         if let index = selectedGear.firstIndex(where: { $0.persistentModelID == gear.persistentModelID }) {
             selectedGear.remove(at: index)
         } else {
@@ -164,6 +196,20 @@ struct SessionDraft {
         // the route, and the user may well want the estimate back.
     }
 
+    /// Seeds wave stats derived from a Watch route, mirroring
+    /// `SurfSession.applyDerivedWaveStats`: zero speed/ride/paddle figures are
+    /// not facts worth showing, so they stay nil, and the source is `auto` until
+    /// the surfer touches a number.
+    mutating func applyDerivedWaveStats(_ stats: WaveStats, workoutID: String) {
+        waveCount = stats.waveCount
+        topSpeedKph = stats.topSpeedKph > 0 ? stats.topSpeedKph : nil
+        longestRideSeconds = stats.longestRideSeconds > 0 ? stats.longestRideSeconds : nil
+        longestRideMeters = stats.longestRideMeters > 0 ? stats.longestRideMeters : nil
+        paddleDistanceMeters = stats.paddleDistanceMeters > 0 ? stats.paddleDistanceMeters : nil
+        waveStatsSource = .auto
+        linkedWorkoutID = workoutID
+    }
+
     mutating func applySurfConditions(_ snapshot: SurfConditionsSnapshot) {
         windCondition = snapshot.windCondition
         waveHeight = snapshot.waveHeightCategory
@@ -183,6 +229,62 @@ struct SessionDraft {
         conditionsFetchedAt = snapshot.fetchedAt
         conditionsLatitude = snapshot.latitude
         conditionsLongitude = snapshot.longitude
+    }
+
+    /// Everything the surfer can change, reduced to plain values so the editor
+    /// can tell an untouched draft from one with work in it (and only ask
+    /// "Discard?" about the latter).
+    struct ChangeSignature: Equatable {
+        let date: Date
+        let spotName: String
+        let spot: PersistentIdentifier?
+        let gear: [PersistentIdentifier]
+        let buddies: [PersistentIdentifier]
+        let rating: Int
+        let durationMinutes: Int
+        let windCondition: WindCondition?
+        let waveHeight: WaveHeight?
+        let conditions: [Double?]
+        let tideTrend: TideTrend?
+        let conditionsSource: String?
+        let conditionsFetchedAt: Date?
+        let waveCount: Int?
+        let waveFigures: [Double?]
+        let waveStatsSource: WaveStatsSource?
+        let linkedWorkoutID: String?
+        let notes: String
+        let media: [UUID]
+        let crops: [CGRect]
+    }
+
+    var changeSignature: ChangeSignature {
+        ChangeSignature(
+            date: date,
+            spotName: spotName,
+            spot: selectedSpot?.persistentModelID,
+            gear: selectedGear.map(\.persistentModelID),
+            buddies: selectedBuddies.map(\.persistentModelID),
+            rating: rating,
+            durationMinutes: durationMinutes,
+            windCondition: windCondition,
+            waveHeight: waveHeight,
+            conditions: [
+                windSpeedKph, windDirectionDegrees, waveHeightMeters,
+                swellWaveHeightMeters, swellWavePeriodSeconds, swellWaveDirectionDegrees,
+                windWaveHeightMeters, windWavePeriodSeconds, windWaveDirectionDegrees,
+                seaSurfaceTemperatureC, seaLevelHeightM, conditionsLatitude, conditionsLongitude
+            ],
+            tideTrend: tideTrend,
+            conditionsSource: conditionsSource,
+            conditionsFetchedAt: conditionsFetchedAt,
+            waveCount: waveCount,
+            waveFigures: [topSpeedKph, longestRideSeconds, longestRideMeters, paddleDistanceMeters],
+            waveStatsSource: waveStatsSource,
+            linkedWorkoutID: linkedWorkoutID,
+            notes: notes,
+            media: mediaItems.map(\.id),
+            crops: mediaItems.map(\.cropRect)
+        )
     }
 }
 

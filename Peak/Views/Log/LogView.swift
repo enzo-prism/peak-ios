@@ -33,12 +33,14 @@ struct LogView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         heroCard
 
+                        // Right under the hero: a surf the Watch already recorded
+                        // is the fastest log Peak can offer, and it goes stale.
+                        UnloggedWorkoutCard(sessions: allSessions)
+                            .padding(.horizontal)
+
                         // Above the memory layer: "when today?" is a question with
                         // a deadline, and "on this day in 2023" is not.
                         BestWindowTodayCard(sessions: allSessions)
-
-                        UnloggedWorkoutCard(sessions: allSessions)
-                            .padding(.horizontal)
 
                         if let cachedMemory {
                             NavigationLink {
