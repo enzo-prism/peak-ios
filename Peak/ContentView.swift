@@ -24,8 +24,11 @@ struct ContentView: View {
                 .tabBarMinimizeOnScroll()
         }
         // Clearing on dismiss means a prefill is used exactly once: the next
-        // manual "Log Session" opens blank whether the surfer saved or cancelled.
-        .sheet(isPresented: $quickLog.showNewSession, onDismiss: { quickLog.pendingLog = nil }) {
+        // manual "Log Session" starts fresh whether the surfer saved or cancelled.
+        .sheet(isPresented: $quickLog.showNewSession, onDismiss: {
+            quickLog.pendingLog = nil
+            quickLog.pendingDraft = nil
+        }) {
             SessionEditorView(mode: .new, prefill: prefillDraft)
         }
         .task {
@@ -172,9 +175,10 @@ struct ContentView: View {
         navigation.handle(destination)
     }
 
-    /// A session ended outside the editor opens it prefilled; everything else
-    /// gets a blank draft.
+    /// A session ended outside the editor, or a Watch surf, opens it prefilled;
+    /// everything else gets a blank draft (which the editor fills from history).
     private var prefillDraft: SessionDraft? {
+        if let draft = quickLog.pendingDraft { return draft }
         guard let record = quickLog.pendingLog else { return nil }
         return ActiveSessionCalculator.makeDraft(from: record, spots: spots)
     }
