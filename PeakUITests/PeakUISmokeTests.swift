@@ -679,7 +679,14 @@ private extension PeakUISmokeTests {
 
         let spotField = app.textFields["session.editor.spot"]
         assertExists(spotField, file: file, line: line)
-        tapElement(spotField)
+        // New drafts arrive with the last spot filled in; clear it so the typed
+        // search starts from an empty field (the clear button also focuses it).
+        let clear = app.buttons["session.editor.spot.clear"]
+        if clear.exists, clear.isHittable {
+            clear.tap()
+        } else {
+            tapElement(spotField)
+        }
         spotField.typeText(fallbackText)
         selectSpotSuggestion(key: key, file: file, line: line)
     }
@@ -1012,6 +1019,18 @@ final class PeakWelcomeUITests: XCTestCase {
         let secondNext = app.buttons["welcome.next"]
         XCTAssertTrue(secondNext.waitForExistence(timeout: 3))
         secondNext.tap()
+
+        // The simulator has Apple Health, so the Watch opt-in page appears. It is
+        // not tapped here: that would raise the system Health sheet.
+        XCTAssertTrue(
+            app.staticTexts["Surf with an Apple Watch?"].waitForExistence(timeout: 3),
+            "Expected the Apple Watch opt-in screen"
+        )
+        XCTAssertTrue(app.buttons["welcome.health.connect"].exists, "Missing the Connect Apple Health button")
+
+        let thirdNext = app.buttons["welcome.next"]
+        XCTAssertTrue(thirdNext.waitForExistence(timeout: 3))
+        thirdNext.tap()
 
         XCTAssertTrue(
             app.staticTexts["Log your first session"].waitForExistence(timeout: 3),

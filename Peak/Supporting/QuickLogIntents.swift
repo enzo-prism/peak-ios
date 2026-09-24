@@ -14,15 +14,28 @@ final class QuickLogCoordinator {
     /// Set when a just-ended session should open the editor prefilled. Consumed
     /// by `ContentView` when it builds the sheet.
     var pendingLog: EndedSessionRecord?
+    /// A ready-made draft — today, an Apple Watch surf with its times, nearest
+    /// spot and route-derived wave stats. Consumed like `pendingLog`.
+    var pendingDraft: SessionDraft?
 
     func requestNewSession() {
         pendingLog = nil
+        pendingDraft = nil
         showNewSession = true
     }
 
     /// Opens the editor prefilled from a session the surfer just ended.
     func requestLog(for record: EndedSessionRecord) {
         pendingLog = record
+        pendingDraft = nil
+        showNewSession = true
+    }
+
+    /// Opens the editor on a draft built elsewhere, for the surfer to review,
+    /// rate and save. Nothing is written until they do.
+    func requestLog(prefill draft: SessionDraft) {
+        pendingLog = nil
+        pendingDraft = draft
         showNewSession = true
     }
 

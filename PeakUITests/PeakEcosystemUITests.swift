@@ -105,11 +105,81 @@ final class PeakEcosystemUITests: XCTestCase {
         let saveButton = app.buttons["Save"]
         XCTAssertTrue(saveButton.waitForExistence(timeout: 3))
 
-        // A deep-linked session starts blank — it isn't a resumed timer. An
-        // empty SwiftUI text field reports its prompt as `value`, so assert the
-        // absence of a real spot rather than an empty string.
-        XCTAssertEqual(spotField.value as? String, "Search or add a break")
-        XCTAssertFalse(saveButton.isEnabled, "A blank draft has no spot yet, so it can't be saved")
+        // A deep-linked session isn't a resumed timer, but it isn't blank either:
+        // the setup comes from history, so the last spot (San Onofre in the seed)
+        // is already picked and the draft can be saved as-is.
+        XCTAssertEqual(spotField.value as? String, "San Onofre State Beach - Old Man's")
+        XCTAssertTrue(saveButton.isEnabled, "A history-defaulted draft should be ready to save")
+    }
+
+    /// The repeat log the quick-log card exists for: spot and gear arrive from
+    /// history, a chip sets how long you were out (counting back from now), and
+    /// that is a saveable session.
+    func testRepeatLogIsSpotAndGearFromHistoryPlusADurationChip() {
+        launchApp()
+        tapTab(named: "Log")
+
+        let cta = app.buttons["Log Session"]
+        XCTAssertTrue(cta.waitForExistence(timeout: 5))
+        cta.tap()
+
+        let spotField = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spotField.waitForExistence(timeout: 5), "Log Session did not open the editor")
+        XCTAssertEqual(spotField.value as? String, "San Onofre State Beach - Old Man's",
+                       "the last session's spot should be preselected")
+
+        // The guessed gear is on show in the card, not hidden in a collapsed section.
+        let gearSummary = app.buttons["session.editor.gearSummary"]
+        XCTAssertTrue(gearSummary.waitForExistence(timeout: 3), "missing gear summary in the quick-log card")
+        XCTAssertFalse(gearSummary.label.contains("none selected"), "the last setup's gear should be preselected")
+        XCTAssertTrue(app.staticTexts["session.editor.gearSuggestionHint"].exists,
+                      "a guessed setup must say it was guessed")
+
+        let chip = app.buttons["session.editor.duration.preset.90"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 3), "missing the 1h 30m duration chip")
+        chip.tap()
+
+        let caption = app.staticTexts["session.editor.timeCaption"]
+        XCTAssertTrue(caption.waitForExistence(timeout: 3))
+        XCTAssertTrue(caption.label.hasPrefix("In the water"), "caption should show the saved range: \(caption.label)")
+        XCTAssertTrue(caption.label.contains("ending now"), "a blank draft ends now: \(caption.label)")
+
+        let saveButton = app.buttons["Save"]
+        XCTAssertTrue(saveButton.isEnabled)
+        saveButton.tap()
+        XCTAssertTrue(spotField.waitForNonExistence(timeout: 5), "Save did not close the editor")
+    }
+
+    /// Cancel asks before throwing work away — and only then.
+    func testCancelConfirmsBeforeDiscardingAnEditedDraft() {
+        launchApp()
+        tapTab(named: "Log")
+
+        let cta = app.buttons["Log Session"]
+        XCTAssertTrue(cta.waitForExistence(timeout: 5))
+        cta.tap()
+
+        let spotField = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spotField.waitForExistence(timeout: 5))
+
+        let chip = app.buttons["session.editor.duration.preset.120"]
+        XCTAssertTrue(chip.waitForExistence(timeout: 3))
+        chip.tap()
+
+        app.buttons["Cancel"].tap()
+        let discard = app.buttons["Discard Session"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 3), "an edited draft closed without asking")
+
+        // iOS 26 presents the dialog as a popover from Cancel with no visible
+        // cancel button; tapping away is "Keep Editing".
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
+        XCTAssertTrue(discard.waitForNonExistence(timeout: 3), "tapping away should dismiss the dialog")
+        XCTAssertTrue(spotField.exists, "keeping the draft should leave the editor open")
+
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(discard.waitForExistence(timeout: 3))
+        discard.tap()
+        XCTAssertTrue(spotField.waitForNonExistence(timeout: 5), "Discard did not close the editor")
     }
 
     /// A URL Peak doesn't own must not open anything.
