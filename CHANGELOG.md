@@ -5,13 +5,11 @@ All notable changes to Peak (iOS) are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Status at a glance:
+Status at a glance (App Store Connect read back September 24, 2026):
 
-- **3.4 development candidate:** build **1**, schema V12. Expected gate: **594 unit / 63 UI cases per device**; final execution evidence is required before release.
-
-- **App Store (live):** `3.2` build **1** — `READY_FOR_DISTRIBUTION` in App Store Connect.
-- **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
-- **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
+- **App Store (live):** `3.3` build **1**, released September 24, 2026.
+- **3.5 release candidate:** build **1**. Quick log, Stats and session-detail fixes, and the new-session save path (#22, #23, #24), plus the 3.4 reliability work. Gate on this source: **615 unit / 67 UI cases per device**.
+- **TestFlight:** `3.4` build **1** (reliability, TestFlight only; its changes ship in 3.5).
 
 ## [3.5] — Unreleased
 
