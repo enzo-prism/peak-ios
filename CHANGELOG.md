@@ -13,7 +13,7 @@ Status at a glance:
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
 - **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
-## [3.5] — Unreleased quick log
+## [3.5] — Unreleased
 
 Repeat logging after a surf becomes spot-and-gear-from-history, a duration
 chip, a star, and Save. Only the *setup* is ever guessed; conditions, rating
@@ -32,6 +32,16 @@ and notes are never carried from another session.
 - **"Use last session" is now "Same setup as last session"** and copies spot, gear and buddies only. It used to copy the previous rating, notes and fetched conditions — including their source and fetch time — which put last week's swell on today's session as if it had been fetched for it. The separate "Use last gear setup" button is removed.
 - **Watch surfs open the editor** instead of saving silently. "Log this surf" (Log tab) and the notification's Log action build a draft with the workout's own times, the nearest pinned spot and route-derived wave stats (marked estimates), then gear from history — so the result is a reviewed, rated session rather than an "Unknown spot" row with an "Imported from Apple Health" note. The workout link still prevents a duplicate Health write. Settings → Import from Health stays a direct bulk import. The Watch card now sits directly under the Log hero.
 - **Spot field:** a clear button, and all spot chips stay visible while the field just shows the selected spot, so switching spots is one tap instead of clear-and-retype.
+
+### Fixed
+
+- **Consistency heatmap** drew thin dashes instead of cells and listed weekdays upside down (Saturday on top). Cells now fill each week × weekday slot and the calendar's first weekday is the top row.
+- **Monthly goal card** read "7 of 0 sessions" beside a "—" ring when no goal was set. With no target it now shows a plain "7 sessions in September" line and the invitation to set a goal; the ring appears only once there is a target.
+- **Wave height vs. rating** chart was always in metres while History shows feet on US locales. The axis, its label and VoiceOver now follow the locale.
+- **Spot mix donut** faded six slices linearly, so neighbours were ~13% apart and read as one grey. Slices now use fixed, well-separated ink steps (Other is the faintest), and the legend shows each spot's share.
+- **Stats tiles** "Surf days / In 2026" beside "This year / Sessions" read as one number labelled twice; the second tile is now "Sessions / In 2026".
+- **Session detail** no longer shows a "Not set" duration chip, and Gear, Buddies and Notes open expanded (they are short, and are the surfer's own record). The two-line notes preview in the hero is gone now that the full notes are visible below it.
+
 
 ## [3.4] — Unreleased reliability update
 

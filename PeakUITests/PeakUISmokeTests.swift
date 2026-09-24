@@ -270,7 +270,7 @@ final class PeakUISmokeTests: XCTestCase {
         row.tap()
 
         XCTAssertTrue(
-            heroElement("session.detail.heroTag.duration").exists,
+            heroElement("session.detail.heroTag.time").exists,
             "the hero should still render normally"
         )
         XCTAssertFalse(heroElement("session.detail.heroTag.waveCount", timeout: 0).exists)

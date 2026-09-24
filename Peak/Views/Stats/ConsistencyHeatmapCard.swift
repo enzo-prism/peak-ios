@@ -1,49 +1,39 @@
-import Charts
 import SwiftUI
 
 /// GitHub-style consistency grid: one column per week, one row per weekday,
 /// each cell shaded by how many sessions fell on that day. Monochrome — empty
 /// days read as a faint tint and busy days ramp up to full ink/foam.
+///
+/// Drawn with plain stacks rather than Swift Charts: as a `RectangleMark` grid
+/// the cells collapsed to ~2pt dashes, the weekday labels sat on the band
+/// edges and overlapped the first column, and the rows ran Saturday-first.
+/// Square cells sized from the available width avoid all three.
 struct ConsistencyHeatmapCard: View {
     let cells: [SessionHeatmapCell]
 
-    private var weeksCount: Int {
-        Set(cells.map(\.weekStart)).count
+    private static let cellSpacing: CGFloat = 3
+
+    private var weekStarts: [Date] {
+        Set(cells.map(\.weekStart)).sorted()
+    }
+
+    /// week start → weekday offset → cell. The current week is usually
+    /// partial; its missing (future) days render as blank space.
+    private var lookup: [Date: [Int: SessionHeatmapCell]] {
+        var map: [Date: [Int: SessionHeatmapCell]] = [:]
+        for cell in cells {
+            map[cell.weekStart, default: [:]][cell.weekdayIndex] = cell
+        }
+        return map
     }
 
     private var maxCount: Int {
         max(cells.map(\.count).max() ?? 0, 1)
     }
 
-    /// Stable, sortable week keys (ordered oldest → newest) so the x axis reads
-    /// left-to-right in time even as a categorical band scale.
-    private var orderedWeekKeys: [String] {
-        Set(cells.map(\.weekStart))
-            .sorted()
-            .enumerated()
-            .map { weekKey(index: $0.offset) }
-    }
-
-    private var weekIndexByStart: [Date: Int] {
-        var map: [Date: Int] = [:]
-        for (index, start) in Set(cells.map(\.weekStart)).sorted().enumerated() {
-            map[start] = index
-        }
-        return map
-    }
-
-    /// Ordered weekday full names (unique category identity). Reversed so the
-    /// calendar's first weekday sits at the top of the grid.
-    private var orderedWeekdayNames: [String] {
-        let calendar = Calendar.current
-        let symbols = calendar.weekdaySymbols
-        let first = calendar.firstWeekday - 1
-        return (0..<7).map { symbols[(first + $0) % 7] }
-    }
-
     var body: some View {
-        let weekIndex = weekIndexByStart
-        let names = orderedWeekdayNames
+        let weeks = weekStarts
+        let grid = lookup
 
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
@@ -52,46 +42,52 @@ struct ConsistencyHeatmapCard: View {
                     .foregroundStyle(Theme.textPrimary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Text("Last \(weeksCount) weeks")
+                Text("Last \(weeks.count) weeks")
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)
             }
 
-            Chart(cells) { cell in
-                RectangleMark(
-                    x: .value("Week", weekKey(index: weekIndex[cell.weekStart] ?? 0)),
-                    y: .value("Weekday", names[cell.weekdayIndex])
-                )
-                .foregroundStyle(intensity(for: cell.count))
-                .cornerRadius(3)
-                .accessibilityLabel(Text(accessibilityLabel(for: cell)))
-                .accessibilityValue(Text("\(cell.count)"))
-            }
-            .chartXScale(domain: orderedWeekKeys)
-            .chartYScale(domain: names.reversed())
-            .chartXAxis(.hidden)
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    if let name = value.as(String.self) {
-                        AxisValueLabel {
-                            Text(shortSymbol(for: name))
-                                .font(.caption2)
-                                .foregroundStyle(Theme.textMuted)
+            VStack(spacing: Self.cellSpacing) {
+                // Row 0 is the calendar's first weekday (`weekdayIndex` is the
+                // offset from it), so Sunday — or Monday — sits on top.
+                ForEach(0..<7, id: \.self) { row in
+                    HStack(spacing: Self.cellSpacing) {
+                        Text(weekdayLetter(row))
+                            .font(.caption2)
+                            .foregroundStyle(Theme.textMuted)
+                            .frame(width: 16, alignment: .leading)
+                            .accessibilityHidden(true)
+                        ForEach(weeks, id: \.self) { week in
+                            cellView(grid[week]?[row])
                         }
                     }
                 }
             }
-            .frame(height: 140)
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(Text("Consistency heatmap"))
-            .accessibilityValue(Text("Sessions per day over the last \(weeksCount) weeks"))
+            .accessibilityValue(Text("Sessions per day over the last \(weeks.count) weeks"))
+            .accessibilityIdentifier("stats.heatmap")
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
     }
 
-    private func weekKey(index: Int) -> String {
-        String(format: "w%03d", index)
+    @ViewBuilder
+    private func cellView(_ cell: SessionHeatmapCell?) -> some View {
+        if let cell {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(intensity(for: cell.count))
+                .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .accessibilityElement()
+                .accessibilityLabel(Text(accessibilityLabel(for: cell)))
+        } else {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+        }
     }
 
     /// Empty days stay a faint glass tint; busy days ramp ink/foam 0.35 → 1.0.
@@ -101,12 +97,10 @@ struct ConsistencyHeatmapCard: View {
         return Theme.textPrimary.opacity(0.35 + 0.65 * ratio)
     }
 
-    private func shortSymbol(for name: String) -> String {
+    private func weekdayLetter(_ row: Int) -> String {
         let calendar = Calendar.current
-        if let index = calendar.weekdaySymbols.firstIndex(of: name) {
-            return calendar.veryShortWeekdaySymbols[index]
-        }
-        return String(name.prefix(1))
+        let index = (calendar.firstWeekday - 1 + row) % 7
+        return calendar.veryShortWeekdaySymbols[index]
     }
 
     private func accessibilityLabel(for cell: SessionHeatmapCell) -> String {

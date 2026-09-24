@@ -16,6 +16,49 @@ struct MonthlyGoalCard: View {
     }
 
     var body: some View {
+        if progress.isActive {
+            activeCard
+        } else {
+            inactiveCard
+        }
+    }
+
+    /// No target yet: a quiet invitation, not a ring. "7 of 0 sessions" beside a
+    /// dash read as a broken goal rather than no goal at all.
+    private var inactiveCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "target")
+                .font(.title3)
+                .foregroundStyle(Theme.textMuted)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(progress.achievedLabel) \(achievedUnit) in \(monthName)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("Set a monthly goal in Settings to track it here.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("stats.goal.inactive")
+    }
+
+    /// "1 session" / "7 sessions" / "1 hour" / "2.5 hours".
+    private var achievedUnit: String {
+        let isOne = progress.achievedLabel == "1"
+        switch progress.metric {
+        case .sessions: return isOne ? "session" : "sessions"
+        case .hours: return isOne ? "hour" : "hours"
+        }
+    }
+
+    private var activeCard: some View {
         HStack(spacing: 16) {
             ring
 
@@ -65,14 +108,10 @@ struct MonthlyGoalCard: View {
     }
 
     private var percentLabel: String {
-        guard progress.isActive else { return "—" }
-        return "\(Int((progress.fraction * 100).rounded()))%"
+        "\(Int((progress.fraction * 100).rounded()))%"
     }
 
     private var statusLine: String {
-        guard progress.isActive else {
-            return "Set a monthly goal in Settings."
-        }
         if progress.isMet {
             let extra = progress.achieved - Double(progress.target)
             return extra > 0 ? "Goal met, and then some." : "Goal met."
@@ -89,6 +128,10 @@ struct MonthlyGoalCard: View {
 
 #Preview {
     VStack(spacing: 16) {
+        MonthlyGoalCard(
+            progress: MonthlyGoalProgress(metric: .sessions, target: 0, achieved: 7, fraction: 0, isMet: false),
+            monthName: "July"
+        )
         MonthlyGoalCard(
             progress: MonthlyGoalProgress(metric: .sessions, target: 8, achieved: 0, fraction: 0, isMet: false),
             monthName: "July"

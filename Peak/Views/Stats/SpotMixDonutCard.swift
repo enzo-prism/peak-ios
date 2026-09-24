@@ -1,9 +1,10 @@
 import Charts
 import SwiftUI
 
-/// Donut of where the sessions happened. Slices ramp from full ink/foam (the
-/// most-surfed break) to a faint tint (the long tail / "Other" bucket), with
-/// the all-in total floating in the hole. A compact legend keys the shades.
+/// Donut of where the sessions happened. Slices step from full ink/foam (the
+/// most-surfed break) down to a faint tint (the "Other" bucket), with the
+/// all-in total floating in the hole. The legend keys the shades and gives
+/// each spot's share.
 struct SpotMixDonutCard: View {
     let spots: [CountedItem]
 
@@ -14,9 +15,8 @@ struct SpotMixDonutCard: View {
     }
 
     private var slices: [Slice] {
-        let count = spots.count
-        return spots.enumerated().map { index, item in
-            Slice(item: item, color: sliceColor(index: index, total: count))
+        spots.enumerated().map { index, item in
+            Slice(item: item, color: sliceColor(index: index))
         }
     }
 
@@ -87,18 +87,31 @@ struct SpotMixDonutCard: View {
                 .foregroundStyle(Theme.textSecondary)
                 .lineLimit(1)
             Spacer(minLength: 4)
-            Text("\(slice.item.count)")
-                .font(.caption.weight(.semibold))
+            // The share, not just the count: in a monochrome donut the legend
+            // has to carry the comparison the shades alone can't.
+            Text(percent(slice.item.count))
+                .font(.caption.weight(.semibold).monospacedDigit())
                 .foregroundStyle(Theme.textMuted)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(slice.item.name), \(slice.item.count) session\(slice.item.count == 1 ? "" : "s")"))
+        .accessibilityLabel(Text("\(slice.item.name), \(slice.item.count) session\(slice.item.count == 1 ? "" : "s"), \(percent(slice.item.count))"))
     }
 
-    /// Biggest slice is full-strength ink/foam; the tail fades toward a tint.
-    private func sliceColor(index: Int, total: Int) -> Color {
-        guard total > 1 else { return Theme.textPrimary }
-        let ratio = Double(index) / Double(total - 1)
-        return Theme.textPrimary.opacity(1.0 - ratio * 0.65)
+    private func percent(_ count: Int) -> String {
+        guard totalSessions > 0 else { return "0%" }
+        return (Double(count) / Double(totalSessions)).formatted(.percent.precision(.fractionLength(0)))
+    }
+
+    /// Fixed, well-separated ink/foam steps instead of a linear fade: a linear
+    /// ramp over six slices put neighbours ~13% apart, which reads as one grey.
+    /// Stays inside the monochrome palette (Theme.swift) on purpose.
+    private static let sliceOpacities: [Double] = [1.0, 0.7, 0.48, 0.32, 0.2]
+
+    private func sliceColor(index: Int) -> Color {
+        let isOther = spots[index].key == "stats.spot-mix.other"
+        let opacity = isOther
+            ? 0.1
+            : Self.sliceOpacities[min(index, Self.sliceOpacities.count - 1)]
+        return Theme.textPrimary.opacity(opacity)
     }
 }
