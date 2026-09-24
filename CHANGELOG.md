@@ -13,6 +13,17 @@ Status at a glance:
 - **3.3 release candidate:** build **1** — Spotlight, iPad navigation, Health loop, widgets, route map, lighter queries and lists, dedicated Search, HIG library detail, and the release-readiness fixes below. The candidate includes schema `PeakSchemaV11` so existing gear and buddy relationships survive the new explicit inverse relationships. Expect **549 unit / 55 UI** tests on a Mac; the optional marketing-screenshot capture skips when its external environment is absent.
 - **TestFlight / prior ship binary:** `3.2` build **1** (uploaded 2026-07-29) — everything through the 3.2 insights train plus both audit-fix rounds. First build cut with the App Group registered, so widgets, Control Center control, and the Live Activity are live on device. Prior trains in TestFlight: `3.0` builds 2–3 (2026-07-21), `2.6` build 2.
 
+## [3.5] — Unreleased
+
+### Fixed
+
+- **Consistency heatmap** drew thin dashes instead of cells and listed weekdays upside down (Saturday on top). Cells now fill each week × weekday slot and the calendar's first weekday is the top row.
+- **Monthly goal card** read "7 of 0 sessions" beside a "—" ring when no goal was set. With no target it now shows a plain "7 sessions in September" line and the invitation to set a goal; the ring appears only once there is a target.
+- **Wave height vs. rating** chart was always in metres while History shows feet on US locales. The axis, its label and VoiceOver now follow the locale.
+- **Spot mix donut** faded six slices linearly, so neighbours were ~13% apart and read as one grey. Slices now use fixed, well-separated ink steps (Other is the faintest), and the legend shows each spot's share.
+- **Stats tiles** "Surf days / In 2026" beside "This year / Sessions" read as one number labelled twice; the second tile is now "Sessions / In 2026".
+- **Session detail** no longer shows a "Not set" duration chip, and Gear, Buddies and Notes open expanded (they are short, and are the surfer's own record). The two-line notes preview in the hero is gone now that the full notes are visible below it.
+
 ## [3.4] — Unreleased reliability update
 
 ### Changed

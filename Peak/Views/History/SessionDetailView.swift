@@ -15,10 +15,13 @@ struct SessionDetailView: View {
     @State private var showDeleteError = false
     @State private var selectedMedia: SessionMedia?
     @State private var showSurfReportSection = true
-    @State private var showGearSection = false
-    @State private var showBuddiesSection = false
+    // Gear, buddies and notes are short and are the surfer's own record of the
+    // day, so they start open; the hero already shows the media strip, so the
+    // full media grid stays folded.
+    @State private var showGearSection = true
+    @State private var showBuddiesSection = true
     @State private var showMediaSection = false
-    @State private var showNotesSection = false
+    @State private var showNotesSection = true
     @State private var healthStats: SessionHealthStats?
     @State private var shareContent: SessionShareContent?
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
@@ -306,13 +309,6 @@ struct SessionDetailView: View {
             if conditionsSummaryCount > 0 {
                 heroTag("\(conditionsSummaryCount) condition details", icon: "chart.bar.fill")
             }
-
-            if !session.notes.isEmpty {
-                Text(session.notes)
-                    .lineLimit(2)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-            }
         }
         .padding(16)
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
@@ -478,11 +474,14 @@ struct SessionDetailView: View {
 
     @ViewBuilder
     private var heroTagContent: some View {
-        heroTag(
-            SessionDurationFormatter.string(from: session.durationMinutes),
-            icon: "timer",
-            accessibilityIdentifier: "session.detail.heroTag.duration"
-        )
+        // No "Not set" chip: an empty duration is an absence, not a fact.
+        if let minutes = session.durationMinutes, minutes > 0 {
+            heroTag(
+                SessionDurationFormatter.string(from: minutes),
+                icon: "timer",
+                accessibilityIdentifier: "session.detail.heroTag.duration"
+            )
+        }
         heroTag(
             session.date.formatted(.dateTime.hour().minute()),
             icon: "clock",

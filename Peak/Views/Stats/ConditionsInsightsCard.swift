@@ -9,9 +9,22 @@ struct ConditionsInsightsCard: View {
     let samples: [WaveRatingSample]
     let insight: ConditionsInsight?
 
+    @Environment(\.locale) private var locale
+
     private static let scatterThreshold = 8
 
     private var showScatter: Bool { samples.count >= Self.scatterThreshold }
+
+    /// Samples are stored in metres (Open-Meteo's unit); the axis follows the
+    /// surfer's locale like every other wave height in the app — History shows
+    /// "5.6 ft", so this chart must not silently plot 1.7.
+    private var usesMetric: Bool { locale.measurementSystem == .metric }
+
+    private func displayHeight(_ meters: Double) -> Double {
+        usesMetric ? meters : Measurement(value: meters, unit: UnitLength.meters).converted(to: .feet).value
+    }
+
+    private var unitSymbol: String { usesMetric ? "m" : "ft" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -41,21 +54,21 @@ struct ConditionsInsightsCard: View {
 
             Chart(samples) { sample in
                 PointMark(
-                    x: .value("Wave height", sample.waveHeightMeters),
+                    x: .value("Wave height", displayHeight(sample.waveHeightMeters)),
                     y: .value("Rating", sample.rating)
                 )
                 .foregroundStyle(Theme.textPrimary.opacity(0.7))
                 .symbolSize(70)
-                .accessibilityLabel(Text(String(format: "%.1f meters", sample.waveHeightMeters)))
+                .accessibilityLabel(Text(SurfConditionsFormatter.meters(sample.waveHeightMeters, locale: locale)))
                 .accessibilityValue(Text("Rated \(sample.rating)"))
             }
             .chartYScale(domain: 0...5.5)
             .chartXAxis {
                 AxisMarks { value in
                     AxisGridLine().foregroundStyle(Theme.glassDimTint)
-                    if let meters = value.as(Double.self) {
+                    if let height = value.as(Double.self) {
                         AxisValueLabel {
-                            Text(meters.formatted(.number.precision(.fractionLength(0...1))))
+                            Text(height.formatted(.number.precision(.fractionLength(0...1))))
                                 .foregroundStyle(Theme.textMuted)
                         }
                     }
@@ -68,7 +81,7 @@ struct ConditionsInsightsCard: View {
                         .foregroundStyle(Theme.textMuted)
                 }
             }
-            .chartXAxisLabel("Wave height (m)", alignment: .center)
+            .chartXAxisLabel("Wave height (\(unitSymbol))", alignment: .center)
             .chartYAxisLabel("Rating ★")
             .frame(height: 180)
             .accessibilityLabel(Text("Wave height versus rating scatter plot"))
