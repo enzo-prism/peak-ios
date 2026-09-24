@@ -8,13 +8,11 @@ import UserNotifications
 struct UnloggedWorkoutCard: View {
     let sessions: [SurfSession]
 
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Spot.name) private var spots: [Spot]
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
 
     @State private var workout: HealthKitLogic.WorkoutSummary?
     @State private var isLogging = false
-    @State private var logFeedback = 0
     @State private var refreshTask: Task<Void, Never>?
 
     private var isVisible: Bool {
@@ -58,10 +56,19 @@ struct UnloggedWorkoutCard: View {
                         Button {
                             Task { await log(workout) }
                         } label: {
-                            Label("Log this surf", systemImage: "plus")
-                                .font(.headline)
-                                .padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, minHeight: 44)
+                            HStack(spacing: 8) {
+                                // Reading the route and estimating waves can take
+                                // a beat on a long session; show that it's working.
+                                if isLogging {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "plus")
+                                }
+                                Text("Log this surf")
+                            }
+                            .font(.headline)
+                            .padding(.vertical, 6)
+                            .frame(maxWidth: .infinity, minHeight: 44)
                         }
                         .glassButtonStyle(prominent: true)
                         .disabled(isLogging)
@@ -72,7 +79,6 @@ struct UnloggedWorkoutCard: View {
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("log.unloggedWorkout")
-                .sensoryFeedback(.success, trigger: logFeedback)
             }
         }
         .onAppear { refresh() }
@@ -120,6 +126,10 @@ struct UnloggedWorkoutCard: View {
         }
     }
 
+    /// Opens the editor on the Watch surf — times, nearest spot and estimated
+    /// wave stats filled in, gear from history — so logging it is a rating and
+    /// Save rather than a blank "Unknown spot" row to fix later. The card stays
+    /// until the session is actually saved (its window then overlaps).
     private func log(_ workout: HealthKitLogic.WorkoutSummary) async {
         guard !isLogging else { return }
         isLogging = true
@@ -127,10 +137,8 @@ struct UnloggedWorkoutCard: View {
 
         let samples = await HealthKitService.shared.routeSamples(forWorkoutID: workout.id)
         let stats = await UnloggedSurfImporter.stats(from: samples)
-        let session = UnloggedSurfImporter.makeSession(workout: workout, samples: samples, stats: stats, spots: spots)
-        modelContext.insert(session)
-        logFeedback += 1
-        self.workout = nil
+        let draft = UnloggedSurfImporter.makeDraft(workout: workout, samples: samples, stats: stats, spots: spots)
+        QuickLogCoordinator.shared.requestLog(prefill: draft)
     }
 }
 
@@ -248,32 +256,47 @@ enum UnloggedSurfNotification {
     }
 }
 
-/// Turns an unlogged Watch workout into a Peak session. Shared by the Log-tab
-/// card, Import from Health, and the notification Log action.
+/// Turns an unlogged Watch workout into an editor draft. Shared by the Log-tab
+/// card and the notification Log action. (Settings → Import from Health is an
+/// explicit bulk import and builds sessions directly via `HealthKitLogic`.)
 enum UnloggedSurfImporter {
     static func stats(from samples: [RouteSample]) async -> WaveStats? {
         guard samples.count >= WaveAnalyzer.Tuning().minWaveSampleCount else { return nil }
         return await WaveAnalyzer.analyzeOffMain(samples: samples)
     }
 
-    static func makeSession(
+    /// The editor draft for a Watch surf: the workout's own start and length
+    /// (never anchored to "now"), the nearest pinned spot, and route-derived wave
+    /// stats marked `auto`. The workout link means saving never writes a second
+    /// workout back to Health.
+    static func makeDraft(
         workout: HealthKitLogic.WorkoutSummary,
         samples: [RouteSample],
         stats: WaveStats?,
         spots: [Spot]
-    ) -> SurfSession {
-        HealthKitLogic.importedSession(
-            workout: workout,
-            stats: stats,
-            spot: SpotProximity.nearest(to: samples, in: spots)
-        )
+    ) -> SessionDraft {
+        let values = HealthKitLogic.draftValues(workoutStart: workout.start, workoutEnd: workout.end)
+        var draft = SessionDraft()
+        draft.date = values.date
+        draft.durationMinutes = values.durationMinutes ?? 0
+        if let spot = SpotProximity.nearest(to: samples, in: spots) {
+            draft.selectSpot(spot)
+        }
+        if let stats {
+            draft.applyDerivedWaveStats(stats, workoutID: workout.id.uuidString)
+        } else {
+            draft.linkedWorkoutID = workout.id.uuidString
+        }
+        return draft
     }
 
+    /// The notification's Log action: open the editor on that workout, if it
+    /// is still unlogged. Same review-then-save path as the Log-tab card.
     @MainActor
-    static func importIfUnlogged(workoutID: String) async {
+    static func openEditorIfUnlogged(workoutID: String) async {
         guard !TestingDefaults.isUITest,
               let uuid = UUID(uuidString: workoutID),
-              let container = PeakIntentStore.container else { return }
+              PeakIntentStore.container != nil else { return }
 
         let sessions = PeakIntentStore.sessions()
         let spots = PeakIntentStore.spots()
@@ -286,15 +309,12 @@ enum UnloggedSurfImporter {
 
         let samples = await HealthKitService.shared.routeSamples(forWorkoutID: uuid)
         let stats = await stats(from: samples)
-        let session = makeSession(workout: summary, samples: samples, stats: stats, spots: spots)
-        container.mainContext.insert(session)
-        try? container.mainContext.save()
-        WidgetSnapshotWriter.update(from: PeakIntentStore.sessions())
-        NotificationCenter.default.post(name: .peakUnloggedWorkoutsMayHaveChanged, object: nil)
+        let draft = makeDraft(workout: summary, samples: samples, stats: stats, spots: spots)
+        QuickLogCoordinator.shared.requestLog(prefill: draft)
     }
 }
 
-/// Tapping Log imports that workout; tapping the banner opens the Log tab.
+/// Tapping Log opens the editor on that workout; tapping the banner opens the Log tab.
 /// Banners are suppressed while Peak is foregrounded — the card is the in-app surface.
 final class PeakNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PeakNotificationDelegate()
@@ -315,7 +335,7 @@ final class PeakNotificationDelegate: NSObject, UNUserNotificationCenterDelegate
         let workoutID = response.notification.request.content.userInfo[UnloggedSurfNotification.workoutIDUserInfoKey] as? String
         if response.actionIdentifier == UnloggedSurfNotification.logActionIdentifier,
            let workoutID {
-            await UnloggedSurfImporter.importIfUnlogged(workoutID: workoutID)
+            await UnloggedSurfImporter.openEditorIfUnlogged(workoutID: workoutID)
         }
         await MainActor.run {
             PeakNavigationCoordinator.shared.selectedTab = .log

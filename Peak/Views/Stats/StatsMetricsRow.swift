@@ -58,10 +58,12 @@ struct StatsMetricsRow: View {
             accessibilityLabel: "Surf days in \(yearSummary.year), \(yearSummary.totalDays)"
         ))
 
+        // Parallel to "Surf days / In 2026" — a "This year / Sessions" tile beside
+        // it read as the same number labelled twice.
         result.append(StatsMetric(
-            title: "This year",
+            title: "Sessions",
             value: "\(yearSummary.totalSessions)",
-            subtitle: "Sessions",
+            subtitle: "In \(yearSummary.year)",
             accessibilityLabel: "Sessions in \(yearSummary.year), \(yearSummary.totalSessions)"
         ))
 

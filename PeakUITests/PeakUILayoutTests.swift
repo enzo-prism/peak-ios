@@ -135,6 +135,15 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(thisYearCard)
         assertFits(thisYearCard)
 
+        // No goal is set in the seed: the card invites one instead of drawing a
+        // ring over "N of 0 sessions".
+        let goal = element(named: "stats.goal.inactive")
+        assertExists(goal)
+        assertFits(goal)
+        let zeroTarget = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS ' of 0 '")).firstMatch
+        XCTAssertFalse(zeroTarget.exists, "goal card still reads \"of 0\" with no target set")
+
         attachScreenshot(name: "Stats")
     }
 
@@ -233,7 +242,6 @@ final class PeakUILayoutTests: XCTestCase {
         openHistorySession(named: "San Onofre State Beach - Old Man's")
 
         for identifier in [
-            "session.detail.heroTag.duration",
             "session.detail.heroTag.time",
             "session.detail.heroTag.gear",
             "session.detail.heroTag.buddy"
@@ -242,6 +250,9 @@ final class PeakUILayoutTests: XCTestCase {
             assertExists(tag)
             assertReadableHorizontalText(tag)
         }
+        // Checked once the hero has rendered: the seeded San Onofre session has
+        // no duration, and an unset duration is not drawn as a "Not set" tag.
+        XCTAssertFalse(element(named: "session.detail.heroTag.duration").exists)
 
         attachScreenshot(name: "Session Detail Readable Hero")
     }
