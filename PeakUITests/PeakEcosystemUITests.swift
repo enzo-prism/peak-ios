@@ -166,17 +166,26 @@ final class PeakEcosystemUITests: XCTestCase {
         XCTAssertTrue(chip.waitForExistence(timeout: 3))
         chip.tap()
 
-        app.buttons["Cancel"].tap()
+        // The editor's own Cancel — scoped to its navigation bar so a stray
+        // second sheet can never make the query ambiguous.
+        let editorBar = app.navigationBars["Log Session"]
+        let cancel = editorBar.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 3))
+        cancel.tap()
         let discard = app.buttons["Discard Session"]
         XCTAssertTrue(discard.waitForExistence(timeout: 3), "an edited draft closed without asking")
 
         // iOS 26 presents the dialog as a popover from Cancel with no visible
-        // cancel button; tapping away is "Keep Editing".
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
+        // cancel button; tapping away is "Keep Editing". Tap an inert label:
+        // a fixed screen point hit live controls inside the iPad form sheet on
+        // CI, and on iPhone the popover itself covers the sheet's title.
+        // A coordinate tap: while the dialog is up, nothing under it counts as
+        // hittable, but the touch still lands outside the popover.
+        app.staticTexts["RATING"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(discard.waitForNonExistence(timeout: 3), "tapping away should dismiss the dialog")
         XCTAssertTrue(spotField.exists, "keeping the draft should leave the editor open")
 
-        app.buttons["Cancel"].tap()
+        cancel.tap()
         XCTAssertTrue(discard.waitForExistence(timeout: 3))
         discard.tap()
         XCTAssertTrue(spotField.waitForNonExistence(timeout: 5), "Discard did not close the editor")

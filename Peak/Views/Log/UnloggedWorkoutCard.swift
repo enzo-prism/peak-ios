@@ -108,7 +108,8 @@ struct UnloggedWorkoutCard: View {
         guard isVisible else { return }
         do {
             let workouts = try await HealthKitService.shared.fetchUnloggedSurfWorkouts(
-                existingSessions: sessions
+                existingSessions: sessions,
+                since: HealthKitLogic.recentUnloggedWindowStart()
             )
             guard !Task.isCancelled else { return }
             let latest = workouts.first
@@ -215,7 +216,8 @@ enum UnloggedSurfNotification {
         let workouts: [HealthKitLogic.WorkoutSummary]
         do {
             workouts = try await HealthKitService.shared.fetchUnloggedSurfWorkouts(
-                existingSessions: sessions
+                existingSessions: sessions,
+                since: HealthKitLogic.recentUnloggedWindowStart()
             )
         } catch {
             return

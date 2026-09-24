@@ -39,6 +39,8 @@ enum SpotlightIndexer {
         spots: [SpotEntity],
         gear: [GearEntity]
     ) async {
+        let signpost = PeakSignposts.begin("Spotlight donate")
+        defer { PeakSignposts.end(signpost) }
         let index = CSSearchableIndex(name: indexName)
         do {
             // Replace only Peak's named index. This also removes entities donated

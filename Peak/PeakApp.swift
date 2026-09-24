@@ -57,6 +57,10 @@ struct PeakApp: App {
             // outlive the in-memory store.
             ActiveSessionStore.reset()
             PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
+            if let size = ProcessInfo.processInfo.environment["UITESTS_LARGE_LIBRARY"].flatMap(Int.init), size > 0 {
+                // Profiling aid: see PreviewData.largeLibrary.
+                PreviewData.seedLargeLibrary(context: container.mainContext, count: size)
+            }
             if ProcessInfo.processInfo.environment["UITESTS_DISABLE_ANIMATIONS"] == "1" {
                 UIView.setAnimationsEnabled(false)
             }
@@ -110,6 +114,21 @@ private struct RootView: View {
                 if refreshLibrary(after: notification) {
                     savedSessionWarning = notification.userInfo?["message"] as? String
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .peakSessionDidSave)) { notification in
+                guard (notification.object as? ModelContainer) === container else { return }
+                // A new session only adds rows: no view holds a model it changed
+                // or removed. From iOS 18, @Query picks up the staged insert, so
+                // there is no full rebuild, no refetch of every tab and no
+                // navigation stack popped to root. iOS 17's SwiftData does not
+                // reliably refresh @Query after a commit from another context,
+                // so it keeps the rebuild.
+                if #available(iOS 18, *) {
+                    PeakSignposts.event("Session saved in place")
+                } else {
+                    _ = refreshLibrary(after: notification)
+                }
+                savedSessionWarning = notification.userInfo?["message"] as? String
             }
             .alert("Import Complete", isPresented: $isImportCompletePresented) {
                 Button("OK", role: .cancel) {}
@@ -181,6 +200,7 @@ private struct RootView: View {
     private func refreshLibrary(after notification: Notification) -> Bool {
         guard let changedContainer = notification.object as? ModelContainer,
               changedContainer === container else { return false }
+        PeakSignposts.event("Library rebuilt")
         // Private-context commits must retire old query models and navigation
         // selections together. The shared navigation coordinator keeps the tab.
         let refreshed = ModelContext(container)

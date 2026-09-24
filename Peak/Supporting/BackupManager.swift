@@ -48,6 +48,8 @@ enum BackupManager {
         buddies: [Buddy],
         now: Date = Date()
     ) async throws -> URL {
+        let signpost = PeakSignposts.begin("Backup file")
+        defer { PeakSignposts.end(signpost) }
         let export = PeakExportManager.makeExport(
             sessions: sessions,
             spots: spots,

@@ -827,7 +827,15 @@ enum ExportDateFormatter {
 
 
 extension Notification.Name {
+    /// A private context deleted sessions (or otherwise retired models). The UI
+    /// model context is recreated so no view keeps a deleted model alive.
     static let peakLibraryDidChange = Notification.Name("peakLibraryDidChange")
+    /// The session editor committed a *new* session through its staging
+    /// context. Nothing the UI holds changed, so on iOS 18+ the lists pick up
+    /// the insert and the view tree (and every navigation stack) stays put.
+    /// Edits post `peakLibraryDidChange`: held models are not refreshed by a
+    /// commit from another context.
+    static let peakSessionDidSave = Notification.Name("peakSessionDidSave")
     /// A private import context committed. Recreate the UI model context before
     /// showing completion so existing @Query/model caches cannot show old rows.
     static let peakLibraryDidImport = Notification.Name("peakLibraryDidImport")

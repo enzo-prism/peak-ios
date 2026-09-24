@@ -213,4 +213,62 @@ final class ModelContextHelpersTests: XCTestCase {
         XCTAssertNotEqual(first, second)
         XCTAssertEqual(second, SessionQueryStamp.make([session]))
     }
+
+    // MARK: - What a staged save does (and does not) reach
+
+    /// On iOS 18+ a *new* session saved by the editor no longer rebuilds the
+    /// view tree. That relies on the staged insert being fetchable from the
+    /// library context — the container's main context and the fresh context a
+    /// delete/import swaps in alike.
+    func testStagedInsertIsFetchableFromTheMainLibraryContext() throws {
+        let container = try TestModelContainer.make()
+        try assertStagedInsertIsFetchable(from: container.mainContext)
+    }
+
+    func testStagedInsertIsFetchableFromARefreshedLibraryContext() throws {
+        let container = try TestModelContainer.make()
+        let refreshed = ModelContext(container)
+        refreshed.autosaveEnabled = true
+        try assertStagedInsertIsFetchable(from: refreshed)
+    }
+
+    /// Why *edits* still rebuild: a model the library context already holds
+    /// keeps its old values after a commit from the staging context. If this
+    /// starts failing on a newer OS, edits could skip the rebuild too.
+    func testStagedSaveDoesNotRefreshModelsTheLibraryAlreadyHolds() throws {
+        let container = try TestModelContainer.make()
+        let library = container.mainContext
+        let session = TestFixture.session(rating: 2)
+        library.insert(session)
+        try library.save()
+
+        let staging = try SessionPersistence.stagingContext(from: library)
+        try SessionPersistence.resolve(session, in: staging).rating = 5
+        try staging.save()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(session.rating, 2)
+    }
+
+    private func assertStagedInsertIsFetchable(
+        from library: ModelContext,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let spot = TestFixture.spot(name: "Trestles")
+        library.insert(spot)
+        library.insert(TestFixture.session(spot: spot, rating: 2))
+        try library.save()
+
+        let staging = try SessionPersistence.stagingContext(from: library)
+        staging.insert(TestFixture.session(
+            date: TestCalendar.makeDate(year: 2026, month: 2, day: 3, hour: 7),
+            spot: try SessionPersistence.resolve(spot, in: staging),
+            rating: 4
+        ))
+        try staging.save()
+
+        let fetched = try library.fetch(FetchDescriptor<SurfSession>())
+        XCTAssertEqual(fetched.count, 2, "the staged insert is not fetchable from the library context", file: file, line: line)
+    }
 }

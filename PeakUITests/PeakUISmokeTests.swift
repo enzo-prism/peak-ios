@@ -259,6 +259,65 @@ final class PeakUISmokeTests: XCTestCase {
         )
     }
 
+    /// Logging a new session leaves the rest of the app where it was. Before
+    /// 3.5 every save rebuilt the whole view tree, so a session page open on
+    /// the History tab was gone when you came back to it.
+    func testLoggingANewSessionKeepsOtherTabsWhereTheyWere() {
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
+
+        tapTab(named: "Log")
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+        saveSession()
+        XCTAssertTrue(app.textFields["session.editor.spot"].waitForNonExistence(timeout: 5))
+
+        tapTab(named: "History")
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5),
+                      "the History tab's open session page was popped by saving a new session")
+    }
+
+    /// A delete swaps in a fresh library context; a save made after it must
+    /// still reach every list without another rebuild.
+    func testSessionSavedAfterADeleteStillAppearsInHistory() {
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
+        scrollToVisible(deleteButton, in: app.scrollViews.firstMatch)
+        deleteButton.tap()
+        let confirm = app.buttons["Delete"]
+        assertExists(confirm)
+        confirm.tap()
+        XCTAssertTrue(deleteButton.waitForNonExistence(timeout: 5), "deleting did not leave the session page")
+
+        tapTab(named: "Log")
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        assertExists(notes)
+        notes.tap()
+        notes.typeText(e2eSessionMarker)
+        saveSession()
+
+        tapTab(named: "History")
+        let saved = latestHistoryRow(markerSessionNote: e2eSessionMarker)
+        XCTAssertTrue(saved.waitForExistence(timeout: 5), "a session saved after a delete did not reach History")
+    }
+
     /// Sessions with no wave stats are completely unaffected: no tag, no caption,
     /// no empty row. Most Peak users will never record a wave stat, and their
     /// session detail must look exactly as it did before 3.0.

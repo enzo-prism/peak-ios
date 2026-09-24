@@ -25,6 +25,8 @@ and notes are never carried from another session.
 - **Time in water chips** (1h / 1h 30m / 2h / 3h / Other) in the Session card. A blank draft ends *now*, so a chip walks the start time back and the caption reads "In the water 6:30 – 8:00 AM, ending now." Editing the start time hands the clock back to the surfer. Besides being honest about when the surf happened, this makes a manual log overlap the Watch workout for the same surf, so the "Watch surf ready to log" card no longer invites a duplicate.
 - **Discard guard.** Cancel asks "Discard this session?" / "Discard your changes?" once a draft has moved off its starting state, and swipe-to-dismiss is disabled until then. Untouched drafts (including timer and Watch prefills) still close immediately.
 - **Apple Watch opt-in in onboarding.** Where Apple Health exists, the welcome gains a "Surf with an Apple Watch?" page with the same opt-in as Settings → Apple Health. Skipping it leaves Health off.
+- **Signposts** (`PeakSignposts`, Points of Interest) around Stats refresh, library rebuilds, in-place saves, the unlogged-workout query, Spotlight donation and backup creation, so Instruments shows where time goes.
+- **`UITESTS_LARGE_LIBRARY=<n>`** seeds a deterministic, media-free logbook of *n* sessions (`PreviewData.largeLibrary`) for profiling at a committed surfer's scale. `testStatsRefreshAtOneThousandSessions` records the Stats refresh cost at 1,000 store-backed sessions as a baseline.
 
 ### Changed
 
@@ -41,6 +43,11 @@ and notes are never carried from another session.
 - **Spot mix donut** faded six slices linearly, so neighbours were ~13% apart and read as one grey. Slices now use fixed, well-separated ink steps (Other is the faintest), and the legend shows each spot's share.
 - **Stats tiles** "Surf days / In 2026" beside "This year / Sessions" read as one number labelled twice; the second tile is now "Sessions / In 2026".
 - **Session detail** no longer shows a "Not set" duration chip, and Gear, Buddies and Notes open expanded (they are short, and are the surfer's own record). The two-line notes preview in the hero is gone now that the full notes are visible below it.
+
+### Performance
+
+- **Logging a new session no longer rebuilds the whole app.** Every editor save used to post `peakLibraryDidChange`, which swapped in a fresh model context and regenerated the entire `ContentView` tree: every tab re-fetched the full logbook, Stats re-ran all its calculators, Spotlight re-indexed, and every navigation stack popped to its root. A new session now posts `peakSessionDidSave`; on iOS 18+ the lists pick up the staged insert in place. Commits still go through the 3.4 private staging context. **Edits keep the full refresh**: a model the library context already holds is not refreshed by a commit from another context (pinned by `testStagedSaveDoesNotRefreshModelsTheLibraryAlreadyHolds`), so skipping the rebuild would show stale values. So do deletes, imports and saves that remove media (they retire models a view may still hold) and iOS 17, whose SwiftData does not reliably refresh `@Query` after a commit from another context.
+- **Unlogged-Watch-surf checks look back 30 days**, not the whole Health history. The Log-tab card and the notification run on every Log-tab appearance, session change and observer wake, and used to materialise every surf workout ever recorded, then compare each one against every session on the main actor. Settings → Import from Health still reads everything.
 
 
 ## [3.4] — Unreleased reliability update

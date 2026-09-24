@@ -621,3 +621,35 @@ final class SurfSessionTests: XCTestCase {
         XCTAssertEqual(picked?.name, "Trestles")
     }
 }
+
+extension SurfSessionTests {
+    /// The Log-tab card and the unlogged-surf notification look back a month,
+    /// not over a Watch user's whole history.
+    func testRecentUnloggedWindowLooksBackThirtyDays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = TestCalendar.makeDate(year: 2026, month: 9, day: 24, hour: 8)
+
+        let start = HealthKitLogic.recentUnloggedWindowStart(now: now, calendar: calendar)
+
+        XCTAssertEqual(start, TestCalendar.makeDate(year: 2026, month: 8, day: 25, hour: 8))
+    }
+
+    /// Only sessions that could reach into the window are compared against its
+    /// workouts; one that started up to the longest session length before the
+    /// window still counts.
+    func testOnlySessionsThatCanReachTheWindowAreCompared() {
+        let windowStart = TestCalendar.makeDate(year: 2026, month: 8, day: 25, hour: 8)
+        let longest = TimeInterval(SurfSession.maxDurationMinutes) * 60
+
+        XCTAssertTrue(HealthKitLogic.mayOverlapWindow(startingAt: windowStart, sessionDate: windowStart))
+        XCTAssertTrue(HealthKitLogic.mayOverlapWindow(
+            startingAt: windowStart,
+            sessionDate: windowStart.addingTimeInterval(-longest + 60)
+        ))
+        XCTAssertFalse(HealthKitLogic.mayOverlapWindow(
+            startingAt: windowStart,
+            sessionDate: windowStart.addingTimeInterval(-longest - 60)
+        ))
+    }
+}

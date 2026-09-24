@@ -198,6 +198,12 @@ struct StatsView: View {
     }
 
     private func refreshSummaries() {
+        PeakSignposts.interval("Stats refresh") {
+            computeSummaries()
+        }
+    }
+
+    private func computeSummaries() {
         cachedSummary = StatsCalculator.summarize(sessions: sessions)
         cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
         cachedTimeSummary = StatsCalculator.timeInWater(sessions: sessions)
