@@ -1075,9 +1075,16 @@ struct SessionEditorView: View {
         dismiss()
         var userInfo: [String: Any] = [:]
         if let message { userInfo["message"] = message }
-        // Removing media deletes models, so that save takes the full refresh
-        // path deletes use; plain inserts/edits update in place.
-        NotificationCenter.default.post(name: retiredMedia ? .peakLibraryDidChange : .peakSessionDidSave,
+        // Only a brand-new session can skip the full refresh. The library
+        // context fetches a staged insert, but a model it already holds keeps
+        // its old values after a commit from another context (pinned by
+        // `testStagedSaveDoesNotRefreshModelsTheLibraryAlreadyHolds`), so an
+        // edit still rebuilds — as do deletes and saves that remove media.
+        let insertsOnly: Bool = {
+            if case .new = mode { return !retiredMedia }
+            return false
+        }()
+        NotificationCenter.default.post(name: insertsOnly ? .peakSessionDidSave : .peakLibraryDidChange,
                                         object: modelContext.container,
                                         userInfo: userInfo)
     }

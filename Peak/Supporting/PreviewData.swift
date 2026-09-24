@@ -38,8 +38,8 @@ enum PreviewData {
             longitude: -117.5656
         )
 
-        let board = Gear(name: "6'0\" Twin", kind: .board)
-        let wetsuit = Gear(name: "3/2 Chest Zip", kind: .wetsuit)
+        let board = Gear(name: "6'2\" Fish", kind: .board)
+        let wetsuit = Gear(name: "3/2 Full", kind: .wetsuit)
         let fins = Gear(name: "Thruster", kind: .fins)
         let longBoard = Gear(
             name: "7'4\" Midlength Performance Egg",

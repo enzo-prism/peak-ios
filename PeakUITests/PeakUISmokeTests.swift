@@ -259,33 +259,28 @@ final class PeakUISmokeTests: XCTestCase {
         )
     }
 
-    /// Saving an edit from a session's detail page keeps you there and shows the
-    /// change in place. Before 3.5 every save rebuilt the whole view tree, which
-    /// popped this screen back to the History list.
-    func testEditingFromDetailUpdatesInPlaceWithoutPoppingToHistory() {
+    /// Logging a new session leaves the rest of the app where it was. Before
+    /// 3.5 every save rebuilt the whole view tree, so a session page open on
+    /// the History tab was gone when you came back to it.
+    func testLoggingANewSessionKeepsOtherTabsWhereTheyWere() {
         tapTab(named: "History")
-
         let row = latestHistoryRow()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
+        let deleteButton = app.buttons["Delete Session"]
+        assertExists(deleteButton)
 
-        let edit = app.buttons["Edit"]
-        assertExists(edit)
-        edit.tap()
-
-        let scrollView = app.scrollViews["session.editor.scroll"]
-        let notes = app.textViews["session.editor.notes"]
-        scrollToVisible(notes, in: scrollView)
-        assertExists(notes)
-        notes.tap()
-        notes.typeText(" Edited in place")
+        tapTab(named: "Log")
+        let cta = app.buttons["Log Session"]
+        assertExists(cta)
+        cta.tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
         saveSession()
+        XCTAssertTrue(app.textFields["session.editor.spot"].waitForNonExistence(timeout: 5))
 
-        // Still on the detail page (its own toolbar is back), not the list…
-        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5), "saving an edit left the session detail page")
-        // …and the page already shows the edit.
-        let edited = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Edited in place")).firstMatch
-        XCTAssertTrue(edited.waitForExistence(timeout: 5), "the detail page did not refresh with the saved edit")
+        tapTab(named: "History")
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 5),
+                      "the History tab's open session page was popped by saving a new session")
     }
 
     /// A delete swaps in a fresh library context; a save made after it must

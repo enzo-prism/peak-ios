@@ -117,12 +117,12 @@ private struct RootView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .peakSessionDidSave)) { notification in
                 guard (notification.object as? ModelContainer) === container else { return }
-                // A save only inserts or edits, so no view can be holding a model
-                // that is now gone. From iOS 18 the library context merges the
-                // staging commit and @Query updates in place: no full rebuild,
-                // no refetch of every tab, no navigation stack popped to root.
-                // iOS 17's SwiftData does not reliably refresh @Query after a
-                // commit from another context, so it keeps the rebuild.
+                // A new session only adds rows: no view holds a model it changed
+                // or removed. From iOS 18, @Query picks up the staged insert, so
+                // there is no full rebuild, no refetch of every tab and no
+                // navigation stack popped to root. iOS 17's SwiftData does not
+                // reliably refresh @Query after a commit from another context,
+                // so it keeps the rebuild.
                 if #available(iOS 18, *) {
                     PeakSignposts.event("Session saved in place")
                 } else {

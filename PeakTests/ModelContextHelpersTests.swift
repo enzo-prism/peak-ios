@@ -214,53 +214,60 @@ final class ModelContextHelpersTests: XCTestCase {
         XCTAssertEqual(second, SessionQueryStamp.make([session]))
     }
 
-    // MARK: - Staged saves reach the library context (no tree rebuild)
+    // MARK: - What a staged save does (and does not) reach
 
-    /// The editor commits through `SessionPersistence`'s private staging
-    /// context. On iOS 18+ Peak no longer rebuilds the whole view tree after a
-    /// save; that relies on the library context seeing the commit — an edit on
-    /// a model it already holds, and an insert it can fetch — for both the
-    /// container's main context and the fresh context a delete/import swaps in.
-    func testStagedSaveReachesTheMainLibraryContext() throws {
+    /// On iOS 18+ a *new* session saved by the editor no longer rebuilds the
+    /// view tree. That relies on the staged insert being fetchable from the
+    /// library context — the container's main context and the fresh context a
+    /// delete/import swaps in alike.
+    func testStagedInsertIsFetchableFromTheMainLibraryContext() throws {
         let container = try TestModelContainer.make()
-        try assertStagedSaveIsVisible(in: container.mainContext)
+        try assertStagedInsertIsFetchable(from: container.mainContext)
     }
 
-    func testStagedSaveReachesARefreshedLibraryContext() throws {
+    func testStagedInsertIsFetchableFromARefreshedLibraryContext() throws {
         let container = try TestModelContainer.make()
         let refreshed = ModelContext(container)
         refreshed.autosaveEnabled = true
-        try assertStagedSaveIsVisible(in: refreshed)
+        try assertStagedInsertIsFetchable(from: refreshed)
     }
 
-    private func assertStagedSaveIsVisible(
-        in library: ModelContext,
+    /// Why *edits* still rebuild: a model the library context already holds
+    /// keeps its old values after a commit from the staging context. If this
+    /// starts failing on a newer OS, edits could skip the rebuild too.
+    func testStagedSaveDoesNotRefreshModelsTheLibraryAlreadyHolds() throws {
+        let container = try TestModelContainer.make()
+        let library = container.mainContext
+        let session = TestFixture.session(rating: 2)
+        library.insert(session)
+        try library.save()
+
+        let staging = try SessionPersistence.stagingContext(from: library)
+        try SessionPersistence.resolve(session, in: staging).rating = 5
+        try staging.save()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+
+        XCTAssertEqual(session.rating, 2)
+    }
+
+    private func assertStagedInsertIsFetchable(
+        from library: ModelContext,
         file: StaticString = #filePath,
         line: UInt = #line
     ) throws {
         let spot = TestFixture.spot(name: "Trestles")
         library.insert(spot)
-        let session = TestFixture.session(spot: spot, rating: 2, notes: "before")
-        library.insert(session)
+        library.insert(TestFixture.session(spot: spot, rating: 2))
         try library.save()
 
         let staging = try SessionPersistence.stagingContext(from: library)
-        let staged = try SessionPersistence.resolve(session, in: staging)
-        staged.rating = 5
-        staged.notes = "after"
-        let added = TestFixture.session(
+        staging.insert(TestFixture.session(
             date: TestCalendar.makeDate(year: 2026, month: 2, day: 3, hour: 7),
             spot: try SessionPersistence.resolve(spot, in: staging),
             rating: 4
-        )
-        staging.insert(added)
+        ))
         try staging.save()
 
-        // Let any main-queue merge land, as it would between two frames.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-
-        XCTAssertEqual(session.rating, 5, "the held model did not pick up the staged edit", file: file, line: line)
-        XCTAssertEqual(session.notes, "after", file: file, line: line)
         let fetched = try library.fetch(FetchDescriptor<SurfSession>())
         XCTAssertEqual(fetched.count, 2, "the staged insert is not fetchable from the library context", file: file, line: line)
     }
