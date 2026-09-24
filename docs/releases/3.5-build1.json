@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "state": "submitted_for_review",
+  "observed_at": "2026-09-24T23:20:00+00:00",
+  "version": "3.5",
+  "build": "1",
+  "source": {
+    "commit": "0b3da2fcedb67be8ae1f9c404ce04bbf2f4f7438",
+    "tree": "af0c3b262e6938f0e6d1f85bf58bc812d3a77ccd",
+    "prs": [
+      "#22 quick log",
+      "#23 Stats and session detail",
+      "#24 new-session save path, bounded Health query, signposts",
+      "#25 version bump"
+    ]
+  },
+  "provenance": {
+    "source_stamped_in_original_build": false,
+    "cryptographically_proven_source_build_link": false,
+    "receipt": "scripts/release-receipt.py begin/finish around archive and export from a clean detached checkout of the source commit (receipt began 2026-09-24T23:05:57.754974+00:00, finished 2026-09-24T23:07:08.397443+00:00).",
+    "limitation": "Local before/after source observation and artifact hashes, not cryptographic proof of compiler inputs. ASC does not echo an IPA hash, so the upload is linked to this IPA by the upload ID returned for this file."
+  },
+  "artifacts": {
+    "archive": {
+      "name": "Peak.xcarchive",
+      "sha256": "2163a006aa868afacb03d5cf0e338991abad56c11664ac9233776b1e49643093",
+      "hash_format": "sha256(sorted compact JSON [relative path, file|symlink, file sha256|link target] manifest)"
+    },
+    "ipa": {
+      "name": "Peak.ipa",
+      "sha256": "e17fee14598627dbd943465445c770d3a1fd7a517bee4295946c4c1d9c459f88"
+    },
+    "bundles": [
+      {
+        "bundle_id": "com.designprism.peak",
+        "version": "3.5",
+        "build": "1"
+      },
+      {
+        "bundle_id": "com.designprism.peak.PeakWidgets",
+        "version": "3.5",
+        "build": "1"
+      }
+    ],
+    "local_path": ".asc/artifacts/3.5-1-0b3da2f/ (gitignored)"
+  },
+  "signing": {
+    "method": "app-store-connect, manual, Apple Distribution (L49MKXGVM4)",
+    "profiles": {
+      "com.designprism.peak": "Peak App Store 3.2 (c1fe12b4-2e15-42d9-99ee-3f26ee9685d6), expires 2027-02-20",
+      "com.designprism.peak.PeakWidgets": "Peak Widgets App Store 3.2 (ad7c1cee-d4f6-42ed-ab7d-594ae5695b2c), expires 2027-02-20"
+    },
+    "app_group_verified": "group.com.designprism.peak present in the signed entitlements of both Peak.app and PeakWidgets.appex in the archive",
+    "note": "Each profile name has an older duplicate without the App Group (e2415bde..., 448aae2a...); export options pin the UUIDs above."
+  },
+  "verification": {
+    "unit": "615 executed, 0 failures (local, iOS 26.5 simulator, merged code before #25; CI 'tests' passed on #25)",
+    "ui": "67 per device; CI 'UI (iphone)', 'UI (ipad)' and 'design' passed on #25 (run 36065661211)",
+    "not_run": "Populated-device upgrade, backup/restore and Health checks from docs/SURFER_VALIDATION.md were not run on physical devices for this build."
+  },
+  "asc": {
+    "app_id": "6757644027",
+    "version_id": "594aebd5-8a65-4ea2-a019-9aba33262890",
+    "attached_build_id": "11444be3-7703-4e2f-87fc-4cbb1bcfa2c9",
+    "upload_id": "11444be3-7703-4e2f-87fc-4cbb1bcfa2c9",
+    "version": "3.5",
+    "build": "1",
+    "uses_non_exempt_encryption": false,
+    "testflight_internal_state": "IN_BETA_TESTING",
+    "review_submission_id": "acb74fa8-8d39-40a5-b03a-43e9ef6e83a7",
+    "submitted_at": "2026-09-24T23:11:59.51Z",
+    "state": "WAITING_FOR_REVIEW",
+    "release_type": "MANUAL",
+    "metadata": "Localizations copied from 3.3 except What's New (new en-US text); review notes rewritten for 3.5.",
+    "verification": "asc versions view, asc review submissions-list, asc builds build-beta-detail view, read back 2026-09-24"
+  },
+  "previous_release": "3.3 (1) released manually 2026-09-24 (version 665a2895-80a4-4ddd-acb8-809c5af84256)."
+}

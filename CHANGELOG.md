@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Status at a glance (App Store Connect read back September 24, 2026):
 
 - **App Store (live):** `3.3` build **1**, released September 24, 2026.
-- **3.5 release candidate:** build **1**. Quick log, Stats and session-detail fixes, and the new-session save path (#22, #23, #24), plus the 3.4 reliability work. Gate on this source: **615 unit / 67 UI cases per device**.
+- **3.5 build 1:** submitted for App Review September 24, 2026 (MANUAL release) and in TestFlight. Quick log, Stats and session-detail fixes, and the new-session save path (#22, #23, #24), plus the 3.4 reliability work. Gate on this source: **615 unit / 67 UI cases per device**.
 - **TestFlight:** `3.4` build **1** (reliability, TestFlight only; its changes ship in 3.5).
 
 ## [3.5] — Unreleased
