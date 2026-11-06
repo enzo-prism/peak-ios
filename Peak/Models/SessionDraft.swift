@@ -332,7 +332,7 @@ struct SessionMediaDraftItem: Identifiable {
         )
     }
 
-    private init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source, cropRect: CGRect) {
+    init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source, cropRect: CGRect) {
         self.id = id
         self.kind = kind
         self.createdAt = createdAt

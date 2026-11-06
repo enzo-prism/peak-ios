@@ -4,16 +4,15 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 
 ## Current state
 
-Verified September 4, 2026:
+Verified November 6, 2026:
 
-- **App Store public:** `3.2`.
-- **Pending:** `3.3`, `WAITING_FOR_REVIEW`, manual release after approval.
-- **Release source:** `9ad9d60`; 549 unit tests passed on this source during the audit. Reliability changes after that commit require separate checks and are not in the submitted binary.
-- **Source of truth:** exact commit + ASC version/build, not the `prod` branch name. See [RELEASE_PLAYBOOK.md](RELEASE_PLAYBOOK.md).
-- **Watch companion:** `feature/3.1-watchos` remains separate until physical Watch/ocean validation.
-- **Next release gates:** persistent session identity, data-preserving migrations/restores, production iPad navigation, Spotlight deletion and truthful recovery diagnostics.
-- **Real-user pilot:** [surfer protocol, recruitment draft and device checklist](docs/SURFER_VALIDATION.md). Device and ocean checks are not established by simulator test results.
-- App Group `group.com.designprism.peak` was registered July 29. Recheck signing profiles before device archives.
+- **App Store public:** `3.5` (`READY_FOR_DISTRIBUTION` in App Store Connect).
+- **Candidate:** `3.6` build `1`. See [implementation and acceptance](docs/PEAK_3_6.md) for delivered behavior and outstanding hardware validation. TestFlight upload is recorded separately when verified.
+- **Source of truth:** exact commit + ASC version/build, not a branch name. See [RELEASE_PLAYBOOK.md](RELEASE_PLAYBOOK.md).
+- **Watch companion:** hardening and standalone validation are retained on `feature/peak-3.6-watch-validation`, outside main. The iPhone app does **not** contain a Watch target or embedded Watch app. Five real ocean sessions with reference observations remain a release gate, explicitly kept pending by the owner.
+- **Data:** local SwiftData schema V12 remains unchanged in 3.6. Existing session UUIDs and media associations are preserved by export/restore.
+- **Real-user pilot:** [surfer protocol and device checklist](docs/SURFER_VALIDATION.md). Simulator tests do not establish populated-device upgrades, microphone/model quality or ocean accuracy.
+- App Group `group.com.designprism.peak` is registered. Release profiles must cover both app and widget and the optional Journaling Suggestions entitlement.
 
 ## Product scope
 - Offline-first, on-device storage only — no accounts, social features, or in-app analytics SDK
@@ -34,12 +33,19 @@ Verified September 4, 2026:
 - iPad sidebar + split views (iOS 18); Spotlight search for sessions, spots, and gear
 - JSON + CSV export; full `.peakbackup` with media; JSON/backup restore (merge or replace)
 - Session share card
+- Recoverable unfinished new-session drafts; optional on-device voice transcription with explicit field review (iOS 26+)
+- Compare Boards from comparable rated sessions, with source records and honest insufficient-data states
+- Saved surf plans, a cached plan widget and parameterized Start Surf with Setup shortcuts
+- Ask Peak: bounded exact logbook questions, plus eligible iOS 27 on-device related-memory retrieval
+- Surf Memories by month/spot and optional selected Journaling Suggestions photos on iPhone
+- Sample-based estimated-ride replay, with GPS gaps kept separate
+- Streaming, checksummed full backups with restore preview and verified Files save
 
 ## Surf conditions auto-fill
 - Requires a session start time, duration, and a surf break with a pinned location.
 - Pulls marine + wind data from Open-Meteo, averages across the session window, and stores the source + fetch time.
 - Also records tide: `sea_level_height_msl` relative to mean sea level plus a rising / high / falling / low trend, read from the hourly curve either side of the session.
-- `TideService` (NOAA CO-OPS, US stations) is built and unit-tested but **not yet wired** into auto-fill. Every tide reading on screen today is the Open-Meteo modelled curve. Wiring the station layer is open work — see `ARCHITECTURE.md`.
+- Best Window offers **Station Tide Predictions**: explicitly find and confirm a nearby NOAA CO-OPS station, then view its upcoming high/low predictions in MLLW. These remain separate from Open-Meteo MSL values and never train the scorer or fill logged conditions.
 - Never runs automatically; it only fires when the user taps **Auto-fill Conditions**.
 
 ## Best Window Today
@@ -47,6 +53,7 @@ Verified September 4, 2026:
 - `WindowScorer` ranks each forecast hour by similarity to that surfer's own rated sessions at that spot — rating-weighted kernel regression, no coastline orientation or break physics modelled.
 - Gated on **confidence**, not on the predicted rating: below the threshold the card asks for more rated sessions rather than inventing a window.
 - Idle until you tap **Check conditions**, unless you opt in to Settings → "Refresh automatically when I open Peak" (**off by default**).
+- **Save Surf Plan** carries only the chosen spot and historical gear into logging. A plan expires at its end or six hours after the forecast check; predicted conditions never become recorded facts.
 
 ## Wave stats
 - Peak reads the GPS route Apple Watch already stores with a surf workout and derives wave count, top speed, longest ride (duration + distance), and paddle distance on-device.
@@ -62,7 +69,7 @@ Verified September 4, 2026:
 - No network call was added. Inference is on-device.
 
 ## Widgets, Siri & Live Activity
-- **Widgets**: *Surf Streak* (opens a new session) and *Last Session* (opens **that** session via `peak://session?id=`; empty state still uses `peak://new-session`). Last Session supports small/medium/extra-large plus accessory, a configurable spot from snapshot glances, and Start Session on medium and extra-large.
+- **Widgets**: *Surf Plan* (small/medium; cached check time, expiry and Start action), *Surf Streak* (opens a new session) and *Last Session* (opens **that** session via `peak://session?id=`; empty state still uses `peak://new-session`). Last Session supports small/medium/extra-large plus accessory, a configurable spot from snapshot glances, and Start Session on medium and extra-large.
 - Widgets never open the SwiftData store. The app derives a small `PeakWidgetSnapshot` and publishes it to the shared App Group container.
 - **App Intents**: `SurfSessionEntity`, `SpotEntity`, and `GearEntity` are donated to an on-device Spotlight index (`PeakLogbook`). Log / Start / End / Last Session / Sessions This Month / Search ship with Siri phrases; iOS 18 `OpenIntent`s open the matching detail.
 - **Live Activity**: a session timer on the Lock Screen and in the Dynamic Island, drawn with `Text(timerInterval:)` so Peak sends no push updates and holds no push token.
@@ -94,7 +101,7 @@ Verified September 4, 2026:
 - See `ARCHITECTURE.md` for a full overview of the app structure, data model, and key flows.
 
 ## Platform decisions
-- Platform: Minimum iOS: 17.0 (SwiftData) — unchanged by every release through 3.3
+- Platform: Minimum iOS: 17.0 (SwiftData), unchanged in 3.6
 - Data store: SwiftData (local only), schema V12
 - UI: SwiftUI
 - Targets: `Peak` (app), `PeakWidgets` (widget extension: widgets, Control Center control, Live Activity), `PeakTests`, `PeakUITests`
@@ -102,7 +109,7 @@ Verified September 4, 2026:
 - iOS 18/26-only API (Control Center controls, Foundation Models, interactive snippets) is availability-gated; nothing raises the floor
 
 ## Getting started
-1. Open `Peak.xcodeproj` in Xcode 17+
+1. Open `Peak.xcodeproj` in Xcode 26.6+ (Xcode 27 enables the iOS 27 search path)
 2. Select the `Peak` scheme
 3. Run on any iOS 17+ simulator or device
 
@@ -161,7 +168,7 @@ Optional overrides:
 
 ## Testing
 
-Current suite on `main` / `prod`: **546 unit tests** (`PeakTests`) and **54 UI tests** (`PeakUITests`).
+The 3.6 suite discovers **639 unit cases on Xcode 27** (638 on Xcode 26.6, which lacks the iOS 27 ResultsObserver probe) and **73 UI cases per device**. The 3.5 baseline had 615 unit / 67 UI cases. Device-specific UI cases can be explicitly skipped; report actual pass/skip counts and result bundles. See [3.6 acceptance](docs/PEAK_3_6.md) for verified receipts.
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See
@@ -185,7 +192,7 @@ Current suite on `main` / `prod`: **546 unit tests** (`PeakTests`) and **54 UI t
 - Privacy policy: `PRIVACY.md`
 - Support contact: `SUPPORT.md`
 - Data stays on-device; no accounts or analytics. Optional Open-Meteo and NOAA CO-OPS requests are made only when you use Auto-fill Conditions or Best Window Today.
-- On-device insight generation adds no network call; inference runs on the phone.
+- On-device insight generation adds no network call; inference runs on the phone. Optional voice logging may download Apple speech assets after explicit recording action. Selected system memories and Files providers are user-controlled; see the privacy policy.
 - HealthKit reads (workouts and workout routes) are behind the `healthSyncEnabled` opt-in and are a quiet no-op when it is off. Optional Watch-surf notifications are a second toggle, off by default. Spotlight indexing is on-device.
 
 ## Acceptance criteria

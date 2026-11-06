@@ -19,6 +19,7 @@ nonisolated struct PeakSpotGlance: Codable, Equatable, Hashable, Identifiable {
 }
 
 nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
+    var planGlance: PeakPlanGlance?
     var currentStreakWeeks: Int
     var totalSessions: Int
     var sessionsThisMonth: Int
@@ -53,7 +54,8 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         lastSessionID: String? = nil,
         daysSinceLastSession: Int? = nil,
         spotGlances: [PeakSpotGlance]? = nil,
-        generatedAt: Date
+        generatedAt: Date,
+        planGlance: PeakPlanGlance? = nil
     ) {
         self.currentStreakWeeks = currentStreakWeeks
         self.totalSessions = totalSessions
@@ -67,6 +69,7 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
         self.daysSinceLastSession = daysSinceLastSession
         self.spotGlances = spotGlances
         self.generatedAt = generatedAt
+        self.planGlance = planGlance
     }
 
     static let empty = PeakWidgetSnapshot(
@@ -128,6 +131,7 @@ nonisolated struct PeakWidgetSnapshot: Codable, Equatable {
             && lastSessionID == other.lastSessionID
             && daysSinceLastSession == other.daysSinceLastSession
             && spotGlances == other.spotGlances
+            && planGlance == other.planGlance
     }
 }
 
@@ -153,6 +157,7 @@ nonisolated enum PeakDeepLink {
     static let newSession = URL(string: "peak://new-session")!
 
     enum Destination: Equatable {
+        case plan
         case newSession
         case session(id: String)
         case spot(id: String)
@@ -207,6 +212,7 @@ nonisolated enum PeakDeepLink {
         }
 
         switch host {
+        case "plan": return .plan
         case "new-session":
             return .newSession
         case "session":
@@ -262,5 +268,19 @@ nonisolated enum PeakWidgetStore {
               let snapshot = try? JSONDecoder().decode(PeakWidgetSnapshot.self, from: data)
         else { return .empty }
         return snapshot
+    }
+}
+
+nonisolated struct PeakPlanGlance: Codable, Equatable {
+    let spotKey: String
+    let spotName: String
+    let gearKeys: [String]
+    let start: Date
+    let end: Date
+    let fetchedAt: Date
+    let summary: String
+    func isUsable(at now: Date) -> Bool {
+        start < end && now < end && now >= fetchedAt.addingTimeInterval(-60)
+            && now.timeIntervalSince(fetchedAt) < 6 * 3600
     }
 }

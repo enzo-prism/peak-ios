@@ -27,6 +27,65 @@ final class PeakUISmokeTests: XCTestCase {
         super.tearDown()
     }
 
+    func testVerifiedBackupSavesToFilesAndVerifiesDestination() {
+        tapTab(named: "More")
+        app.buttons["more.settings"].tap()
+        let backup = app.buttons["Back Up Everything"]
+        scrollToVisible(backup, in: app.scrollViews.firstMatch)
+        XCTAssertTrue(backup.waitForExistence(timeout: 3))
+        backup.tap()
+        let save = app.buttons["DOCPicker.actionButton"]
+        XCTAssertTrue(save.waitForExistence(timeout: 15), "Verified backup must offer the system Files destination picker")
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        XCTAssertTrue(app.alerts["Backup Saved"].waitForExistence(timeout: 15), "The destination bytes must verify before reporting success")
+        app.alerts["Backup Saved"].buttons["OK"].tap()
+        XCTAssertTrue(backup.waitForExistence(timeout: 5))
+    }
+
+    func testAskPeakShowsCalculatedAnswerAndSources() {
+        tapTab(named: "More")
+        app.buttons["more.askPeak"].tap()
+        XCTAssertTrue(app.navigationBars["Ask Peak"].waitForExistence(timeout: 3))
+        app.buttons["Which board did I use most?"].tap()
+        XCTAssertTrue(app.staticTexts["ask.answer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Source sessions"].exists)
+    }
+
+    func testQuiverComparisonExplainsSparseEvidence() {
+        tapTab(named: "Quiver")
+        app.buttons["quiver.compare"].tap()
+        XCTAssertTrue(app.navigationBars["Compare Boards"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "three")).firstMatch.exists)
+    }
+
+    func testMemoriesOpenSavedSession() {
+        tapTab(named: "More")
+        app.buttons["more.memories"].tap()
+        XCTAssertTrue(app.navigationBars["Surf Memories"].waitForExistence(timeout: 3))
+        let memory = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "memories.session.")).firstMatch
+        XCTAssertTrue(memory.waitForExistence(timeout: 3))
+        memory.tap()
+        XCTAssertTrue(app.buttons["session.detail.share"].waitForExistence(timeout: 3))
+    }
+
+    func testTypedVoiceReviewAppliesOnlyAfterConfirmation() {
+        tapTab(named: "Log")
+        app.buttons["Log Session"].tap()
+        app.buttons["session.editor.voice"].tap()
+        let transcript = app.textViews["voice.transcript"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 3))
+        transcript.tap()
+        transcript.typeText("Trestles, ninety minutes, four stars, voice review marker")
+        app.buttons["Use Transcript"].tap()
+        saveSession()
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "voice review marker")).firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testCreateSessionAppearsInHistory() {
         tapTab(named: "Log")
 
@@ -262,6 +321,24 @@ final class PeakUISmokeTests: XCTestCase {
     /// Logging a new session leaves the rest of the app where it was. Before
     /// 3.5 every save rebuilt the whole view tree, so a session page open on
     /// the History tab was gone when you came back to it.
+    func testEditingSessionKeepsDetailOpenWithFreshValues() {
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        app.buttons["Edit"].tap()
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        notes.tap()
+        notes.typeText(" preserved detail marker")
+        saveSession()
+        XCTAssertTrue(app.navigationBars["Session"].waitForExistence(timeout: 5))
+        let updated = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "preserved detail marker")).firstMatch
+        XCTAssertTrue(updated.waitForExistence(timeout: 5), "Detail must resolve the edited record from the new context")
+    }
+
     func testLoggingANewSessionKeepsOtherTabsWhereTheyWere() {
         tapTab(named: "History")
         let row = latestHistoryRow()

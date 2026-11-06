@@ -402,3 +402,204 @@ private struct QuickLogFixture {
         sessions = [latest, middle, oldest]
     }
 }
+
+
+@MainActor
+final class PeakExperienceTests: XCTestCase {
+    func testVoiceLogParsesOnlyExplicitFieldsAndKnownEntities() {
+        let spot = TestFixture.spot(name: "Linda Mar")
+        let fish = TestFixture.gear(name: "Fish")
+        let fields = VoiceLogParser.parse("Linda Mar, Fish, ninety minutes, four stars, clean early", spots: [spot], gear: [fish])
+        XCTAssertEqual(fields.spot?.key, spot.key)
+        XCTAssertEqual(fields.gear.map(\.key), [fish.key])
+        XCTAssertEqual(fields.durationMinutes, 90)
+        XCTAssertEqual(fields.rating, 4)
+        XCTAssertEqual(fields.transcript, "Linda Mar, Fish, ninety minutes, four stars, clean early")
+    }
+
+    func testVoiceLogRejectsAmbiguousRatingsAndDurations() {
+        let fields = VoiceLogParser.parse("60 minutes or 90 minutes, four stars or five stars", spots: [], gear: [])
+        XCTAssertNil(fields.durationMinutes)
+        XCTAssertNil(fields.rating)
+        let correction = VoiceLogParser.parse("not four stars, actually two stars", spots: [], gear: [])
+        XCTAssertNil(correction.rating)
+    }
+
+    func testVoiceLogDoesNotMatchPartOfNameOrArchivedGear() {
+        let fish = TestFixture.gear(name: "Fish", isArchived: true)
+        let fields = VoiceLogParser.parse("Fishing for ninety minutes", spots: [], gear: [fish])
+        XCTAssertTrue(fields.gear.isEmpty)
+        XCTAssertNil(fields.rating)
+    }
+
+    func testVoiceLogSupportsCompoundTimeAndRejectsOutOfRange() {
+        XCTAssertEqual(VoiceLogParser.parse("one hour and thirty minutes", spots: [], gear: []).durationMinutes, 90)
+        XCTAssertNil(VoiceLogParser.parse("900 minutes, 9 stars", spots: [], gear: []).durationMinutes)
+        XCTAssertNil(VoiceLogParser.parse("900 minutes, 9 stars", spots: [], gear: []).rating)
+    }
+
+    func testQuiverAdvisorRequiresComparableSingleBoardEvidence() {
+        let spot = TestFixture.spot()
+        let other = TestFixture.spot(name: "Other")
+        let fish = TestFixture.gear(name: "Fish")
+        let stepup = TestFixture.gear(name: "Step Up")
+        let sessions = (0..<3).map { _ in TestFixture.session(spot: spot, gear: [fish], rating: 5) }
+            + (0..<3).map { _ in TestFixture.session(spot: other, gear: [stepup], rating: 1) }
+        let report = QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: [fish,stepup], sessions: sessions)
+        XCTAssertEqual(report.comparisons.count, 1)
+        XCTAssertNil(report.suggestedBoard)
+        XCTAssertTrue(QuiverAdvisor.compare(spot: spot, height: .overhead, period: nil, gear: [fish], sessions: sessions).comparisons.isEmpty)
+    }
+
+    func testQuiverAdvisorAbstainsOnTieAndSuggestsSeparatedCohort() {
+        let spot = TestFixture.spot()
+        let a = TestFixture.gear(name: "A")
+        let b = TestFixture.gear(name: "B")
+        let first = (0..<3).map { _ in TestFixture.session(spot: spot, gear: [a], rating: 5) }
+        let second = (0..<3).map { _ in TestFixture.session(spot: spot, gear: [b], rating: 2) }
+        let report = QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: [a,b], sessions: first+second)
+        XCTAssertEqual(report.suggestedBoard?.key, a.key)
+        second.forEach { $0.rating = 5 }
+        XCTAssertNil(QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: [a,b], sessions: first+second).suggestedBoard)
+        b.isArchived = true
+        XCTAssertEqual(QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: [a,b], sessions: first+second).comparisons.count, 1)
+    }
+
+    func testLogbookAnswersExactMonthCountAndBoardTie() {
+        let now = TestCalendar.makeDate(year: 2026, month: 3, day: 15)
+        let a = TestFixture.gear(name: "Fish")
+        let b = TestFixture.gear(name: "Shortboard")
+        let sessions = [TestFixture.session(date: now, gear: [a]), TestFixture.session(date: now, gear: [b]),
+                        TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 2, day: 1), gear: [a])]
+        let count = LogbookQuery.answer("How many sessions this month?", sessions: sessions, now: now, calendar: TestCalendar.gmt)
+        XCTAssertEqual(count.sessions.count, 2)
+        XCTAssertEqual(count.title, "2 logged sessions")
+        let tie = LogbookQuery.answer("Which board did I use most this month?", sessions: sessions, now: now, calendar: TestCalendar.gmt)
+        XCTAssertTrue(tie.explanation.contains("tied"))
+        XCTAssertTrue(tie.title.contains("Fish"))
+        XCTAssertTrue(tie.title.contains("Shortboard"))
+    }
+
+    func testLogbookUnknownScopeNeverBecomesWholeLibraryCount() {
+        let sessions = [TestFixture.session()]
+        XCTAssertTrue(LogbookQuery.answer("How many sessions at Unknown?", sessions: sessions).sessions.isEmpty)
+        XCTAssertTrue(LogbookQuery.answer("How many waves?", sessions: sessions).sessions.isEmpty)
+        XCTAssertTrue(LogbookQuery.answer("How many sessions last week?", sessions: sessions).sessions.isEmpty)
+        XCTAssertTrue(LogbookQuery.answer("Find not clean sessions", sessions: sessions).sessions.isEmpty)
+    }
+
+    func testLogbookRejectsPartiallyUnderstoodCountsAndUsesWholeNames() {
+        let spot = TestFixture.spot(name: "Mar")
+        let fish = TestFixture.gear(name: "Fish")
+        let sessions = [TestFixture.session(spot: spot, gear: [fish])]
+        for question in ["How many sessions today?", "Count five star sessions", "How many sessions with a broken board?",
+                         "How many sessions at Mars?", "Find clean sessions last summer", "Which board performed best?"] {
+            XCTAssertTrue(LogbookQuery.answer(question, sessions: sessions).sessions.isEmpty, question)
+        }
+        XCTAssertEqual(LogbookQuery.answer("How many sessions at Mar with Fish?", sessions: sessions).sessions.count, 1)
+    }
+
+    func testSurfPlanExpiresAndNeverCopiesForecastIntoLog() throws {
+        let now = TestCalendar.makeDate(year: 2026, month: 3, day: 15)
+        let spot = TestFixture.spot()
+        let gear = TestFixture.gear()
+        let plan = SurfPlan(id: UUID(), spotKey: spot.key, spotName: spot.name, gearKeys: [gear.key],
+                            start: now, end: now.addingTimeInterval(7200), fetchedAt: now, summary: "Forecast")
+        let draft = try XCTUnwrap(SurfPlanStore.draft(for: plan, spots: [spot], gear: [gear], now: now))
+        XCTAssertFalse(draft.hasSurfConditions)
+        XCTAssertEqual(draft.rating, 0)
+        XCTAssertEqual(draft.durationMinutes, 0)
+        XCTAssertNil(SurfPlanStore.draft(for: plan, spots: [], gear: [gear], now: now))
+        XCTAssertFalse(plan.isUsable(at: now.addingTimeInterval(7201)))
+    }
+
+    func testResumedVideoOwnsCopyAndPreservesDurableRecovery() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
+        defer { try? FileManager.default.removeItem(at: directory); try? FileManager.default.removeItem(at: source) }
+        try Data("draft video".utf8).write(to: source)
+        var draft = SessionDraft()
+        let item = SessionMediaDraftItem.newVideo(temporaryURL: source, thumbnailData: nil)
+        draft.mediaItems = [item]
+        let store = SessionDraftStore(directory: directory)
+        let snapshot = SavedSessionDraft(draft)
+        try await store.save(snapshot, videos: [item.id: source])
+        let copies = try await snapshot.prepareVideoCopies(in: directory)
+        let resumed = try snapshot.restore(spots: [], gear: [], buddies: [], videoCopies: copies)
+        let temp = try XCTUnwrap(resumed.mediaItems.first?.temporaryVideoURL)
+        XCTAssertEqual(resumed.mediaItems.first?.id, item.id)
+        XCTAssertEqual(try Data(contentsOf: temp), Data("draft video".utf8))
+        SessionMediaStore.deleteTemporaryFiles([temp])
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(item.id.uuidString + ".mov")), Data("draft video".utf8))
+    }
+
+    func testDraftRecoveryPreservesCorrectionsAndMediaAndClearWinsOverLateSave() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SessionDraftStore(directory: directory)
+        let spot = TestFixture.spot()
+        var draft = SessionDraft()
+        draft.selectSpot(spot)
+        draft.notes = "Keep this note"
+        draft.waveCount = 9
+        draft.waveStatsSource = .edited
+        draft.conditionsSource = "Open-Meteo"
+        draft.conditionsFetchedAt = Date()
+        draft.mediaItems = [.newPhoto(photoData: Data([1,2,3]), thumbnailData: nil)]
+        let snapshot = SavedSessionDraft(draft)
+        try await store.save(snapshot, videos: [:])
+        let loadedValue = try await store.load()
+        let loaded = try XCTUnwrap(loadedValue)
+        let restored = try loaded.restore(spots: [spot], gear: [], buddies: [])
+        XCTAssertEqual(restored.notes, draft.notes)
+        XCTAssertEqual(restored.waveCount, 9)
+        XCTAssertEqual(restored.waveStatsSource, .edited)
+        XCTAssertEqual(restored.mediaItems[0].photoData, Data([1,2,3]))
+        XCTAssertEqual(restored.mediaItems[0].id, draft.mediaItems[0].id)
+        XCTAssertEqual(restored.mediaItems[0].createdAt, draft.mediaItems[0].createdAt)
+        try await store.clear(at: snapshot.savedAt.addingTimeInterval(1))
+        try await store.save(snapshot, videos: [:])
+        let afterClear = try await store.load()
+        XCTAssertNil(afterClear)
+    }
+}
+
+@MainActor
+final class ExperienceBoundaryTests: XCTestCase {
+    func testReplayNeverConnectsAcrossBadFixesOrTimeGaps() {
+        let start = Date(timeIntervalSince1970: 0)
+        func fix(_ seconds: Double, accuracy: Double = 4) -> RouteSample {
+            RouteSample(timestamp: start.addingTimeInterval(seconds), latitude: 33, longitude: -117 + seconds / 100_000,
+                        speedMetersPerSecond: 3, horizontalAccuracyMeters: accuracy)
+        }
+        let tracks = RouteReplay.tracks([fix(0), fix(1), fix(2, accuracy: 50), fix(3), fix(4), fix(20), fix(21)])
+        XCTAssertEqual(tracks.count, 3)
+        XCTAssertTrue(tracks.allSatisfy { $0.count == 2 })
+        XCTAssertFalse(tracks.flatMap { $0 }.contains { $0.horizontalAccuracyMeters == 50 })
+    }
+
+    func testWidgetPlanExpiryMatchesAppPlanExpiry() {
+        let now = Date()
+        let end = now.addingTimeInterval(8 * 3600)
+        let glance = PeakPlanGlance(spotKey: "spot", spotName: "Spot", gearKeys: [], start: now, end: end, fetchedAt: now, summary: "")
+        let plan = SurfPlan(id: UUID(), spotKey: "spot", spotName: "Spot", gearKeys: [], start: now, end: end, fetchedAt: now, summary: "")
+        for offset in [-100.0, 0, 3600, 21600, 30000] {
+            let date = now.addingTimeInterval(offset)
+            XCTAssertEqual(plan.isUsable(at: date), glance.isUsable(at: date))
+        }
+    }
+
+    func testEndedSurfRetainsExplicitSetupButExcludesArchivedGear() {
+        let spot = TestFixture.spot()
+        let board = TestFixture.gear(name: "Board")
+        let archived = TestFixture.gear(name: "Old", isArchived: true)
+        let start = Date()
+        let state = ActiveSessionState(spotKey: spot.key, spotName: spot.name, startDate: start, gearKeys: [board.key, archived.key])
+        let record = EndedSessionRecord(state: state, endedAt: start.addingTimeInterval(3600))
+        let draft = ActiveSessionCalculator.makeDraft(from: record, spots: [spot], gear: [board, archived])
+        XCTAssertEqual(draft.selectedGear.map(\.key), [board.key])
+        XCTAssertEqual(draft.durationMinutes, 60)
+        XCTAssertEqual(draft.rating, 0)
+        XCTAssertFalse(draft.hasSurfConditions)
+    }
+}

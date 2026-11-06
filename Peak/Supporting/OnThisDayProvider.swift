@@ -71,7 +71,7 @@ enum OnThisDayProvider {
             }
             guard !yearMatches.isEmpty else { continue }
 
-            yearMatches.sort(by: Self.ranksHigher)
+            yearMatches.sort { Self.ranksHigher($0, $1) }
             memories.append(contentsOf: yearMatches)
             if memories.count >= limit { break }
         }

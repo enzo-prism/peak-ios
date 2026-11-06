@@ -2,7 +2,7 @@ import CoreLocation
 import Foundation
 
 /// One popular surf break from the bundled catalog, used to autocomplete the Add Spot flow.
-struct SurfBreak: Decodable, Identifiable, Hashable {
+nonisolated struct SurfBreak: Decodable, Identifiable, Hashable {
     let name: String
     let region: String
     let country: String

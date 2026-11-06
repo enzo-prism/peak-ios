@@ -802,7 +802,7 @@ extension HealthKitService: WorkoutRouteProviding {}
 /// `@unchecked Sendable` with an explicit lock rather than an actor: the handler
 /// is not async, so it cannot await an actor, and HealthKit gives no ordering
 /// guarantee strong enough to rely on without one.
-private final class RouteAccumulator: @unchecked Sendable {
+nonisolated private final class RouteAccumulator: @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [CLLocation] = []
     private var isFinished = false

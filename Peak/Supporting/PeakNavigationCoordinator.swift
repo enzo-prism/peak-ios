@@ -63,6 +63,12 @@ final class PeakNavigationCoordinator {
     static let shared = PeakNavigationCoordinator()
 
     var selectedTab: PeakTab = .log
+    // Store-free selections survive a context replacement after an edit. Views
+    // resolve fresh models by ID; they never carry retired SwiftData objects.
+    var historySelection: PeakEntityRef?
+    var searchSelection: PeakEntityRef?
+    var gearSelection: PeakEntityRef?
+    var moreSpotSelection: PeakEntityRef?
     var pendingSessionID: String?
     var pendingSpotID: String?
     var pendingGearID: String?
@@ -72,6 +78,7 @@ final class PeakNavigationCoordinator {
 
     func handle(_ destination: PeakDeepLink.Destination) {
         switch destination {
+        case .plan: selectedTab = .log
         case .newSession:
             QuickLogCoordinator.shared.requestNewSession()
         case .session(let id):

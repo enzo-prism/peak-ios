@@ -1,7 +1,11 @@
 import PhotosUI
+#if canImport(JournalingSuggestions)
+import JournalingSuggestions
+#endif
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 enum SessionEditorMode {
     case new
@@ -40,6 +44,7 @@ struct SessionEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     @Query(sort: \Spot.name) private var spots: [Spot]
     @Query(sort: \Gear.name) private var gear: [Gear]
@@ -60,6 +65,12 @@ struct SessionEditorView: View {
     @State private var showSpotAlert = false
     @State private var spotAlertMessage = ""
     @State private var selectedMediaItems: [PhotosPickerItem] = []
+    @State private var mediaTransferTask: Task<Void, Never>?
+    @State private var mediaTransferGeneration = UUID()
+    @State private var isTransferringMedia = false
+    @State private var draftSaveTask: Task<Void, Never>?
+    @State private var didDiscard = false
+    @State private var draftSaveWarning: String?
     @State private var showMediaAlert = false
     @State private var mediaAlertMessage = ""
     @State private var isFetchingConditions = false
@@ -67,6 +78,7 @@ struct SessionEditorView: View {
     @State private var showSurfConditionsOverwriteAlert = false
     @State private var conditionsSourceDetails: SurfConditionsSourceDetails?
     @State private var didSave = false
+    @State private var showVoiceLog = false
     @State private var dismissAfterMediaAlert = false
     // Progressive disclosure: each optional section is collapsed for a focused first paint and
     // revealed on demand. See init for how the initial state is seeded.
@@ -187,7 +199,12 @@ struct SessionEditorView: View {
                             titleVisibility: .visible
                         ) {
                             Button(isNewSession ? "Discard Session" : "Discard Changes", role: .destructive) {
+                                didDiscard = true
+                                clearSavedDraft()
                                 dismiss()
+                            }
+                            if isNewSession {
+                                Button("Keep Draft for Later") { dismiss() }
                             }
                             Button("Keep Editing", role: .cancel) {}
                         }
@@ -196,7 +213,7 @@ struct SessionEditorView: View {
                         Button("Save") {
                             saveSession()
                         }
-                        .disabled(!draft.isReadyToSave)
+                        .disabled(!draft.isReadyToSave || isTransferringMedia)
                         .accessibilityHint(draft.isReadyToSave ? "" : "Pick a spot to enable saving")
                     }
                 }
@@ -231,12 +248,23 @@ struct SessionEditorView: View {
         .sheet(isPresented: $showArrange) {
             MediaArrangeView(items: $draft.mediaItems)
         }
+        .sheet(isPresented: $showVoiceLog) {
+            if #available(iOS 26.0, *) {
+                VoiceLogSheet(spots: spots, gear: gear) { fields in
+                    if let spot = fields.spot { draft.selectSpot(spot) }
+                    if !fields.gear.isEmpty { draft.selectedGear = fields.gear; draft.gearIsSuggested = false }
+                    if let duration = fields.durationMinutes { draft.setDuration(duration) }
+                    if let rating = fields.rating { draft.rating = rating }
+                    draft.notes = [draft.notes.trimmedNonEmpty, fields.transcript.trimmedNonEmpty].compactMap { $0 }.joined(separator: "\n")
+                }
+            }
+        }
         .alert("Spot Required", isPresented: $showSpotAlert) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(spotAlertMessage)
         }
-        .alert("Couldn't Add Media", isPresented: $showMediaAlert) {
+        .alert("Session and Media", isPresented: $showMediaAlert) {
             Button("OK", role: .cancel) {
                 if dismissAfterMediaAlert {
                     dismissAfterMediaAlert = false
@@ -258,7 +286,25 @@ struct SessionEditorView: View {
             handleMediaSelection(newValue)
         }
         .onDisappear {
-            if !didSave {
+            mediaTransferTask?.cancel()
+            mediaTransferGeneration = UUID()
+            draftSaveTask?.cancel()
+            if isNewSession && !didSave && !didDiscard && hasUnsavedChanges && !TestingDefaults.isRunningTests {
+                // Recovery owns its own video copies before temporary picker
+                // files are retired. Never race cleanup against the copy.
+                let snapshot = SavedSessionDraft(draft)
+                let videos = draftVideos
+                let pending = Array(videos.values)
+                Task {
+                    do {
+                        try await SessionDraftStore.shared.save(snapshot, videos: videos)
+                        SessionMediaStore.deleteTemporaryFiles(pending)
+                        NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
+                    } catch {
+                        // Keep source files if recovery could not commit.
+                    }
+                }
+            } else if !didSave {
                 cleanupPendingMedia()
             }
         }
@@ -273,6 +319,11 @@ struct SessionEditorView: View {
         .onChange(of: draft.selectedSpot?.persistentModelID) { _, _ in
             QuickLogDefaults.spotDidChange(in: &draft, sessions: sessions)
         }
+        .onChange(of: draft.changeSignature) { _, _ in persistDraft() }
+        .onChange(of: isTransferringMedia) { _, active in
+            if !active { persistDraft(immediately: true) }
+        }
+        .onChange(of: scenePhase) { _, phase in if phase != .active { persistDraft(immediately: true) } }
     }
 
     private var editorScrollContainer: some View {
@@ -290,6 +341,10 @@ struct SessionEditorView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 primarySpotCard
+                if isTransferringMedia { ProgressView("Adding media…").accessibilityIdentifier("session.editor.mediaProgress") }
+                if let draftSaveWarning {
+                    Text(draftSaveWarning).font(.caption).foregroundStyle(Theme.textSecondary)
+                }
 
                 optionalDivider
 
@@ -373,6 +428,11 @@ struct SessionEditorView: View {
     /// everything below the card stays in collapsed disclosures.
     private var primarySpotCard: some View {
         EditorSection("Session") {
+            if #available(iOS 26.0, *) {
+                Button("Speak your surf", systemImage: "mic") { showVoiceLog = true }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("session.editor.voice")
+            }
             whenField
 
             spotField
@@ -1038,6 +1098,17 @@ struct SessionEditorView: View {
                     .accessibilityIdentifier("session.media.arrange")
                 }
             }
+            #if canImport(JournalingSuggestions)
+            if #available(iOS 17.2, *), UIDevice.current.userInterfaceIdiom == .phone {
+                JournalingSuggestionsPicker("Choose a Surf Memory") { suggestion in
+                    await importMemoryPhotos(suggestion)
+                }
+                .glassButtonStyle(prominent: false)
+                .disabled(isTransferringMedia)
+                Text("Apple shares only the suggestion you choose. Its photos are added to this draft for review; nothing is logged automatically.")
+                    .font(.caption).foregroundStyle(Theme.textMuted)
+            }
+            #endif
         }
     }
 
@@ -1147,6 +1218,7 @@ struct SessionEditorView: View {
     }
 
     private func saveSession() {
+        guard !didSave else { return }
         guard let spot = draft.selectedSpot else {
             spotAlertMessage = "Select a surf break to save this session."
             showSpotAlert = true
@@ -1269,6 +1341,14 @@ struct SessionEditorView: View {
             savedSession = session
         }
 
+        guard mediaFailures == 0 else {
+            mediaChanges.rollbackFiles()
+            transaction.rollback()
+            mediaAlertMessage = "A media item could not be saved. Your session is still open with all its details. Free up storage or remove that item, then retry."
+            dismissAfterMediaAlert = false
+            showMediaAlert = true
+            return
+        }
         do {
             try mediaChanges.persist(save: { try transaction.save() },
                                      rollbackModel: {})
@@ -1281,17 +1361,12 @@ struct SessionEditorView: View {
         }
         HealthKitService.shared.saveOrUpdateWorkout(for: savedSession, previousLegacy: previousLegacy)
         didSave = true
+        clearSavedDraft()
         PeakTips.markSessionSaved()
 
-        let message: String? = mediaFailures > 0
-            ? (mediaFailures == 1 ? "Your session was saved, but one media item could not be saved."
-               : "Your session was saved, but \(mediaFailures) media items could not be saved.")
-            : nil
         cleanupPendingMedia()
         dismissAfterMediaAlert = false
         dismiss()
-        var userInfo: [String: Any] = [:]
-        if let message { userInfo["message"] = message }
         // Only a brand-new session can skip the full refresh. The library
         // context fetches a staged insert, but a model it already holds keeps
         // its old values after a commit from another context (pinned by
@@ -1303,7 +1378,7 @@ struct SessionEditorView: View {
         }()
         NotificationCenter.default.post(name: insertsOnly ? .peakSessionDidSave : .peakLibraryDidChange,
                                         object: modelContext.container,
-                                        userInfo: userInfo)
+                                        userInfo: [:])
     }
 
     /// The field doubles as a search box, but a name that is simply the selected
@@ -1608,16 +1683,57 @@ struct SessionEditorView: View {
         }
     }
 
+    #if canImport(JournalingSuggestions)
+    @available(iOS 17.2, *)
+    private func importMemoryPhotos(_ suggestion: JournalingSuggestion) async {
+        mediaTransferTask?.cancel()
+        let generation = UUID()
+        mediaTransferGeneration = generation
+        isTransferringMedia = true
+        let task = Task {
+            defer { if mediaTransferGeneration == generation { isTransferringMedia = false } }
+            let photos = await suggestion.content(forType: JournalingSuggestion.Photo.self)
+            var failures = 0
+            for photo in photos {
+                guard !Task.isCancelled, mediaTransferGeneration == generation else { return }
+                do {
+                    let processed = try await SessionMediaStore.processedPhoto(from: photo.photo)
+                    guard !Task.isCancelled, mediaTransferGeneration == generation else { return }
+                    draft.mediaItems.append(SessionMediaDraftItem(id: UUID(), kind: .photo,
+                        createdAt: photo.date ?? Date(), source: .newPhoto(photoData: processed.photoData,
+                        thumbnailData: processed.thumbnailData), cropRect: CGRect(x: 0, y: 0, width: 1, height: 1)))
+                } catch { failures += 1 }
+            }
+            guard !Task.isCancelled, mediaTransferGeneration == generation else { return }
+            if photos.isEmpty || failures > 0 {
+                mediaAlertMessage = photos.isEmpty ? "This suggestion contains no photos. You can add your own photos or notes."
+                    : "Some chosen memory photos could not be added. Review the draft and try those photos again."
+                dismissAfterMediaAlert = false
+                showMediaAlert = true
+            }
+        }
+        mediaTransferTask = task
+        await task.value
+    }
+    #endif
+
     private func handleMediaSelection(_ items: [PhotosPickerItem]) {
-        Task {
+        guard !items.isEmpty else { return }
+        mediaTransferTask?.cancel()
+        let generation = UUID()
+        mediaTransferGeneration = generation
+        isTransferringMedia = true
+        mediaTransferTask = Task {
+            defer { if mediaTransferGeneration == generation { isTransferringMedia = false } }
             var failures = 0
             for item in items {
+                guard !Task.isCancelled, mediaTransferGeneration == generation else { return }
                 let success = await addMediaItem(item)
                 if !success {
                     failures += 1
                 }
             }
-            await MainActor.run {
+            guard !Task.isCancelled, mediaTransferGeneration == generation else { return }
                 selectedMediaItems = []
                 if failures > 0 {
                     mediaAlertMessage = failures == 1
@@ -1626,7 +1742,6 @@ struct SessionEditorView: View {
                     showMediaAlert = true
                     dismissAfterMediaAlert = false
                 }
-            }
         }
     }
 
@@ -1637,12 +1752,17 @@ struct SessionEditorView: View {
     private func addMediaItem(_ item: PhotosPickerItem) async -> Bool {
         if let video = try? await item.loadTransferable(type: SessionVideoTransferable.self) {
             let thumbnailData = await SessionMediaStore.videoThumbnailData(from: video.url)
+            guard !Task.isCancelled else {
+                SessionMediaStore.deleteTemporaryFiles([video.url])
+                return false
+            }
             draft.mediaItems.append(.newVideo(temporaryURL: video.url, thumbnailData: thumbnailData))
             return true
         }
 
         if let data = try? await item.loadTransferable(type: Data.self) {
             let processed = await SessionMediaStore.processedPhoto(from: data)
+            guard !Task.isCancelled else { return false }
             draft.mediaItems.append(.newPhoto(photoData: processed.photoData, thumbnailData: processed.thumbnailData))
             return true
         }
@@ -1653,6 +1773,42 @@ struct SessionEditorView: View {
     private func cleanupPendingMedia() {
         let pendingURLs = draft.mediaItems.compactMap { $0.temporaryVideoURL }
         SessionMediaStore.deleteTemporaryFiles(pendingURLs)
+    }
+
+    private var draftVideos: [UUID: URL] {
+        Dictionary(uniqueKeysWithValues: draft.mediaItems.compactMap { item in
+            item.temporaryVideoURL.map { (item.id, $0) }
+        })
+    }
+
+    private func persistDraft(immediately: Bool = false) {
+        guard isNewSession, hasUnsavedChanges, !didSave, !didDiscard,
+              !isTransferringMedia, !TestingDefaults.isRunningTests else { return }
+        draftSaveTask?.cancel()
+        let snapshot = SavedSessionDraft(draft)
+        let videos = draftVideos
+        draftSaveTask = Task {
+            do {
+                if !immediately { try await Task.sleep(for: .milliseconds(350)) }
+                try Task.checkCancellation()
+                try await SessionDraftStore.shared.save(snapshot, videos: videos)
+                draftSaveWarning = nil
+                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
+            } catch is CancellationError {
+            } catch { draftSaveWarning = "This draft could not be kept for later. Keep Peak open and save the session, or free up storage and retry." }
+        }
+    }
+
+    private func clearSavedDraft() {
+        guard isNewSession, !TestingDefaults.isRunningTests else { return }
+        draftSaveTask?.cancel()
+        let date = Date()
+        Task {
+            do {
+                try await SessionDraftStore.shared.clear(at: date)
+                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
+            } catch { draftSaveWarning = "The saved draft could not be removed. Your logged session is safe." }
+        }
     }
 
     private func removeMediaItem(_ item: SessionMediaDraftItem) {

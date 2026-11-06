@@ -23,7 +23,7 @@ enum SpotlightIndexer {
         guard !TestingDefaults.isUITest else { return }
         guard #available(iOS 18.0, *) else { return }
 
-        let sessionEntities = SessionIntentQueries.recentSessions(from: sessions, limit: 200)
+        let sessionEntities = SessionIntentQueries.recentSessions(from: sessions, limit: sessions.count)
             .map(SurfSessionEntity.init(session:))
         let spotEntities = spots.map(SpotEntity.init(spot:))
         let gearEntities = gear.map(GearEntity.init(gear:))
@@ -44,12 +44,15 @@ enum SpotlightIndexer {
         let index = CSSearchableIndex(name: indexName)
         do {
             // Replace only Peak's named index. This also removes entities donated
-            // by older app versions, renamed spots/gear, and sessions that have
-            // fallen outside the 200-session window. An empty logbook must clear
+            // by older app versions and renamed spots/gear. Every saved session
+            // is included so semantic search does not omit older memories.
+            // An empty logbook must clear
             // its old search results too. Do not add anything if deletion fails.
             try await index.deleteAllSearchableItems()
             if !sessions.isEmpty {
-                try await index.indexAppEntities(sessions)
+                for start in stride(from: 0, to: sessions.count, by: 100) {
+                    try await index.indexAppEntities(Array(sessions[start..<min(start + 100, sessions.count)]))
+                }
             }
             if !spots.isEmpty {
                 try await index.indexAppEntities(spots)

@@ -990,7 +990,7 @@ final class ExportImportTests: XCTestCase {
     /// A manifest video entry whose base64 payload is corrupt must be dropped,
     /// not inserted as a `SessionMedia(videoFileName: nil)` row — that tile
     /// would be permanently broken and invisible to file cleanup.
-    func testRestoreDropsVideoEntryWithCorruptBase64() async throws {
+    func testRestoreRejectsCorruptLegacyVideoBeforeChangingLibrary() async throws {
         let createdAt = Date(timeIntervalSince1970: 1_770_000_000)
         let createdString = ExportDateFormatter.string(from: createdAt)
 
@@ -1025,12 +1025,12 @@ final class ExportImportTests: XCTestCase {
 
         let container = try makeContainer()
         let context = ModelContext(container)
-        try await BackupManager.restore(from: url, mode: .merge, context: context)
+        do {
+            try await BackupManager.restore(from: url, mode: .merge, context: context)
+            XCTFail("Corrupt media must fail before any library mutation")
+        } catch { XCTAssertTrue(error is BackupIntegrityError) }
         let readback = ModelContext(context.container)
-
-        let sessions = try readback.fetch(FetchDescriptor<SurfSession>())
-        XCTAssertEqual(sessions.count, 1)
-        XCTAssertEqual(sessions.first?.media.count, 0, "Corrupt video payloads must be skipped, not restored as broken rows")
+        XCTAssertEqual(try readback.fetchCount(FetchDescriptor<SurfSession>()), 0)
     }
 
     func testImportClampsOutOfRangeRating() throws {
@@ -1256,5 +1256,109 @@ final class ExportImportTests: XCTestCase {
                 "row width diverged from the header: \(line)"
             )
         }
+    }
+}
+
+@MainActor
+final class BackupIntegrityTests: XCTestCase {
+    func testFramedBackupChecksumsAndTruncationFailBeforeReplace() async throws {
+        let source = try TestModelContainer.make()
+        let session = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .photo, photoData: Data([1,2,3,4]))])
+        source.mainContext.insert(session)
+        try source.mainContext.save()
+        let url = try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: [])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let inspection = try await BackupManager.inspect(url)
+        XCTAssertTrue(inspection.checksummed)
+        XCTAssertEqual(inspection.photos, 1)
+        var bytes = try Data(contentsOf: url)
+        bytes.removeLast(5)
+        try bytes.write(to: url)
+        let destination = try TestModelContainer.make()
+        let original = SurfSession(date: Date(), spot: nil, notes: "Keep me")
+        destination.mainContext.insert(original)
+        try destination.mainContext.save()
+        do {
+            try await BackupManager.restore(from: url, mode: .replace, context: destination.mainContext)
+            XCTFail("Truncated file must not reach the replace transaction")
+        } catch { XCTAssertTrue(error is BackupIntegrityError) }
+        XCTAssertEqual(try destination.mainContext.fetchCount(FetchDescriptor<SurfSession>()), 1)
+        XCTAssertEqual(original.notes, "Keep me")
+    }
+
+    func testFramedBackupRejectsModifiedPayload() async throws {
+        let source = try TestModelContainer.make()
+        let session = SurfSession(date: Date(), spot: nil)
+        source.mainContext.insert(session)
+        try source.mainContext.save()
+        let url = try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: [])
+        defer { try? FileManager.default.removeItem(at: url) }
+        var bytes = try Data(contentsOf: url)
+        let offset = FramedBackupWriter.magic.count + 8 + 4
+        bytes[offset] ^= 1
+        try bytes.write(to: url)
+        do { _ = try await BackupManager.inspect(url); XCTFail("Changed bytes must fail verification") }
+        catch { XCTAssertTrue(error is BackupIntegrityError) }
+    }
+
+    func testBackupCannotSilentlyOmitMissingVideo() async throws {
+        let session = SurfSession(date: Date(), spot: nil,
+            media: [SessionMedia(kind: .video, videoFileName: UUID().uuidString + ".mov")])
+        do {
+            _ = try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: [])
+            XCTFail("A missing video must not produce a successful complete backup")
+        } catch { XCTAssertTrue(error is BackupIntegrityError) }
+    }
+
+    func testCancelledBackupRetiresIncompleteFile() async throws {
+        let directory = FileManager.default.temporaryDirectory
+        let before = Set(try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".peakbackup") })
+        let session = SurfSession(date: Date(), spot: nil)
+        let task = Task { try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: []) }
+        task.cancel()
+        do { _ = try await task.value; XCTFail("Cancelled backup must not be offered") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        let after = Set(try FileManager.default.contentsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".peakbackup") })
+        XCTAssertEqual(after, before)
+    }
+
+    func testLargeVideoStreamsThroughVerifiedBackupAndRestore() async throws {
+        let name = UUID().uuidString + ".mov"
+        let video = SessionMediaStore.videoURL(for: name)
+        FileManager.default.createFile(atPath: video.path, contents: nil)
+        let output = try FileHandle(forWritingTo: video)
+        let chunk = Data(repeating: 0x5a, count: 1_048_576)
+        for _ in 0..<64 { try output.write(contentsOf: chunk) }
+        try output.close()
+        defer { SessionMediaStore.deleteVideoFile(named: name) }
+        let session = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .video, videoFileName: name)])
+        let url = try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: [])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let inspection = try await BackupManager.inspect(url)
+        XCTAssertEqual(inspection.videos, 1)
+        let target = try TestModelContainer.make()
+        try await BackupManager.restore(from: url, mode: .replace, context: target.mainContext)
+        let restored = try XCTUnwrap(target.mainContext.fetch(FetchDescriptor<SessionMedia>()).first?.videoFileName)
+        defer { SessionMediaStore.deleteVideoFile(named: restored) }
+        let restoredURL = SessionMediaStore.videoURL(for: restored)
+        let size = try FileManager.default.attributesOfItem(atPath: restoredURL.path)[.size] as? NSNumber
+        XCTAssertEqual(size?.intValue, 64 * 1_048_576)
+        let input = try FileHandle(forReadingFrom: restoredURL)
+        defer { try? input.close() }
+        try input.seek(toOffset: UInt64(63 * 1_048_576))
+        XCTAssertEqual(try input.read(upToCount: chunk.count), chunk)
+    }
+
+    func testInspectionDoesNotWriteMediaFiles() async throws {
+        let source = try TestModelContainer.make()
+        let session = SurfSession(date: Date(), spot: nil,
+            media: [SessionMedia(kind: .photo, photoData: Data([7,8,9]))])
+        source.mainContext.insert(session)
+        try source.mainContext.save()
+        let url = try await BackupManager.makeBackupFile(sessions: [session], spots: [], gear: [], buddies: [])
+        defer { try? FileManager.default.removeItem(at: url) }
+        let result = try await FramedBackupReader.read(url: url, stageMedia: false)
+        XCTAssertTrue(result.prepared.isEmpty)
+        XCTAssertEqual(result.file.manifest.media.count, 1)
     }
 }

@@ -39,7 +39,7 @@ struct SessionDetailView: View {
                         healthCard
 
                         if healthSyncEnabled, let id = session.linkedWorkoutID {
-                            SessionRouteMapView(workoutID: id)
+                            SessionRouteMapView(workoutID: id, correctEstimates: { showEdit = true })
                         }
 
                         if !surfReportRows.isEmpty {

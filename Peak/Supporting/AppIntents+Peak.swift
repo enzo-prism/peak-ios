@@ -80,6 +80,12 @@ struct SessionsThisMonthIntent: AppIntent {
 struct PeakAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
+            intent: StartSurfWithSetupIntent(),
+            phrases: ["Start a surf with my setup in \(.applicationName)"],
+            shortTitle: "Start with Setup",
+            systemImageName: "surfboard"
+        )
+        AppShortcut(
             intent: LogSessionIntent(),
             phrases: [
                 "Log a session in \(.applicationName)",
@@ -129,5 +135,27 @@ struct PeakAppShortcuts: AppShortcutsProvider {
             shortTitle: "Sessions This Month",
             systemImageName: "chart.bar.xaxis"
         )
+    }
+}
+
+/// Parameterized counterpart to the store-free default timer intent. It runs
+/// in the app process so entity IDs can be checked against the live library.
+struct StartSurfWithSetupIntent: AppIntent {
+    static let title: LocalizedStringResource = "Start Surf with Setup"
+    static let description = IntentDescription("Start at a saved spot with an optional board. Review and rate the session after you finish.")
+    static let openAppWhenRun = true
+    @Parameter(title: "Spot") var spot: SpotEntity
+    @Parameter(title: "Board") var board: GearEntity?
+
+    @MainActor func perform() async throws -> some IntentResult & ProvidesDialog {
+        if ActiveSessionStore.loadActive() != nil { return .result(dialog: "A session is already running. Your timer was kept.") }
+        guard let selected = PeakIntentStore.spots().first(where: { SessionIntentQueries.identifier(for: $0) == spot.id }) else {
+            throw CocoaError(.fileReadNoSuchFile)
+        }
+        let selectedBoard = board.flatMap { entity in PeakIntentStore.gear().first { SessionIntentQueries.identifier(for: $0) == entity.id && $0.kind == .board && !$0.isArchived } }
+        if board != nil && selectedBoard == nil { throw CocoaError(.fileReadNoSuchFile) }
+        SessionActivityController.start(ActiveSessionState(spotKey: selected.key, spotName: selected.name,
+            gearKeys: selectedBoard.map { [$0.key] }))
+        return .result(dialog: "Surf timer started. End it when you are out of the water, then review your session in Peak.")
     }
 }

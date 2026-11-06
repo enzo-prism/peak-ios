@@ -38,7 +38,7 @@ struct StoreLoadResult {
 /// Never retries an on-disk store after unsuccessful preservation. A durable
 /// marker also prevents reopening a partly removed store on the next launch.
 enum PeakDataStore {
-    private static let storeFileName = "default.store"
+    nonisolated private static let storeFileName = "default.store"
     nonisolated static let recoveryMarkerName = "Peak Store Recovery.json"
     nonisolated static let recoveryRecordName = "Peak Preserved Library.json"
     static let headSchema: any VersionedSchema.Type = PeakSchemaV12.self

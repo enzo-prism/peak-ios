@@ -6,8 +6,12 @@ import SwiftData
 /// Called on launch and whenever sessions change.
 enum WidgetSnapshotWriter {
     static func update(from sessions: [SurfSession], now: Date = Date(), calendar: Calendar = .current) {
-        let snapshot = makeSnapshot(from: sessions, now: now, calendar: calendar)
+        var snapshot = makeSnapshot(from: sessions, now: now, calendar: calendar)
         let existing = PeakWidgetStore.read()
+        snapshot.planGlance = existing.planGlance
+        if let plan = snapshot.planGlance, !sessions.contains(where: { $0.spot?.key == plan.spotKey }) {
+            snapshot.planGlance = nil
+        }
         guard shouldPublish(snapshot, replacing: existing) else { return }
         PeakWidgetStore.write(snapshot)
         PeakWidgetRefresh.reloadTimelines()
@@ -31,7 +35,7 @@ enum WidgetSnapshotWriter {
         // One O(n) pass for "latest" — no extra sorted copy. Ties keep the
         // first maximum, matching a stable reverse-date sort.
         let last = sessions.max { $0.date < $1.date }
-        let lastID = last.map(SessionIntentQueries.identifier(for:))
+        let lastID = last.map { SessionIntentQueries.identifier(for: $0) }
 
         // Same definition as `SessionIntentQueries.sessionsThisMonth`, so the
         // widget and Siri can never disagree about the count.
@@ -87,7 +91,7 @@ enum WidgetSnapshotWriter {
             return PeakSpotGlance(
                 key: key,
                 name: name,
-                lastSessionID: session.map(SessionIntentQueries.identifier(for:)),
+                lastSessionID: session.map { SessionIntentQueries.identifier(for: $0) },
                 lastSessionDate: session?.date,
                 lastSessionRating: session.map(\.rating),
                 sessionCount: counts[key] ?? 0

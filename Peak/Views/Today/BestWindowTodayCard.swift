@@ -42,6 +42,8 @@ struct BestWindowTodayCard: View {
     /// revisited.
     @State private var hasAutoRefreshed = false
     @State private var editingSpot: Spot?
+    @State private var fetchedAt: Date?
+    @State private var planError = false
 
     private enum LoadState: Equatable {
         case idle
@@ -82,6 +84,7 @@ struct BestWindowTodayCard: View {
                         content(spot: spot)
                         backfillRow(spot: spot)
                         refreshButton(spot: spot)
+                        TideStationCard(spot: spot).id(spot.persistentModelID)
                     }
                 }
                 .padding(Theme.Spacing.l)
@@ -102,6 +105,11 @@ struct BestWindowTodayCard: View {
             }
             .sheet(item: $editingSpot) { spot in
                 SpotEditorView(mode: .edit(spot))
+            }
+            .alert("Plan could not be saved", isPresented: $planError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Check conditions again and try saving the plan.")
             }
         }
     }
@@ -222,6 +230,34 @@ struct BestWindowTodayCard: View {
             Text("Based on your own sessions at this spot.")
                 .font(.caption)
                 .foregroundStyle(Theme.textMuted)
+            if let fetchedAt {
+                Text("Checked \(fetchedAt.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption).foregroundStyle(Theme.textMuted)
+                Button("Save surf plan", systemImage: "sun.horizon") {
+                    guard let spot = selectedSpot else { return }
+                    let setup = matchedSession(for: recommendation)?.gear.filter { !$0.isArchived } ?? []
+                    let plan = SurfPlan(id: UUID(), spotKey: spot.key, spotName: spot.name,
+                                        gearKeys: setup.map(\.key), start: recommendation.start,
+                                        end: recommendation.end, fetchedAt: fetchedAt,
+                                        summary: recommendation.factorSummary)
+                    do {
+                        try SurfPlanStore.save(plan)
+                        NotificationCenter.default.post(name: .peakSurfPlanDidChange, object: nil)
+                    } catch { planError = true }
+                }
+                .glassButtonStyle()
+                .disabled(Date().timeIntervalSince(fetchedAt) >= 6 * 3600 || recommendation.end <= Date())
+                .accessibilityIdentifier("window.savePlan")
+                if let spot = selectedSpot {
+                    NavigationLink { QuiverAdvisorView(initialSpotKey: spot.key) } label: {
+                        Label("Compare boards at this spot", systemImage: "surfboard")
+                            .frame(minHeight: 44)
+                    }
+                    .accessibilityIdentifier("window.compareBoards")
+                }
+                Text("Setup comes from the cited surf. This plan does not create a logged session.")
+                    .font(.caption).foregroundStyle(Theme.textMuted)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -480,6 +516,7 @@ struct BestWindowTodayCard: View {
             // `.loading` with its only button disabled, permanently.
             guard !Task.isCancelled else { return }
             refreshTask = nil
+            if case .loaded = result { fetchedAt = Date() }
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                 state = result
             }
