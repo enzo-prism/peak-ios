@@ -207,3 +207,37 @@ enum HistoryListMode: Equatable {
         return .results
     }
 }
+
+/// In-memory navigation state must never retain models from a retired context.
+/// Persistent identifiers also survive a rename, unlike spot/gear display keys.
+struct HistoryFilterSnapshot {
+    let spots: Set<PersistentIdentifier>
+    let gear: Set<PersistentIdentifier>
+    let buddies: Set<PersistentIdentifier>
+    let minimumRating: Int
+    let dateRange: HistoryFilters.DateRange
+
+    init(_ filters: HistoryFilters = HistoryFilters()) {
+        spots = Set(filters.spots.map(\.persistentModelID))
+        gear = Set(filters.gear.map(\.persistentModelID))
+        buddies = Set(filters.buddies.map(\.persistentModelID))
+        minimumRating = filters.minimumRating
+        dateRange = filters.dateRange
+    }
+
+    func restore(in context: ModelContext) throws -> HistoryFilters {
+        var filters = HistoryFilters()
+        filters.minimumRating = minimumRating
+        filters.dateRange = dateRange
+        if !spots.isEmpty {
+            filters.spots = Set(try context.fetch(FetchDescriptor<Spot>()).filter { spots.contains($0.persistentModelID) })
+        }
+        if !gear.isEmpty {
+            filters.gear = Set(try context.fetch(FetchDescriptor<Gear>()).filter { gear.contains($0.persistentModelID) })
+        }
+        if !buddies.isEmpty {
+            filters.buddies = Set(try context.fetch(FetchDescriptor<Buddy>()).filter { buddies.contains($0.persistentModelID) })
+        }
+        return filters
+    }
+}

@@ -65,6 +65,10 @@ final class PeakNavigationCoordinator {
     var selectedTab: PeakTab = .log
     // Store-free selections survive a context replacement after an edit. Views
     // resolve fresh models by ID; they never carry retired SwiftData objects.
+    var historyFilters = HistoryFilterSnapshot()
+    var searchFilters = HistoryFilterSnapshot()
+    var historySearchText = ""
+    var dedicatedSearchText = ""
     var historySelection: PeakEntityRef?
     var searchSelection: PeakEntityRef?
     var gearSelection: PeakEntityRef?
@@ -75,6 +79,21 @@ final class PeakNavigationCoordinator {
     var pendingSearchQuery: String?
 
     private init() {}
+
+    func clearLibraryNavigation() {
+        historyFilters = HistoryFilterSnapshot()
+        searchFilters = HistoryFilterSnapshot()
+        historySearchText = ""
+        dedicatedSearchText = ""
+        historySelection = nil
+        searchSelection = nil
+        gearSelection = nil
+        moreSpotSelection = nil
+        pendingSessionID = nil
+        pendingSpotID = nil
+        pendingGearID = nil
+        pendingSearchQuery = nil
+    }
 
     func handle(_ destination: PeakDeepLink.Destination) {
         switch destination {

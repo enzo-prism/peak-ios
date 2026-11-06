@@ -521,6 +521,7 @@ struct SettingsView: View {
                 do { try await SessionDraftStore.shared.clear() }
                 catch { resetMessage = "Your session library was cleared, but a saved draft could not be removed. Reopen Settings and retry Reset All Data to finish removing it." }
             }
+            PeakNavigationCoordinator.shared.clearLibraryNavigation()
             SurfPlanStore.clear()
             SessionActivityController.discard()
             ActiveSessionStore.clearPendingLog()

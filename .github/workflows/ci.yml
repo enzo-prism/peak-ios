@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
+  unit_tests:
     # Verify the shipping SDK and the availability-gated Xcode 26 fallback.
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -24,10 +24,10 @@ jobs:
         include:
           - runner: macos-26
             xcode: '26.6'
-            minimum: 638
+            minimum: 639
           - runner: xcode-27
             xcode: '27.0'
-            minimum: 639
+            minimum: 640
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -50,6 +50,16 @@ jobs:
             .build/TestResults.receipt.json
           if-no-files-found: ignore
           include-hidden-files: true
+
+  tests:
+    needs: unit_tests
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require both SDK unit suites
+        env:
+          UNIT_TEST_RESULT: ${{ needs.unit_tests.result }}
+        run: test "$UNIT_TEST_RESULT" = success
 
   device_ui:
     name: UI (${{ matrix.device }})
@@ -75,7 +85,7 @@ jobs:
           DESIGN_DEVICE: ${{ matrix.device }}
         run: |
           if [[ "$DESIGN_DEVICE" == "iphone" ]]; then
-            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 639
+            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 640
           fi
           python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 73
       - name: Upload device test evidence

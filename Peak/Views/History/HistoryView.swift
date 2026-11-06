@@ -6,12 +6,22 @@ struct HistoryView: View {
     /// Existing `HistoryView()` call sites stay valid.
     var isDedicatedSearchTab: Bool = false
 
+    init(isDedicatedSearchTab: Bool = false) {
+        self.isDedicatedSearchTab = isDedicatedSearchTab
+        let navigation = PeakNavigationCoordinator.shared
+        let query = isDedicatedSearchTab ? navigation.dedicatedSearchText : navigation.historySearchText
+        _searchText = State(initialValue: query)
+        _debouncedSearchText = State(initialValue: query)
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
     @State private var filters = HistoryFilters()
+    @State private var didRestoreFilters = false
+    @State private var showFilterRestoreError = false
     @State private var searchText = ""
     /// Search text applied to the list, trailing `searchText` by ~275ms so we
     /// don't re-filter on every keystroke.
@@ -94,7 +104,18 @@ struct HistoryView: View {
             }
             debouncedSearchText = searchText
         }
+        .alert("Filters Could Not Be Restored", isPresented: $showFilterRestoreError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your library is unchanged. Please reapply your History filters.")
+        }
         .onAppear {
+            if !didRestoreFilters {
+                let snapshot = isDedicatedSearchTab ? navigation.searchFilters : navigation.historyFilters
+                do { filters = try snapshot.restore(in: modelContext) }
+                catch { showFilterRestoreError = true }
+                didRestoreFilters = true
+            }
             refreshResults()
             if let openedSession, sessionMatching(openedSession) == nil { self.openedSession = nil }
             consumePendingNavigation()
@@ -103,7 +124,13 @@ struct HistoryView: View {
             refreshResults()
         }
         .onChange(of: filters) { _, _ in
+            if isDedicatedSearchTab { navigation.searchFilters = HistoryFilterSnapshot(filters) }
+            else { navigation.historyFilters = HistoryFilterSnapshot(filters) }
             refreshResults()
+        }
+        .onChange(of: searchText) { _, query in
+            if isDedicatedSearchTab { navigation.dedicatedSearchText = query }
+            else { navigation.historySearchText = query }
         }
         .onChange(of: debouncedSearchText) { _, _ in
             refreshResults()

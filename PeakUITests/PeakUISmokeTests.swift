@@ -323,6 +323,9 @@ final class PeakUISmokeTests: XCTestCase {
     /// the History tab was gone when you came back to it.
     func testEditingSessionKeepsDetailOpenWithFreshValues() {
         tapTab(named: "History")
+        app.buttons["Filters"].tap()
+        tapRow(label: "Trestles")
+        app.buttons["Done"].tap()
         let row = latestHistoryRow()
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
@@ -337,6 +340,9 @@ final class PeakUISmokeTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Session"].waitForExistence(timeout: 5))
         let updated = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "preserved detail marker")).firstMatch
         XCTAssertTrue(updated.waitForExistence(timeout: 5), "Detail must resolve the edited record from the new context")
+        app.navigationBars["Session"].buttons["History"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Trestles")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Ocean Beach"].exists, "The pre-edit History filter must survive context replacement")
     }
 
     func testLoggingANewSessionKeepsOtherTabsWhereTheyWere() {
@@ -1459,7 +1465,7 @@ final class PeakMarketingCaptureTests: XCTestCase {
         try capture("01-log")
 
         tapTab("History")
-        _ = app.staticTexts["Trestles"].firstMatch.waitForExistence(timeout: 8)
+        _ = app.staticTexts.matching(NSPredicate(format: "label == %@", "Trestles")).firstMatch.waitForExistence(timeout: 8)
         settle()
         try capture("02-history")
 

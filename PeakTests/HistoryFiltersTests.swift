@@ -1,10 +1,39 @@
 import XCTest
+import SwiftData
 
 @testable import Peak
 
 final class HistoryFiltersTests: XCTestCase {
     private let now = TestCalendar.makeDate(year: 2026, month: 7, day: 15, hour: 6)
     private var calendar: Calendar { TestCalendar.gmt }
+
+    func testFilterSnapshotResolvesFreshModelsAfterRenameAcrossContexts() throws {
+        let container = try TestModelContainer.make()
+        let original = ModelContext(container)
+        let spot = TestFixture.spot(name: "Trestles")
+        let board = TestFixture.gear(name: "Fish")
+        let buddy = TestFixture.buddy(name: "Chris")
+        original.insert(spot); original.insert(board); original.insert(buddy)
+        try original.save()
+        var filters = HistoryFilters()
+        filters.spots = [spot]; filters.gear = [board]; filters.buddies = [buddy]
+        filters.minimumRating = 4; filters.dateRange = .thisYear
+        let snapshot = HistoryFilterSnapshot(filters)
+        let editor = ModelContext(container)
+        let edited = try XCTUnwrap(try editor.fetch(FetchDescriptor<Spot>()).first)
+        edited.name = "Renamed break"
+        try editor.save()
+        let fresh = ModelContext(container)
+        let restored = try snapshot.restore(in: fresh)
+        let resolved = try XCTUnwrap(restored.spots.first)
+        XCTAssertFalse(resolved === spot)
+        XCTAssertEqual(resolved.persistentModelID, spot.persistentModelID)
+        XCTAssertEqual(resolved.name, "Renamed break")
+        XCTAssertEqual(restored.gear.first?.persistentModelID, board.persistentModelID)
+        XCTAssertEqual(restored.buddies.first?.persistentModelID, buddy.persistentModelID)
+        XCTAssertEqual(restored.minimumRating, 4)
+        XCTAssertEqual(restored.dateRange, .thisYear)
+    }
 
     // MARK: - Inactive filters
 
