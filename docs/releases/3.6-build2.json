@@ -1,15 +1,15 @@
 {
   "state": "prepared_not_uploaded",
-  "observedAt": "2026-11-06T20:00:50.965404+00:00",
+  "observedAt": "2026-11-06T20:19:18.539578+00:00",
   "version": "3.6",
   "buildNumber": "2",
-  "sourceSHA": "20c7d671fd69e05838f77fae76be570c4b6eed7d",
-  "sourceTree": "b29da94901b15769ab46862d719e9d760c93ce5d",
+  "sourceSHA": "3bdf405bc660ac80482308239251a1c33cc59dea",
+  "sourceTree": "9569d360587ceb6f22c280273dc0d75e7d0a4b8f",
   "sourceCleanBeforeAndAfterArchive": true,
   "sourceStampedInBinary": false,
   "provenanceLimitation": "Clean source and command/artifact receipts establish observed provenance; the binary contains no source SHA and this is not cryptographic proof of compiler input.",
-  "ipaSHA256": "8029c132c9d9035cbcbe4d07916d23d6fd9aa04b1e9528f208403067b550e852",
-  "ipaSize": 6120490,
+  "ipaSHA256": "657d1ce0b9eaed8fa8eb74dae71718dfbabc00946a0a8ebc7d1cec48703861ae",
+  "ipaSize": 6121547,
   "bundles": [
     {
       "bundleID": "com.designprism.peak",
@@ -73,8 +73,9 @@
     "Whole-app physical performance",
     "Five reference Watch ocean sessions"
   ],
-  "archiveName": "Peak-3.6-2-20c7d67.xcarchive",
-  "ipaName": "Peak-3.6-2-20c7d67.ipa",
+  "archiveName": "Peak-3.6-2-final.xcarchive",
+  "ipaName": "Peak-3.6-2-final.ipa",
+  "appStoreConnectAppID": "6757644027",
   "localVerification": {
     "unit": {
       "passed": 644,
@@ -82,22 +83,22 @@
       "skipped": 0,
       "SDK": "Xcode 27 / iOS 27.2 Simulator"
     },
-    "iPadRecoveryUI": {
-      "passed": 1,
+    "iPadColdStartUI": {
+      "passed": 2,
       "failed": 0,
       "device": "iPad Pro 13-inch (M5) / iOS 27.2"
     },
-    "iPhoneRecoveryUI": {
-      "passed": 1,
+    "iPhoneColdStartUI": {
+      "passed": 2,
       "failed": 0,
       "device": "iPhone 18 Pro / iOS 27.2",
-      "sourceQualification": "Ran the matching recovery code before commit20c7d67; tracked edits were present. Final-source CI is separately required."
+      "sourceQualification": "Separate draft and plan cold-start flows passed with matching code before the respective commits; tracked edits were present. Final-head CI is separately required."
     }
   },
   "requiredFinalCI": {
     "unitXcode27": 644,
     "unitXcode26_6": 643,
-    "UIEachDevice": 74,
+    "UIEachDevice": 75,
     "requiredChecks": [
       "tests",
       "design"
@@ -109,6 +110,5 @@
     "appReviewSubmitted": false,
     "publicRelease": false,
     "note": "This is a dated preparation receipt, created before upload. Read App Store Connect app 6757644027 for exact version 3.6/build 2 processing and internal-group availability; source or preparation evidence alone does not prove distribution."
-  },
-  "appStoreConnectAppID": "6757644027"
+  }
 }
