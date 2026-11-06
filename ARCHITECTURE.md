@@ -140,7 +140,7 @@ This document describes the runtime structure, data model, and key flows in Peak
 - Keep `Peak/PrivacyInfo.xcprivacy` accurate when anything privacy-relevant changes
 
 **Testing**
-- Unit tests: `PeakTests/*`; 3.6 discovers 640 cases with Xcode 27, 639 with Xcode 26.6. The additional iOS 27 probe pins cross-context ResultsObserver behavior. See `docs/PEAK_3_6.md` for current acceptance receipts; historical counts are not current evidence.
+- Unit tests: `PeakTests/*`; 3.6 discovers 641 cases with Xcode 27, 640 with Xcode 26.6. The additional iOS 27 probe pins cross-context ResultsObserver behavior. See `docs/PEAK_3_6.md` for current acceptance receipts; historical counts are not current evidence.
 - UI layout/navigation tests: `PeakUITests/*`. Record the executed test count and simulator/device for each candidate; historical counts are not an acceptance result.
 - Standard commands: `./scripts/build-sim.sh`, `./scripts/test.sh`
 - **Run one `xcodebuild` at a time.** The simulator is a single shared resource; concurrent runs produce false failures. See `AGENTS.md`.

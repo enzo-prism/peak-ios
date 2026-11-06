@@ -429,7 +429,7 @@ final class ExportImportTests: XCTestCase {
     // MARK: - Full-data backup (.peakbackup)
 
     func testBackupFileRoundTripPreservesSessionsAndMedia() async throws {
-        let createdAt = TestCalendar.makeDate(year: 2026, month: 3, day: 3, hour: 7)
+        let createdAt = TestCalendar.makeDate(year: 2026, month: 3, day: 3, hour: 7).addingTimeInterval(0.125)
 
         let sourceContainer = try makeContainer()
         let sourceContext = ModelContext(sourceContainer)
@@ -501,6 +501,7 @@ final class ExportImportTests: XCTestCase {
         XCTAssertEqual(restoredPhoto.photoData, photoBytes)
         XCTAssertEqual(restoredPhoto.thumbnailData, thumbBytes)
         XCTAssertEqual(restoredPhoto.sortIndex, 0)
+        XCTAssertEqual(restoredPhoto.createdAt.timeIntervalSince1970, createdAt.timeIntervalSince1970, accuracy: 0.0001)
         XCTAssertEqual(restoredPhoto.cropOriginX, 0.1, accuracy: 0.0001)
         XCTAssertEqual(restoredPhoto.cropOriginY, 0.2, accuracy: 0.0001)
         XCTAssertEqual(restoredPhoto.cropWidth, 0.7, accuracy: 0.0001)
@@ -508,6 +509,7 @@ final class ExportImportTests: XCTestCase {
 
         let restoredVideo = try XCTUnwrap(restored.media.first { $0.kind == .video })
         XCTAssertEqual(restoredVideo.sortIndex, 1)
+        XCTAssertEqual(restoredVideo.createdAt.timeIntervalSince1970, createdAt.timeIntervalSince1970, accuracy: 0.0001)
         let restoredVideoFileName = try XCTUnwrap(restoredVideo.videoFileName)
         let restoredVideoData = try Data(contentsOf: SessionMediaStore.videoURL(for: restoredVideoFileName))
         XCTAssertEqual(restoredVideoData, videoBytes)
@@ -1261,6 +1263,33 @@ final class ExportImportTests: XCTestCase {
 
 @MainActor
 final class BackupIntegrityTests: XCTestCase {
+    func testLegacyBackupRejectsInvalidMediaMetadataBeforeReplace() async throws {
+        let date = Date(timeIntervalSince1970: 1_770_000_000.125)
+        let export = PeakExportManager.makeExport(sessions: [SurfSession(date: date, spot: nil)], spots: [], gear: [], buddies: [], now: date)
+        let id = try XCTUnwrap(export.sessions.first?.id)
+        let target = try TestModelContainer.make()
+        let original = SurfSession(date: date, spot: nil, notes: "Keep original")
+        target.mainContext.insert(original)
+        try target.mainContext.save()
+        for scenario in ["missing session", "invalid date", "duplicate media"] {
+            let entry = SessionMediaBackupEntry(id: "one", sessionId: scenario == "missing session" ? "missing" : id,
+                kind: "photo", sortIndex: 0, cropOriginX: 0, cropOriginY: 0, cropWidth: 1, cropHeight: 1,
+                createdAt: scenario == "invalid date" ? "not-a-date" : ExportDateFormatter.string(from: date),
+                photoBase64: Data([1, 2, 3]).base64EncodedString(), thumbnailBase64: nil, videoBase64: nil)
+            let file = PeakBackupFile(export: export, manifest: PeakBackupManifest(backupVersion: "1",
+                exportedAt: export.exportedAt, media: scenario == "duplicate media" ? [entry, entry] : [entry]))
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".peakbackup")
+            try BackupManager.encodeBackupFile(file).write(to: url)
+            defer { try? FileManager.default.removeItem(at: url) }
+            do {
+                try await BackupManager.restore(from: url, mode: .replace, context: target.mainContext)
+                XCTFail("Invalid legacy metadata must fail before replacement: \(scenario)")
+            } catch { XCTAssertTrue(error is BackupIntegrityError, scenario) }
+            XCTAssertEqual(try target.mainContext.fetchCount(FetchDescriptor<SurfSession>()), 1)
+            XCTAssertEqual(original.notes, "Keep original")
+        }
+    }
+
     func testFramedBackupChecksumsAndTruncationFailBeforeReplace() async throws {
         let source = try TestModelContainer.make()
         let session = SurfSession(date: Date(), spot: nil, media: [SessionMedia(kind: .photo, photoData: Data([1,2,3,4]))])

@@ -198,13 +198,12 @@ enum BackupManager {
         do {
             for entry in file.manifest.media {
                 let item: PreparedMediaEntry? = try autoreleasepool {
-                    guard let kind = SessionMediaKind(rawValue: entry.kind) else { throw BackupIntegrityError.invalid }
+                    guard let kind = SessionMediaKind(rawValue: entry.kind),
+                          let createdAt = mediaDate(from: entry.createdAt) else { throw BackupIntegrityError.invalid }
                     var videoFileName: String?
                     if kind == .video {
-                        // A corrupt or absent video payload is dropped outright:
-                        // inserting a `SessionMedia(videoFileName: nil)` row
-                        // would be a permanently broken tile that even
-                        // `deleteStoredMedia` skips.
+                        // A corrupt or absent video fails the entire restore
+                        // before the library transaction begins.
                         guard let base64 = entry.videoBase64,
                               let videoData = Data(base64Encoded: base64) else { throw BackupIntegrityError.missingMedia }
                         let name = try writeRestoredVideo(videoData)
@@ -219,7 +218,7 @@ enum BackupManager {
                         cropOriginY: entry.cropOriginY,
                         cropWidth: entry.cropWidth,
                         cropHeight: entry.cropHeight,
-                        createdAt: ExportDateFormatter.date(from: entry.createdAt) ?? Date(),
+                        createdAt: createdAt,
                         photoData: entry.photoBase64.flatMap { Data(base64Encoded: $0) },
                         thumbnailData: entry.thumbnailBase64.flatMap { Data(base64Encoded: $0) },
                         videoFileName: videoFileName
@@ -342,12 +341,21 @@ enum BackupManager {
 
     nonisolated private static func validateLegacyMedia(_ file: PeakBackupFile) throws {
         guard file.manifest.backupVersion == "1" else { throw BackupIntegrityError.invalid }
+        let sessionIDs = Set(file.export.sessions.map(\.id))
+        var entryIDs = Set<String>()
         for entry in file.manifest.media {
-            guard let kind = SessionMediaKind(rawValue: entry.kind) else { throw BackupIntegrityError.invalid }
+            guard let kind = SessionMediaKind(rawValue: entry.kind),
+                  entryIDs.insert(entry.id).inserted, sessionIDs.contains(entry.sessionId),
+                  entry.sortIndex >= 0, mediaDate(from: entry.createdAt) != nil else { throw BackupIntegrityError.invalid }
             let payload = kind == .photo ? entry.photoBase64 : entry.videoBase64
             guard let payload, let data = Data(base64Encoded: payload), !data.isEmpty else { throw BackupIntegrityError.missingMedia }
             if let thumb = entry.thumbnailBase64, Data(base64Encoded: thumb) == nil { throw BackupIntegrityError.invalid }
         }
+    }
+
+    nonisolated static func mediaDate(from string: String) -> Date? {
+        // Keep fractional timestamps; older archives may contain whole seconds.
+        ExportDateFormatter.date(from: string) ?? ISO8601DateFormatter().date(from: string)
     }
 
     // MARK: - Pure encode/decode (testable)

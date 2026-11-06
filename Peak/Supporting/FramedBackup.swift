@@ -53,7 +53,7 @@ actor FramedBackupWriter {
             kind: snapshot.kind, sortIndex: snapshot.sortIndex,
             cropOriginX: snapshot.cropOriginX, cropOriginY: snapshot.cropOriginY,
             cropWidth: snapshot.cropWidth, cropHeight: snapshot.cropHeight,
-            createdAt: ISO8601DateFormatter().string(from: snapshot.createdAt),
+            createdAt: ExportDateFormatter.string(from: snapshot.createdAt),
             photoBase64: nil, thumbnailBase64: nil, videoBase64: nil)
         try Self.writeFrame(try JSONEncoder().encode(entry), to: handle)
         try Self.writeFrame(snapshot.photoData ?? Data(), to: handle)
@@ -139,7 +139,7 @@ nonisolated enum FramedBackupReader {
                 let entry = try JSONDecoder().decode(SessionMediaBackupEntry.self, from: metadata)
                 guard entryIDs.insert(entry.id).inserted, sessionIDs.contains(entry.sessionId),
                       let kind = SessionMediaKind(rawValue: entry.kind), entry.sortIndex >= 0,
-                      ISO8601DateFormatter().date(from: entry.createdAt) != nil else { throw BackupIntegrityError.invalid }
+                      let createdAt = BackupManager.mediaDate(from: entry.createdAt) else { throw BackupIntegrityError.invalid }
                 let photo = try readFrame(from: handle, maxLength: 128 * 1024 * 1024)
                 let thumbnail = try readFrame(from: handle, maxLength: 32 * 1024 * 1024)
                 var videoName: String?
@@ -179,7 +179,7 @@ nonisolated enum FramedBackupReader {
                     prepared.append(BackupManager.PreparedMediaEntry(sessionId: entry.sessionId, kind: kind,
                         sortIndex: entry.sortIndex, cropOriginX: entry.cropOriginX, cropOriginY: entry.cropOriginY,
                         cropWidth: entry.cropWidth, cropHeight: entry.cropHeight,
-                        createdAt: ISO8601DateFormatter().date(from: entry.createdAt)!,
+                        createdAt: createdAt,
                         photoData: photo.isEmpty ? nil : photo, thumbnailData: thumbnail.isEmpty ? nil : thumbnail,
                         videoFileName: videoName))
                 }
