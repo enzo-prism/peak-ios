@@ -7,7 +7,7 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 Verified November 6, 2026:
 
 - **App Store public:** `3.5` (`READY_FOR_DISTRIBUTION` in App Store Connect).
-- **Candidate:** `3.6` build `2`. See [implementation and acceptance](docs/PEAK_3_6.md) for delivered behavior and outstanding hardware validation. TestFlight upload is recorded separately when verified.
+- **Candidate:** `3.6` build `2`. See [implementation and acceptance](docs/PEAK_3_6.md) for delivered behavior and outstanding hardware validation. The dated [preparation receipt](docs/releases/3.6-build2.json) pins the compiled source and IPA; TestFlight delivery must be read back separately.
 - **Source of truth:** exact commit + ASC version/build, not a branch name. See [RELEASE_PLAYBOOK.md](RELEASE_PLAYBOOK.md).
 - **Watch companion:** hardening and standalone validation are retained on `feature/peak-3.6-watch-validation`, outside main. The iPhone app does **not** contain a Watch target or embedded Watch app. Five real ocean sessions with reference observations remain a release gate, explicitly kept pending by the owner.
 - **Data:** local SwiftData schema V12 remains unchanged in 3.6. Existing session UUIDs and media associations are preserved by export/restore.

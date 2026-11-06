@@ -1,0 +1,114 @@
+{
+  "state": "prepared_not_uploaded",
+  "observedAt": "2026-11-06T20:00:50.965404+00:00",
+  "version": "3.6",
+  "buildNumber": "2",
+  "sourceSHA": "20c7d671fd69e05838f77fae76be570c4b6eed7d",
+  "sourceTree": "b29da94901b15769ab46862d719e9d760c93ce5d",
+  "sourceCleanBeforeAndAfterArchive": true,
+  "sourceStampedInBinary": false,
+  "provenanceLimitation": "Clean source and command/artifact receipts establish observed provenance; the binary contains no source SHA and this is not cryptographic proof of compiler input.",
+  "ipaSHA256": "8029c132c9d9035cbcbe4d07916d23d6fd9aa04b1e9528f208403067b550e852",
+  "ipaSize": 6120490,
+  "bundles": [
+    {
+      "bundleID": "com.designprism.peak",
+      "version": "3.6",
+      "buildNumber": "2",
+      "minimumOS": "17.0",
+      "profileUUID": "74a08565-8acd-4562-a66d-ffe01b3a3a75",
+      "profileName": "Peak App Store 3.6 20261106",
+      "profileExpires": "2027-05-12T04:08:21",
+      "entitlements": {
+        "application-identifier": "L49MKXGVM4.com.designprism.peak",
+        "beta-reports-active": true,
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.background-delivery": true,
+        "com.apple.developer.journal.allow": [
+          "suggestions"
+        ],
+        "com.apple.developer.team-identifier": "L49MKXGVM4",
+        "com.apple.security.application-groups": [
+          "group.com.designprism.peak"
+        ],
+        "get-task-allow": false
+      },
+      "signatureVerified": true
+    },
+    {
+      "bundleID": "com.designprism.peak.PeakWidgets",
+      "version": "3.6",
+      "buildNumber": "2",
+      "minimumOS": "17.0",
+      "profileUUID": "3523cc2d-b4f4-408e-bcfe-8d912c932eb3",
+      "profileName": "Peak Widgets App Store 3.6 20261106",
+      "profileExpires": "2027-05-12T04:08:21",
+      "entitlements": {
+        "application-identifier": "L49MKXGVM4.com.designprism.peak.PeakWidgets",
+        "beta-reports-active": true,
+        "com.apple.developer.team-identifier": "L49MKXGVM4",
+        "com.apple.security.application-groups": [
+          "group.com.designprism.peak"
+        ],
+        "get-task-allow": false
+      },
+      "signatureVerified": true
+    }
+  ],
+  "weakFrameworks": [
+    "FoundationModels",
+    "JournalingSuggestions",
+    "Speech"
+  ],
+  "pullRequest": "https://github.com/enzo-prism/peak-ios/pull/27",
+  "watch": {
+    "included": false,
+    "releaseGate": "pending",
+    "validationBranch": "feature/peak-3.6-watch-validation"
+  },
+  "hardwareAcceptancePending": [
+    "Populated-device upgrade/restore",
+    "Physical speech and on-device retrieval relevance",
+    "Locked-device widget/shortcut invocation",
+    "Whole-app physical performance",
+    "Five reference Watch ocean sessions"
+  ],
+  "archiveName": "Peak-3.6-2-20c7d67.xcarchive",
+  "ipaName": "Peak-3.6-2-20c7d67.ipa",
+  "localVerification": {
+    "unit": {
+      "passed": 644,
+      "failed": 0,
+      "skipped": 0,
+      "SDK": "Xcode 27 / iOS 27.2 Simulator"
+    },
+    "iPadRecoveryUI": {
+      "passed": 1,
+      "failed": 0,
+      "device": "iPad Pro 13-inch (M5) / iOS 27.2"
+    },
+    "iPhoneRecoveryUI": {
+      "passed": 1,
+      "failed": 0,
+      "device": "iPhone 18 Pro / iOS 27.2",
+      "sourceQualification": "Ran the matching recovery code before commit20c7d67; tracked edits were present. Final-source CI is separately required."
+    }
+  },
+  "requiredFinalCI": {
+    "unitXcode27": 644,
+    "unitXcode26_6": 643,
+    "UIEachDevice": 74,
+    "requiredChecks": [
+      "tests",
+      "design"
+    ],
+    "state": "required_before_merge_and_upload"
+  },
+  "deliveryAtReceiptCreation": {
+    "uploaded": false,
+    "appReviewSubmitted": false,
+    "publicRelease": false,
+    "note": "This is a dated preparation receipt, created before upload. Read App Store Connect app 6757644027 for exact version 3.6/build 2 processing and internal-group availability; source or preparation evidence alone does not prove distribution."
+  },
+  "appStoreConnectAppID": "6757644027"
+}
