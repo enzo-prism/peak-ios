@@ -57,6 +57,7 @@ struct PeakApp: App {
             // unlogged session from an earlier run — the App Group defaults
             // outlive the in-memory store.
             ActiveSessionStore.reset()
+            if ProcessInfo.processInfo.environment["UITESTS_KEEP_PLAN"] != "1" { SurfPlanStore.clear() }
             PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
             if let size = ProcessInfo.processInfo.environment["UITESTS_LARGE_LIBRARY"].flatMap(Int.init), size > 0 {
                 // Profiling aid: see PreviewData.largeLibrary.

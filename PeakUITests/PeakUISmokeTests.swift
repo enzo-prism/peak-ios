@@ -67,6 +67,34 @@ final class PeakUISmokeTests: XCTestCase {
         XCTAssertFalse(resume.waitForExistence(timeout: 3), "Explicit discard must remove the durable copy, not just hide its card")
     }
 
+    func testSavedSurfPlanAppearsAfterColdLaunch() {
+        app.terminate()
+        app.launchEnvironment["UITESTS_WINDOW_SCENARIO"] = "confident"
+        app.launch()
+        tapTab(named: "Log")
+        let scroll = app.scrollViews.firstMatch
+        let check = app.buttons["Check conditions"]
+        scrollToVisible(check, in: scroll)
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        check.tap()
+        let save = app.buttons["window.savePlan"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10))
+        scrollToVisible(save, in: scroll)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        let remove = app.buttons["Remove plan"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "Saving must publish the plan in the current app")
+        app.terminate()
+        app.launchEnvironment["UITESTS_KEEP_PLAN"] = "1"
+        app.launch()
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "A saved plan must load without an in-process notification after cold launch")
+        scrollToVisible(remove, in: app.scrollViews.firstMatch)
+        remove.tap()
+        app.terminate()
+        app.launch()
+        XCTAssertFalse(remove.waitForExistence(timeout: 3), "Removed plans must not reappear after relaunch")
+    }
+
     func testVerifiedBackupSavesToFilesAndVerifiesDestination() {
         tapTab(named: "More")
         app.buttons["more.settings"].tap()

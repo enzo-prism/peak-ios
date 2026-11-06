@@ -11,7 +11,8 @@ struct SurfPlanCard: View {
     @State private var plan: SurfPlan?
 
     var body: some View {
-        Group {
+        // onAppear needs a mounted node even before the stored plan loads.
+        VStack(spacing: 0) {
             if let plan {
                 TimelineView(.periodic(from: .now, by: 60)) { timeline in
                     VStack(alignment: .leading, spacing: 10) {
