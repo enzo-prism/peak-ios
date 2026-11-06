@@ -1,6 +1,6 @@
 # Peak 3.6 implementation and acceptance
 
-Candidate: **3.6 (1)**, prepared November 6, 2026 from the 3.5 main baseline `0b3da2fcedb67be8ae1f9c404ce04bbf2f4f7438`. App Store Connect reports 3.5 as public. This document describes source behavior; the release receipt records upload and distribution independently.
+Candidate: **3.6 (2)**, prepared November 6, 2026 from the 3.5 main baseline `0b3da2fcedb67be8ae1f9c404ce04bbf2f4f7438`. App Store Connect reports 3.5 as public. This document describes source behavior; the release receipt records upload and distribution independently.
 
 The owner authorized implementation, main and TestFlight, and explicitly kept the Watch release gate pending. Watch hardening is retained on `feature/peak-3.6-watch-validation` outside main, following the repository's no-merge gate. The original imported checkout's unrelated edits are preserved. There is no schema migration in 3.6: V12 and the existing session UUIDs and media associations remain authoritative. Minimum iOS stays 17; no backend, account, analytics SDK, cloud inference or automatic library scanning was added.
 

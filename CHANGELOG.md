@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Status at a glance (App Store Connect read back November 6, 2026):
 
 - **App Store (live):** `3.5`, `READY_FOR_DISTRIBUTION`.
-- **Candidate:** `3.6` build **1**; TestFlight delivery is recorded in the release receipt when verified.
+- **Candidate:** `3.6` build **2**; TestFlight delivery is recorded in the release receipt when verified.
 - **Watch:** standalone source on `feature/peak-3.6-watch-validation`, outside main and unembedded; physical ocean release gate explicitly pending.
 
 ## [3.6] — Candidate, November 6, 2026

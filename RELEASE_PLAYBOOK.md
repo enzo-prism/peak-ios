@@ -4,7 +4,7 @@
 
 - App `peak.surf`, bundle `com.designprism.peak`, ASC app `6757644027`, team `L49MKXGVM4`.
 - **3.5 is public** (`READY_FOR_DISTRIBUTION` in ASC). Earlier candidate/pending statements in historical receipts do not describe current store state.
-- **3.6 build 1** is the current implementation candidate; upload/distribution must be read back and recorded independently in `docs/releases/`.
+- **3.6 build 2** is the current implementation candidate; upload/distribution must be read back and recorded independently in `docs/releases/`.
 - **Watch remains pending** by the owner's explicit choice. Standalone validation source stays on `feature/peak-3.6-watch-validation`, outside main; the iPhone archive must have no embedded Watch app.
 - Git branches, simulator results and uploaded artifacts do not independently establish public availability. No 3.6 App Review submission or public release is authorized by the TestFlight request.
 
