@@ -799,9 +799,10 @@ enum ExportError: LocalizedError {
 
 enum ExportDateFormatter {
     // Cache the formatter instead of allocating a fresh one per call: export and
-    // restore invoke this O(sessions + media) times. `ISO8601DateFormatter` is
-    // documented thread-safe for formatting/parsing and is never mutated after
-    // configuration, so a shared instance is safe on the `@concurrent` paths.
+    // restore invoke this O(sessions + media) times. Serialize all access to
+    // the non-Sendable formatter, including its internal lazy initialization,
+    // across main-actor export snapshots and concurrent media work.
+    nonisolated private static let lock = NSLock()
     nonisolated(unsafe) private static let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -809,11 +810,15 @@ enum ExportDateFormatter {
     }()
 
     nonisolated static func string(from date: Date) -> String {
-        iso8601.string(from: date)
+        lock.lock()
+        defer { lock.unlock() }
+        return iso8601.string(from: date)
     }
 
     nonisolated static func date(from string: String) -> Date? {
-        iso8601.date(from: string)
+        lock.lock()
+        defer { lock.unlock() }
+        return iso8601.date(from: string)
     }
 
     nonisolated static func fileSafeString(from date: Date) -> String {
