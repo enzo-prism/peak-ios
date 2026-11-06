@@ -96,6 +96,11 @@ final class PeakUISmokeTests: XCTestCase {
     }
 
     func testVerifiedBackupSavesToFilesAndVerifiesDestination() {
+        // Exercise the system document provider with its normal presentation
+        // animations, including a freshly initialized iPad Files service.
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "UITESTS_DISABLE_ANIMATIONS")
+        app.launch()
         tapTab(named: "More")
         app.buttons["more.settings"].tap()
         let backup = app.buttons["Back Up Everything"]
@@ -103,9 +108,32 @@ final class PeakUISmokeTests: XCTestCase {
         XCTAssertTrue(backup.waitForExistence(timeout: 3))
         backup.tap()
         let save = app.buttons["DOCPicker.actionButton"]
-        XCTAssertTrue(save.waitForExistence(timeout: 15), "Verified backup must offer the system Files destination picker")
-        XCTAssertTrue(save.isEnabled)
-        save.tap()
+        XCTAssertTrue(save.waitForExistence(timeout: 45), "Verified backup must offer the system Files destination picker, including first-use Files startup")
+        var lastFrame = CGRect.null
+        var unchangedSince = Date()
+        let settled = NSPredicate { _, _ in
+            guard save.exists, save.isEnabled, save.isHittable else {
+                lastFrame = .null
+                unchangedSince = Date()
+                return false
+            }
+            let current = save.frame
+            if current != lastFrame {
+                lastFrame = current
+                unchangedSince = Date()
+                return false
+            }
+            return Date().timeIntervalSince(unchangedSince) >= 0.5
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 15), .completed,
+                       "Files Save must finish its remote-sheet layout before tapping")
+        // Use the settled screen rectangle relative to the app window for
+        // the remote document provider in an offset iPad sheet.
+        let frame = save.frame
+        let appFrame = app.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: frame.midX - appFrame.minX, dy: frame.midY - appFrame.minY
+        )).tap()
         XCTAssertTrue(app.alerts["Backup Saved"].waitForExistence(timeout: 15), "The destination bytes must verify before reporting success")
         app.alerts["Backup Saved"].buttons["OK"].tap()
         XCTAssertTrue(backup.waitForExistence(timeout: 5))
@@ -145,6 +173,9 @@ final class PeakUISmokeTests: XCTestCase {
         XCTAssertTrue(transcript.waitForExistence(timeout: 3))
         transcript.tap()
         transcript.typeText("Trestles, ninety minutes, four stars, voice review marker")
+        let doneEditing = app.buttons["Done Editing"]
+        XCTAssertTrue(doneEditing.waitForExistence(timeout: 3))
+        doneEditing.tap()
         app.buttons["Use Transcript"].tap()
         saveSession()
         tapTab(named: "History")

@@ -37,6 +37,10 @@ struct VoiceLogSheet: View {
                         .focused($transcriptFocused)
                         .accessibilityLabel("Session transcript")
                         .accessibilityIdentifier("voice.transcript")
+                    if transcriptFocused {
+                        Button("Done Editing") { transcriptFocused = false }
+                            .frame(minHeight: 44)
+                    }
                 }
                 Section("Recognized fields") {
                     LabeledContent("Spot", value: fields.spot?.name ?? "Keep current spot")
@@ -53,10 +57,6 @@ struct VoiceLogSheet: View {
                         if recorder.transcript.trimmedNonEmpty != nil || recorder.state != .idle { showDiscard = true }
                         else { dismiss() }
                     }
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { transcriptFocused = false }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Use Transcript") {

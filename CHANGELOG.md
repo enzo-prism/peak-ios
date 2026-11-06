@@ -26,6 +26,7 @@ Status at a glance (App Store Connect read back November 6, 2026):
 
 ### Fixed
 
+- Place the transcript keyboard-dismiss action in the review form, avoiding an iOS 27 keyboard-accessory frame warning. CI now rejects runtime warnings, and Files UI acceptance waits for a settled native Save control.
 - Load saved recovery drafts and surf plans on cold launch even before their cards have content.
 - Reconcile autosaved drafts after undo, retain resumed draft baselines and wait for successful storage before closing Keep/Discard. Failed recovery writes preserve temporary media for retry.
 - Parse compound spoken durations without silently accepting numeric suffixes; ask for one date range rather than returning partial logbook counts.
