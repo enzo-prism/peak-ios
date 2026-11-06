@@ -272,3 +272,61 @@ final class ModelContextHelpersTests: XCTestCase {
         XCTAssertEqual(fetched.count, 2, "the staged insert is not fetchable from the library context", file: file, line: line)
     }
 }
+
+
+#if compiler(>=6.4) // Xcode 27 is the first SDK/toolchain containing ResultsObserver.
+@MainActor
+final class ModernStoreObservationTests: XCTestCase {
+    func testCurrentSDKObserverDoesNotReplacePrivateContextEditRetirement() async throws {
+        guard #available(iOS 27.0, *) else { throw XCTSkip("Store observation requires iOS 27") }
+        let container = try TestModelContainer.make()
+        let source = container.mainContext
+        let session = SurfSession(date: Date(), spot: nil, rating: 2, notes: "Before")
+        source.insert(session)
+        try source.save()
+        let observer = try ResultsObserver<SurfSession, Never>(modelContext: source)
+        XCTAssertEqual(observer.results.first?.notes, "Before")
+        let stage = try SessionPersistence.stagingContext(from: source)
+        let editing = try SessionPersistence.resolve(session, in: stage)
+        editing.notes = "After"
+        editing.rating = 5
+        try stage.save()
+        for _ in 0..<20 {
+            if observer.results.first?.notes == "After" { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        // This experiment established that an observer is not a substitute for
+        // retiring already-held models on this SDK. Preserve that safeguard.
+        XCTAssertEqual(observer.results.first?.notes, "Before")
+        XCTAssertEqual(session.notes, "Before")
+        let fresh = ModelContext(container)
+        let committed = try SessionPersistence.resolve(session, in: fresh)
+        XCTAssertEqual(committed.notes, "After")
+        XCTAssertEqual(committed.rating, 5)
+    }
+}
+#endif
+
+
+@MainActor
+final class LibraryResetIntegrityTests: XCTestCase {
+    func testResetSaveFailureKeepsLibraryAndVideoThenSuccessfulRetryDeletesBoth() throws {
+        enum ExpectedFailure: Error { case save }
+        let container = try TestModelContainer.make()
+        let context = container.mainContext
+        let name = UUID().uuidString + ".mov"
+        let url = SessionMediaStore.videoURL(for: name)
+        try Data("original video".utf8).write(to: url)
+        defer { SessionMediaStore.deleteVideoFile(named: name) }
+        let session = SurfSession(date: Date(), spot: nil,
+            media: [SessionMedia(kind: .video, videoFileName: name)])
+        context.insert(session)
+        try context.save()
+        XCTAssertThrowsError(try SessionPersistence.resetLibrary(from: context, save: { _ in throw ExpectedFailure.save }))
+        XCTAssertEqual(try ModelContext(container).fetchCount(FetchDescriptor<SurfSession>()), 1)
+        XCTAssertEqual(try Data(contentsOf: url), Data("original video".utf8))
+        try SessionPersistence.resetLibrary(from: context)
+        XCTAssertEqual(try ModelContext(container).fetchCount(FetchDescriptor<SurfSession>()), 0)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+}

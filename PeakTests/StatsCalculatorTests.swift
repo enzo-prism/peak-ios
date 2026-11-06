@@ -825,3 +825,23 @@ extension StatsCalculatorTests {
         }
     }
 }
+
+
+extension StatsCalculatorTests {
+    func testExperienceQueriesAtTenThousandSessions() throws {
+        let container = try TestModelContainer.make()
+        let context = container.mainContext
+        PreviewData.seedLargeLibrary(context: context, count: 10_000,
+            baseDate: TestCalendar.makeDate(year: 2026, month: 9, day: 1, hour: 8))
+        let sessions = try context.fetch(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear]))
+        let gear = try context.fetch(FetchDescriptor<Gear>())
+        let spot = try XCTUnwrap(sessions.first?.spot)
+        XCTAssertEqual(sessions.count, 10_000)
+        XCTAssertEqual(LogbookQuery.answer("How many sessions?", sessions: sessions).sessions.count, 10_000)
+        measure(metrics: [XCTClockMetric(), XCTMemoryMetric()]) {
+            _ = LogbookQuery.answer("Which board did I use most?", sessions: sessions)
+            _ = QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: gear, sessions: sessions)
+            _ = sessions.map(SurfSessionEntity.init(session:))
+        }
+    }
+}

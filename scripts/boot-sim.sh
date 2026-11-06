@@ -28,4 +28,13 @@ suppress_keyboard_prompts() {
 }
 suppress_keyboard_prompts >/dev/null 2>&1 || true
 
-open -a Simulator
+# Xcode may live on an external volume and Simulator need not be registered
+# with Launch Services. Launch the app belonging to the selected toolchain.
+developer_dir="$(xcode-select -p)"
+simulator_app="${DEVELOPER_DIR:-${developer_dir}}/Applications/Simulator.app"
+if [[ -d "${simulator_app}" ]]; then
+  open "${simulator_app}"
+else
+  # Headless toolchains can boot CoreSimulator without the optional GUI app.
+  open -a Simulator >/dev/null 2>&1 || true
+fi

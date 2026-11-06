@@ -11,6 +11,11 @@ struct SettingsView: View {
     @State private var showImportOptions = false
     @State private var showBackupImporter = false
     @State private var pendingBackupURL: URL?
+    @State private var backupInspection: BackupManager.Inspection?
+    @AppStorage("peak.backup.lastVerifiedExport") private var lastVerifiedExport = 0.0
+    @AppStorage("peak.backup.lastSaved") private var lastSavedBackup = 0.0
+    @State private var backupExportURL: URL?
+    @State private var showBackupExporter = false
     @State private var showBackupRestoreOptions = false
     @State private var showResetConfirm = false
     @AppStorage(HealthKitService.healthSyncEnabledKey) private var healthSyncEnabled = false
@@ -23,6 +28,8 @@ struct SettingsView: View {
     @State private var alertMessage: AlertMessage?
     @State private var isWorking = false
     @State private var workingTitle = "Working..."
+    @State private var workTask: Task<Void, Never>?
+    @State private var canCancelWork = false
 
     var body: some View {
         ZStack {
@@ -89,11 +96,18 @@ struct SettingsView: View {
                     SettingsRow(title: "Restore from Backup", systemImage: "arrow.clockwise.icloud", isDisabled: isWorking) {
                         showBackupImporter = true
                     }
-                    Text("A full backup (.peakbackup) includes your photos and videos. JSON and CSV exports do not.")
+                    Text("A full backup includes saved sessions and their photos and videos. Save unfinished drafts first. New backups stream videos and verify file checksums. Keep a copy outside this device; JSON and CSV exports do not include session media.")
                         .font(.caption)
                         .foregroundStyle(Theme.textMuted)
                         .padding(.horizontal, 4)
                         .listRowBackground(Color.clear)
+                    if lastSavedBackup > 0 {
+                        Text("Last backup saved to Files and verified: \(Date(timeIntervalSince1970: lastSavedBackup).formatted(date: .abbreviated, time: .shortened)). Keep a copy outside this device to protect against losing it.")
+                            .font(.caption).foregroundStyle(Theme.textMuted)
+                    } else if lastVerifiedExport > 0 {
+                        Text("Last verified export prepared: \(Date(timeIntervalSince1970: lastVerifiedExport).formatted(date: .abbreviated, time: .shortened)). Save it to Files to keep a copy.")
+                            .font(.caption).foregroundStyle(Theme.textMuted)
+                    }
                 } header: {
                     sectionHeader("Full Backup")
                 }
@@ -244,7 +258,17 @@ struct SettingsView: View {
                 ZStack {
                     Theme.background.opacity(0.6)
                         .ignoresSafeArea()
-                    ProgressView(workingTitle)
+                    VStack(spacing: 12) {
+                        ProgressView(workingTitle)
+                        if canCancelWork {
+                            Button("Cancel") {
+                                canCancelWork = false
+                                workingTitle = "Cancelling…"
+                                workTask?.cancel()
+                            }
+                            .frame(minHeight: 44)
+                        }
+                    }
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 18)
@@ -255,6 +279,19 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Settings")
+        .sheet(isPresented: $showBackupExporter, onDismiss: {
+            if !isWorking { cleanPreparedBackup() }
+        }) {
+            if let url = backupExportURL {
+                BackupFileExporter(url: url) { result in
+                    showBackupExporter = false
+                    finishBackupExport(result)
+                } cancellation: {
+                    showBackupExporter = false
+                    cleanPreparedBackup()
+                }
+            }
+        }
         .fileImporter(isPresented: $showImporter, allowedContentTypes: [.json]) { result in
             handleImport(result)
         }
@@ -274,7 +311,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) { pendingBackupURL = nil }
         } message: {
-            Text("Replace is recommended for a clean restore. Merge keeps current data but can duplicate photos if you restore the same backup twice.")
+            Text(backupInspection?.summary ?? "Choose a verified backup before restoring.")
         }
         .confirmationDialog(
             "Import backup",
@@ -386,7 +423,7 @@ struct SettingsView: View {
     }
 
     private func backUpEverything() {
-        runWork("Backing Up...", errorTitle: "Backup Failed") {
+        runWork("Backing Up...", errorTitle: "Backup Failed", cancellable: true) {
             let sessions = try modelContext.fetch(
                 SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies, \.media])
             )
@@ -394,18 +431,53 @@ struct SettingsView: View {
             let gear = try modelContext.fetch(FetchDescriptor<Gear>(sortBy: [SortDescriptor(\.name)]))
             let buddies = try modelContext.fetch(FetchDescriptor<Buddy>(sortBy: [SortDescriptor(\.name)]))
             let url = try await BackupManager.makeBackupFile(
-                sessions: sessions, spots: spots, gear: gear, buddies: buddies
+                sessions: sessions, spots: spots, gear: gear, buddies: buddies,
+                progress: { completed, total in
+                    workingTitle = completed == total ? "Verifying Backup…" : "Backing Up Media: \(completed) of \(total)"
+                }
             )
-            shareItems = [url]
-            showShareSheet = true
+            lastVerifiedExport = Date().timeIntervalSince1970
+            backupExportURL = url
+            showBackupExporter = true
+        }
+    }
+
+    private func cleanPreparedBackup() {
+        if let url = backupExportURL { try? FileManager.default.removeItem(at: url) }
+        backupExportURL = nil
+    }
+
+    private func finishBackupExport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let destination):
+            runWork("Verifying Saved Backup…", errorTitle: "Backup Verification Failed") {
+                defer { cleanPreparedBackup() }
+                let access = destination.startAccessingSecurityScopedResource()
+                defer { if access { destination.stopAccessingSecurityScopedResource() } }
+                _ = try await BackupManager.inspect(destination)
+                lastSavedBackup = Date().timeIntervalSince1970
+                // This is a newly exported synthetic fixture, never an input
+                // file or a user's backup. Retire it after exercising Files.
+                if TestingDefaults.isUITest { try? FileManager.default.removeItem(at: destination) }
+                alertMessage = AlertMessage(title: "Backup Saved", body: "Your saved file passed its integrity checks. Keep a copy outside this device to protect your logbook if the device is lost.")
+            }
+        case .failure(let error):
+            cleanPreparedBackup()
+            alertMessage = errorAlert(title: "Backup Save Failed", error: error)
         }
     }
 
     private func handleBackupImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
-            pendingBackupURL = url
-            showBackupRestoreOptions = true
+            runWork("Verifying Backup...", errorTitle: "Restore Failed", cancellable: true) {
+                let didAccess = url.startAccessingSecurityScopedResource()
+                defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+                let inspection = try await BackupManager.inspect(url)
+                pendingBackupURL = url
+                backupInspection = inspection
+                showBackupRestoreOptions = true
+            }
         case .failure(let error):
             alertMessage = errorAlert(title: "Restore Failed", error: error)
         }
@@ -443,8 +515,20 @@ struct SettingsView: View {
 
     private func resetAllData() {
         runWork("Resetting Data...", errorTitle: "Reset Failed") {
-            try modelContext.resetAllData()
-            alertMessage = AlertMessage(title: "Reset Complete", body: "All data has been deleted.")
+            try SessionPersistence.resetLibrary(from: modelContext)
+            var resetMessage = "Your session library, draft, plan and surf timer have been cleared. Exported copies in Files remain where you saved them."
+            if !TestingDefaults.isRunningTests {
+                do { try await SessionDraftStore.shared.clear() }
+                catch { resetMessage = "Your session library was cleared, but a saved draft could not be removed. Reopen Settings and retry Reset All Data to finish removing it." }
+            }
+            SurfPlanStore.clear()
+            SessionActivityController.discard()
+            ActiveSessionStore.clearPendingLog()
+            lastSavedBackup = 0
+            lastVerifiedExport = 0
+            cleanPreparedBackup()
+            NotificationCenter.default.post(name: .peakLibraryDidChange, object: modelContext.container,
+                                            userInfo: ["resetMessage": resetMessage])
         }
     }
 
@@ -464,17 +548,21 @@ struct SettingsView: View {
     private func runWork(
         _ title: String,
         errorTitle: String,
+        cancellable: Bool = false,
         operation: @escaping () async throws -> Void
     ) {
         guard !isWorking else { return }
-        Task { @MainActor in
-            isWorking = true
-            workingTitle = title
+        isWorking = true
+        workingTitle = title
+        canCancelWork = cancellable
+        workTask = Task { @MainActor in
             await Task.yield()
-            defer { isWorking = false }
-
+            defer { isWorking = false; canCancelWork = false; workTask = nil }
             do {
+                try Task.checkCancellation()
                 try await operation()
+            } catch is CancellationError {
+                // A cancelled export/inspection never changes the logbook.
             } catch {
                 alertMessage = errorAlert(title: errorTitle, error: error)
             }

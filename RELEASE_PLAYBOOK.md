@@ -1,12 +1,12 @@
 # Peak iOS release playbook
 
-## Verified App Store state, September 24, 2026
+## Verified App Store state, November 6, 2026
 
 - App `peak.surf`, bundle `com.designprism.peak`, ASC app `6757644027`, team `L49MKXGVM4`.
-- **3.3 is public.** Approved and released manually on September 24 (`READY_FOR_DISTRIBUTION`; version `665a2895-80a4-4ddd-acb8-809c5af84256`, build `ab4bafd7-d734-4b4f-ae6d-b75b0328abc6`). The storefront lookup can lag the ASC state by hours.
-- **3.4 build 1** is in TestFlight only (reliability). It will not be submitted on its own; its changes are in 3.5.
-- **3.5 build 1** is the next candidate: the version bump on top of `main` with #22 (quick log), #23 (Stats/detail) and #24 (new-session save path, bounded Health query, signposts).
-- Git branches, `prod`, tags, simulator results and uploaded artifacts do not independently establish public availability. Read ASC and the storefront before reporting a release.
+- **3.5 is public** (`READY_FOR_DISTRIBUTION` in ASC). Earlier candidate/pending statements in historical receipts do not describe current store state.
+- **3.6 build 1** is the current implementation candidate; upload/distribution must be read back and recorded independently in `docs/releases/`.
+- **Watch remains pending** by the owner's explicit choice. Standalone validation source may be present, but the iPhone archive must have no embedded Watch app.
+- Git branches, simulator results and uploaded artifacts do not independently establish public availability. No 3.6 App Review submission or public release is authorized by the TestFlight request.
 
 ## Source and build identity
 
@@ -14,7 +14,7 @@ Use an isolated branch/worktree for a candidate and preserve unrelated local edi
 
 Create an immutable source tag only when its SHA-to-build mapping is established. Never infer an old build's source from today's branch pointer. Check the branch's marketing/build values across app and widget targets before an archive. Choose a new store version/build after re-reading ASC, rather than reusing historical numbers from this document.
 
-The unmerged `feature/3.1-watchos` companion remains gated on physical Watch/ocean testing. Do not include it in release notes or screenshots until it is part of a validated shipping candidate. `feature/streamlined-log-session` is a historical divergent design branch and must not be used as a release source.
+The prepared Watch companion remains gated on physical Watch/ocean testing and excluded from the iPhone archive. Do not describe it as shipping or include it in store screenshots until a separately validated candidate embeds it. `feature/streamlined-log-session` is a historical divergent design branch and must not be used as a release source.
 
 ## Read-only status
 
@@ -55,7 +55,7 @@ asc validate --help
 
 Keep archives and export options under gitignored `.asc/artifacts/`, named with version and build. Archive → export with verified signing → upload the exact IPA → wait for that exact build's processing result → verify encryption compliance. Prefer explicit build IDs over `--latest`, which can select another concurrent upload.
 
-TestFlight distribution, external invitations, review submission, cancellation and public release are separate actions. Prepare the exact build and recipient/version details before executing an authorized action. Verify persisted build/group/submission state afterward. Do not cancel the pending 3.3 review just because a later reliability candidate exists.
+TestFlight distribution, external invitations, review submission, cancellation and public release are separate actions. Prepare the exact build and recipient/version details before executing an authorized action. Verify persisted build/group/submission state afterward. Read current review lifecycle state before any review action; historical pending-version references are not authorization to change it.
 
 For a new App Store candidate: prepare metadata and user-facing What's New, attach the verified build, validate, then submit through the current CLI flow. After approval, confirm release type and candidate acceptance before manual publication; finish with ASC and storefront readback.
 

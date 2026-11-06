@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>WKApplication</key>
+	<true/>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.designprism.peak</string>
+	<key>WKRunsIndependentlyOfCompanionApp</key>
+	<true/>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+		<string>location</string>
+	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Peak reads your heart rate and distance while you surf so your session has real numbers.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Peak saves your surf as a workout in Apple Health, so your iPhone can work out your waves.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Peak records your GPS track while you surf. That track is what your iPhone reads to count your waves, top speed and longest ride.</string>
+</dict>
+</plist>

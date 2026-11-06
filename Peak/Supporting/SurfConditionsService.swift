@@ -963,11 +963,9 @@ private extension SurfConditionsService {
         return calendar
     }()
 
-    /// `nonisolated(unsafe)`: DateFormatter/ISO8601DateFormatter are documented
-    /// thread-safe for formatting/parsing, and these are fully configured before
-    /// first use and never mutated afterward, so sharing them across the
-    /// `@concurrent` fetch/parse path is safe despite not being Sendable.
-    nonisolated(unsafe) static let hourFormatter: DateFormatter = {
+    /// Configured once before first use, then never mutated. DateFormatter is
+    /// Sendable; legacy ISO8601DateFormatter still needs explicit unsafe isolation.
+    nonisolated static let hourFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
@@ -989,7 +987,7 @@ private extension SurfConditionsService {
     }()
 
     // See `hourFormatter` for why `nonisolated(unsafe)` is safe here.
-    nonisolated(unsafe) static let timeParsers: [DateFormatter] = {
+    nonisolated static let timeParsers: [DateFormatter] = {
         let formats = [
             "yyyy-MM-dd'T'HH:mm",
             "yyyy-MM-dd'T'HH:mm:ss",

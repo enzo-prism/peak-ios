@@ -1,3 +1,4 @@
+import Charts
 import CoreLocation
 import MapKit
 import SwiftUI
@@ -6,6 +7,14 @@ import SwiftUI
 /// memory for the lifetime of this view — they are never written to the store.
 struct SessionRouteMapView: View {
     let workoutID: String
+    var correctEstimates: () -> Void = {}
+    @State private var routeSamples: [RouteSample] = []
+    @State private var routeTracks: [[CLLocationCoordinate2D]] = []
+    @State private var selectedRide = 0
+    @State private var scrubber = 0.0
+    @State private var hiddenRides = Set<Int>()
+    @State private var rideSamples: [RouteSample] = []
+    @State private var rideTracks: [[RouteSample]] = []
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var displayCoordinates: [CLLocationCoordinate2D] = []
@@ -22,6 +31,9 @@ struct SessionRouteMapView: View {
                     .padding(.vertical, 24)
             } else if displayCoordinates.count >= 2 {
                 mapCard
+            } else {
+                Text("A GPS route is not available for this workout. Your saved session and editable estimates are unchanged.")
+                    .font(.caption).foregroundStyle(Theme.textMuted)
             }
         }
         .task {
@@ -31,12 +43,19 @@ struct SessionRouteMapView: View {
 
     private var mapCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Map(position: $cameraPosition, interactionModes: []) {
-                MapPolyline(coordinates: displayCoordinates)
-                    .stroke(Theme.textMuted, lineWidth: 3)
+            Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
+                ForEach(routeTracks.indices, id: \.self) { index in
+                    MapPolyline(coordinates: routeTracks[index])
+                        .stroke(Theme.textMuted, lineWidth: 3)
+                }
                 ForEach(Array(waveCoordinateSets.enumerated()), id: \.offset) { _, coords in
                     MapPolyline(coordinates: coords)
                         .stroke(Theme.surfGreen, lineWidth: 4)
+                }
+                if let sample = scrubbedSample {
+                    Annotation("Selected GPS sample", coordinate: CLLocationCoordinate2D(latitude: sample.latitude, longitude: sample.longitude)) {
+                        Image(systemName: "circle.fill").foregroundStyle(Theme.textPrimary)
+                    }
                 }
             }
             .mapStyle(.standard(elevation: .flat))
@@ -44,12 +63,15 @@ struct SessionRouteMapView: View {
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
             .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
 
-            Text("Estimates — tap a session field to correct")
+            replayControls
+            Button("Correct Saved Estimates", action: correctEstimates)
+                .frame(minHeight: 44)
+            Text("Estimated detections. GPS gaps are omitted. Hiding a detection changes this preview only; use Correct Saved Estimates to update your log.")
                 .font(.caption2)
                 .foregroundStyle(Theme.textMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier("session.detail.routeMap")
     }
@@ -70,28 +92,85 @@ struct SessionRouteMapView: View {
             // polyline so tens of thousands of GPS fixes don't hitch the detail
             // screen (Apple Maps: reduce overlay point counts).
             stats = await WaveAnalyzer.analyzeOffMain(samples: loaded)
+            guard !Task.isCancelled else { return }
+            routeSamples = loaded
+            routeTracks = RouteReplay.tracks(loaded).map {
+                RouteDisplaySimplifier.coordinates(RouteDisplaySimplifier.simplified(samples: $0))
+            }
             displayCoordinates = RouteDisplaySimplifier.coordinates(
                 RouteDisplaySimplifier.simplified(samples: loaded)
             )
             waveCoordinateSets = wavePolylines(from: loaded, stats: stats)
+            prepareRide()
             fitCamera()
         }
         didLoad = true
     }
 
+    private var selectedWave: WaveSegment? {
+        guard let waves = stats?.waves, waves.indices.contains(selectedRide) else { return nil }
+        return waves[selectedRide]
+    }
+
+    private func prepareRide() {
+        scrubber = 0
+        rideSamples = selectedWave.map { RouteReplay.samples(for: $0, in: routeSamples) } ?? []
+        rideTracks = RouteReplay.tracks(rideSamples)
+    }
+
+    private var scrubbedSample: RouteSample? {
+        guard !rideSamples.isEmpty else { return nil }
+        return rideSamples[min(Int(scrubber.rounded()), rideSamples.count - 1)]
+    }
+
+    @ViewBuilder private var replayControls: some View {
+        if let waves = stats?.waves, !waves.isEmpty {
+            Picker("Estimated ride", selection: $selectedRide) {
+                ForEach(waves.indices, id: \.self) { index in
+                    Text("Ride \(index + 1)\(hiddenRides.contains(index) ? " · hidden" : "")").tag(index)
+                }
+            }
+            .onChange(of: selectedRide) { _, _ in prepareRide() }
+            if let wave = selectedWave {
+                Text("\(Int(wave.durationSeconds.rounded())) seconds · \(SurfConditionsFormatter.meters(wave.distanceMeters)) · estimated")
+                    .font(.subheadline)
+                if rideSamples.count > 1 {
+                    Slider(value: $scrubber, in: 0...Double(rideSamples.count - 1), step: 1) {
+                        Text("Replay GPS samples")
+                    }
+                    .accessibilityValue(scrubbedSample?.timestamp.formatted(date: .omitted, time: .standard) ?? "")
+                }
+                if let sample = scrubbedSample {
+                    Text("\(sample.timestamp.formatted(date: .omitted, time: .standard))\(sample.speedMetersPerSecond.flatMap { $0 >= 0 ? " · " + SurfConditionsFormatter.speed($0 * 3.6) + " GPS speed" : nil } ?? "")")
+                        .font(.caption).monospacedDigit()
+                }
+                Chart {
+                    ForEach(Array(rideTracks.enumerated()), id: \.offset) { index, track in
+                        ForEach(Array(track.enumerated()), id: \.offset) { _, sample in
+                            if let speed = sample.speedMetersPerSecond, speed >= 0, speed.isFinite {
+                                LineMark(x: .value("Time", sample.timestamp), y: .value("GPS speed (km/h)", speed * 3.6), series: .value("Track", index))
+                            }
+                        }
+                    }
+                }
+                .frame(height: 110)
+                .accessibilityLabel("GPS speed during the selected estimated ride, in kilometers per hour")
+                Button(hiddenRides.contains(selectedRide) ? "Restore Detection in Preview" : "Hide Detection in Preview") {
+                    if hiddenRides.contains(selectedRide) { hiddenRides.remove(selectedRide) }
+                    else { hiddenRides.insert(selectedRide) }
+                    waveCoordinateSets = wavePolylines(from: routeSamples, stats: stats)
+                }
+                .frame(minHeight: 44)
+            }
+        }
+    }
+
     private func wavePolylines(from samples: [RouteSample], stats: WaveStats?) -> [[CLLocationCoordinate2D]] {
         guard let stats else { return [] }
-        return stats.waves.compactMap { wave in
-            let lower = min(wave.startIndex, wave.endIndex)
-            let upper = max(wave.startIndex, wave.endIndex)
-            guard samples.indices.contains(lower), samples.indices.contains(upper) else { return nil }
-            let slice = Array(samples[lower...upper])
-            let simplified = RouteDisplaySimplifier.simplified(
-                samples: slice,
-                maxPoints: 80,
-                minSpacingMeters: 6
-            )
-            return simplified.count >= 2 ? RouteDisplaySimplifier.coordinates(simplified) : nil
+        return stats.waves.enumerated().filter { !hiddenRides.contains($0.offset) }.flatMap { _, wave in
+            RouteReplay.tracks(RouteReplay.samples(for: wave, in: samples)).map {
+                RouteDisplaySimplifier.coordinates(RouteDisplaySimplifier.simplified(samples: $0, maxPoints: 80, minSpacingMeters: 6))
+            }
         }
     }
 

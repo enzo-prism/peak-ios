@@ -13,6 +13,16 @@ enum SessionPersistence {
         return context
     }
 
+    /// Retire external videos only after the deletion transaction commits.
+    static func resetLibrary(from source: ModelContext,
+                             save: (ModelContext) throws -> Void = { try $0.save() }) throws {
+        let transaction = try stagingContext(from: source)
+        let videos = try transaction.fetch(FetchDescriptor<SessionMedia>()).compactMap(\.videoFileName)
+        try transaction.resetAllData(deleteMediaFiles: false)
+        try save(transaction)
+        videos.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+    }
+
     static func resolve<Model: PersistentModel>(_ model: Model, in context: ModelContext) throws -> Model {
         guard let resolved = context.model(for: model.persistentModelID) as? Model else {
             throw CocoaError(.fileReadCorruptFile)

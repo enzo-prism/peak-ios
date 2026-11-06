@@ -27,10 +27,13 @@ enum ActiveSessionCalculator {
     /// Builds the editor's starting draft from an ended session. `spots` is the
     /// current spot library; the session's `spotKey` is matched against it so
     /// the spot arrives preselected (and the draft stays save-ready).
-    static func makeDraft(from record: EndedSessionRecord, spots: [Spot]) -> SessionDraft {
+    static func makeDraft(from record: EndedSessionRecord, spots: [Spot], gear: [Gear] = []) -> SessionDraft {
         var draft = SessionDraft()
         draft.date = record.state.startDate
         draft.durationMinutes = durationMinutes(from: record.state.startDate, to: record.endedAt)
+        if let keys = record.state.gearKeys {
+            draft.selectedGear = gear.filter { keys.contains($0.key) && !$0.isArchived }
+        }
 
         if let spot = matchingSpot(for: record.state, in: spots) {
             draft.selectSpot(spot)

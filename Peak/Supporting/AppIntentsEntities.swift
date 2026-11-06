@@ -73,6 +73,7 @@ struct SurfSessionEntity: AppEntity {
     let date: Date
     let rating: Int
     let durationMinutes: Int?
+    let searchableNotes: String
 
     init(session: SurfSession) {
         self.id = SessionIntentQueries.identifier(for: session)
@@ -80,6 +81,7 @@ struct SurfSessionEntity: AppEntity {
         self.date = session.date
         self.rating = session.rating
         self.durationMinutes = session.durationMinutes
+        self.searchableNotes = session.notes
     }
 
     var displayRepresentation: DisplayRepresentation {
@@ -112,6 +114,8 @@ extension SurfSessionEntity: IndexedEntity {
         attributes.contentDescription = Self.subtitle(date: date, rating: rating, durationMinutes: durationMinutes)
         attributes.startDate = date
         attributes.namedLocation = spotName
+        attributes.textContent = searchableNotes
+        attributes.contentURL = PeakDeepLink.session(id)
         attributes.keywords = ["surf", "session", spotName].compactMap { $0 }
         return attributes
     }

@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct PeakExport: Codable {
+nonisolated struct PeakExport: Codable, Sendable {
     let schemaVersion: String
     let exportedAt: String
     let sessions: [SessionExport]
@@ -19,7 +19,7 @@ struct PeakExport: Codable {
     }
 }
 
-struct SessionExport: Codable {
+nonisolated struct SessionExport: Codable, Sendable {
     let id: String
     let date: String
     let spotId: String?
@@ -97,7 +97,7 @@ struct SessionExport: Codable {
     }
 }
 
-struct SpotExport: Codable {
+nonisolated struct SpotExport: Codable, Sendable {
     let id: String
     let name: String
     let locationName: String?
@@ -115,7 +115,7 @@ struct SpotExport: Codable {
     }
 }
 
-struct GearExport: Codable {
+nonisolated struct GearExport: Codable, Sendable {
     let id: String
     let name: String
     let kind: String
@@ -143,7 +143,7 @@ struct GearExport: Codable {
     }
 }
 
-struct BuddyExport: Codable {
+nonisolated struct BuddyExport: Codable, Sendable {
     let id: String
     let name: String
     let createdAt: String
@@ -160,7 +160,7 @@ struct BuddyExport: Codable {
 /// A single self-contained `.peakbackup` document: the standard JSON `export`
 /// plus a `manifest` that inlines every piece of session media as base64 so the
 /// backup is portable in one file (no sidecars, no zip/AppleArchive framework).
-struct PeakBackupFile: Codable {
+nonisolated struct PeakBackupFile: Codable, Sendable {
     let export: PeakExport
     let manifest: PeakBackupManifest
 
@@ -174,7 +174,7 @@ struct PeakBackupFile: Codable {
 /// Extends the JSON export with media entries WITHOUT touching the SwiftData
 /// schema: each media binary is inlined as a base64 string on its entry and
 /// linked back to its owning session by `sessionId`.
-struct PeakBackupManifest: Codable {
+nonisolated struct PeakBackupManifest: Codable, Sendable {
     let backupVersion: String
     let exportedAt: String
     let media: [SessionMediaBackupEntry]
@@ -186,7 +186,7 @@ struct PeakBackupManifest: Codable {
     }
 }
 
-struct SessionMediaBackupEntry: Codable {
+nonisolated struct SessionMediaBackupEntry: Codable, Sendable {
     /// Stable identifier minted at backup time (diagnostics only; not persisted).
     let id: String
     /// Matches `SessionExport.id` (the owning session's UUID, or a legacy timestamp).

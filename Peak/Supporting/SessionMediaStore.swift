@@ -16,7 +16,7 @@ struct ProcessedSessionPhoto: Sendable {
 }
 
 enum SessionMediaStore {
-    private static let mediaFolderName = "SessionMedia"
+    nonisolated private static let mediaFolderName = "SessionMedia"
 
     /// `nonisolated` so a backup restore can write video files off the main
     /// actor: pure FileManager work against stateless paths.
@@ -63,6 +63,14 @@ enum SessionMediaStore {
         let photoData = compressedPhotoData(from: data, maxDimension: maxDimension)
         let thumbnail = thumbnailData(from: photoData, maxDimension: thumbnailMaxDimension)
         return ProcessedSessionPhoto(photoData: photoData, thumbnailData: thumbnail)
+    }
+
+    @concurrent
+    nonisolated static func processedPhoto(from url: URL) async throws -> ProcessedSessionPhoto {
+        try Task.checkCancellation()
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        guard downsampledImage(from: data, maxDimension: 32) != nil else { throw CocoaError(.fileReadCorruptFile) }
+        return await processedPhoto(from: data)
     }
 
     /// `@concurrent` so poster-frame decode + JPEG encode stay off the caller's
@@ -203,12 +211,16 @@ struct SessionMediaSaveTransaction {
         return stored
     }
 
+    func rollbackFiles() {
+        createdVideoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+    }
+
     func persist(save: () throws -> Void, rollbackModel: () -> Void) throws {
         do {
             try save()
         } catch {
             rollbackModel()
-            createdVideoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }
+            rollbackFiles()
             throw error
         }
         removedVideoNames.forEach { SessionMediaStore.deleteVideoFile(named: $0) }

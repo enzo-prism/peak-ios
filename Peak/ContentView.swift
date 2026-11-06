@@ -180,7 +180,7 @@ struct ContentView: View {
     private var prefillDraft: SessionDraft? {
         if let draft = quickLog.pendingDraft { return draft }
         guard let record = quickLog.pendingLog else { return nil }
-        return ActiveSessionCalculator.makeDraft(from: record, spots: spots)
+        return ActiveSessionCalculator.makeDraft(from: record, spots: spots, gear: gear)
     }
 
     /// Cheap change signature covering inserts, deletes, and edits (via
@@ -216,7 +216,7 @@ struct ContentView: View {
 }
 
 /// iOS 18 Search tab reuses History. `@Query` on an unused Tab sibling still
-/// fetches the whole logbook (History prefetches media), so this host only
+/// fetches the whole logbook (History reads its visible media lazily), so this host only
 /// instantiates History while Search is selected. Idle Search is a prompt, not
 /// a second timeline. Search *intents* still land on the History tab.
 private struct SearchHistoryTab: View {
