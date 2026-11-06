@@ -449,7 +449,7 @@ final class PeakUILayoutTests: XCTestCase {
 
         assertPopupLayout(
             title: "Reset Complete",
-            messageContains: "All data has been deleted",
+            messageContains: "session library, draft, plan and surf timer have been cleared",
             buttons: ["OK"]
         )
         attachScreenshot(name: "Popup Reset Complete")
