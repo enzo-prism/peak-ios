@@ -438,6 +438,78 @@ final class PeakExperienceTests: XCTestCase {
         XCTAssertNil(VoiceLogParser.parse("900 minutes, 9 stars", spots: [], gear: []).rating)
     }
 
+    func testVoiceCompoundNumbersNeverBecomeNumericSuffixes() {
+        for (phrase, expected) in [("twenty five minutes", 25), ("forty five minutes", 45),
+                                   ("forty-five minutes", 45), ("one hour and twenty five minutes", 85)] {
+            XCTAssertEqual(VoiceLogParser.parse(phrase, spots: [], gear: []).durationMinutes, expected, phrase)
+        }
+        for phrase in ["one hundred and twenty five minutes", "one hundred minutes and five minutes",
+                       "two point five minutes", "one hour and a half", "half an hour and five minutes",
+                       "1,005 minutes", "minus five minutes", "twenty‑five minutes", "forty–five minutes", "twenty, five minutes"] {
+            XCTAssertNil(VoiceLogParser.parse(phrase, spots: [], gear: []).durationMinutes, phrase)
+        }
+        XCTAssertNil(VoiceLogParser.parse("twenty five stars", spots: [], gear: []).rating)
+        XCTAssertNil(VoiceLogParser.parse("four stars or twenty five stars", spots: [], gear: []).rating)
+    }
+
+    func testLogbookRejectsConflictingDateScopes() {
+        let now = TestCalendar.makeDate(year: 2026, month: 7, day: 15)
+        let sessions = [TestFixture.session(date: now),
+                        TestFixture.session(date: TestCalendar.makeDate(year: 2026, month: 6, day: 15))]
+        for question in ["Count sessions this month and last month", "How many sessions this month and this year?",
+                         "Which board did I use most last month and this year?", "Find sessions this month and last month"] {
+            let answer = LogbookQuery.answer(question, sessions: sessions, now: now, calendar: TestCalendar.gmt)
+            XCTAssertEqual(answer.title, "Choose one date range", question)
+            XCTAssertTrue(answer.sessions.isEmpty, "No partial answer may be presented as exact")
+        }
+    }
+
+    func testDraftAutosaveReconcilesBaselineAndCancelsOlderDebounce() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SessionDraftStore(directory: directory)
+        var older = SessionDraft()
+        older.notes = "Earlier interrupted surf"
+        try await store.save(SavedSessionDraft(older), videos: [:])
+        let autosave = SessionDraftAutosave(store: store)
+        XCTAssertNil(autosave.update(nil))
+        var draft = SessionDraft()
+        draft.notes = "Erase this note"
+        let pending = autosave.update(SavedSessionDraft(draft))
+        await autosave.update(nil, immediately: true)?.value
+        await pending?.value
+        let untouchedOlder = try await store.load()
+        XCTAssertEqual(untouchedOlder?.notes, older.notes, "Undo before debounce must not erase another interrupted surf")
+        await autosave.update(SavedSessionDraft(draft), immediately: true)?.value
+        let saved = try await store.load()
+        XCTAssertEqual(saved?.notes, draft.notes)
+        await autosave.update(nil, immediately: true)?.value
+        let cleared = try await store.load()
+        XCTAssertNil(cleared, "Undo to a blank baseline must retire the already persisted note")
+
+        try await store.save(SavedSessionDraft(older), videos: [:])
+        let recoveredValue = try await store.load()
+        let recovered = try XCTUnwrap(recoveredValue).restore(spots: [], gear: [], buddies: [])
+        XCTAssertTrue(recovered.isRecoveredDraft)
+        var edited = recovered
+        edited.notes = "Temporary edit"
+        let resumed = SessionDraftAutosave(store: store)
+        await resumed.update(SavedSessionDraft(edited), immediately: true)?.value
+        await resumed.update(SavedSessionDraft(recovered), immediately: true)?.value
+        let restoredBaseline = try await store.load()
+        XCTAssertEqual(restoredBaseline?.notes, older.notes, "A resumed surf's baseline is still an unsaved surf")
+
+        let encoded = try JSONEncoder().encode(SavedSessionDraft(older))
+        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        legacyObject.removeValue(forKey: "draftID")
+        let legacy = try JSONDecoder().decode(SavedSessionDraft.self, from: JSONSerialization.data(withJSONObject: legacyObject))
+        try await store.save(legacy, videos: [:])
+        let legacyDraft = try legacy.restore(spots: [], gear: [], buddies: [])
+        await resumed.clear(draftID: legacyDraft.recoveryID, allowLegacy: true).value
+        let removedLegacy = try await store.load()
+        XCTAssertNil(removedLegacy, "Explicit discard must also remove a resumed file from the older format")
+    }
+
     func testQuiverAdvisorRequiresComparableSingleBoardEvidence() {
         let spot = TestFixture.spot()
         let other = TestFixture.spot(name: "Other")

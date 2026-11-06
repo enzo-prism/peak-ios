@@ -14,30 +14,40 @@ struct VoiceLogFields {
 }
 
 enum VoiceLogParser {
-    private static let numbers = ["one": 1.0, "two": 2, "three": 3, "four": 4, "five": 5,
-        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "fifteen": 15,
-        "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45, "sixty": 60, "ninety": 90]
+    private static let numbers = ["zero": 0.0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+        "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+        "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40,
+        "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90]
 
     static func parse(_ transcript: String, spots: [Spot], gear: [Gear]) -> VoiceLogFields {
         let text = transcript.lowercased()
         if text.contains("not ") || text.contains("actually ") {
             return VoiceLogFields(transcript: transcript, spot: nil, gear: [], durationMinutes: nil, rating: nil)
         }
-        let number = "(?:[0-9]+(?:\\.[0-9]+)?|" + numbers.keys.sorted().joined(separator: "|") + ")"
+        let tens = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)"
+        let units = "(?:one|two|three|four|five|six|seven|eight|nine)"
+        let unsupportedNumber = "(?:hundred|thousand|million|point|minus|negative|half(?:\\s+an?)?|quarter(?:\\s+of\\s+an?)?)"
+        let number = "(?:[0-9]+(?:\\.[0-9]+)?|\(tens)(?:[ -]+\(units))?|\(unsupportedNumber)|" + numbers.keys.sorted().joined(separator: "|") + ")"
         let durations = captures("\\b(\(number))\\s*(hours?|hrs?|minutes?|mins?)\\b", in: text)
         var minutes = 0.0
         var hourCount = 0
         var minuteCount = 0
+        var unsupportedDuration = false
         for groups in durations where groups.count == 2 {
-            guard let value = Double(groups[0]) ?? numbers[groups[0]] else { continue }
+            guard let value = parsedNumber(groups[0]) else { unsupportedDuration = true; continue }
             if groups[1].hasPrefix("h") { hourCount += 1; minutes += value * 60 }
             else { minuteCount += 1; minutes += value }
         }
-        let validDuration = !durations.isEmpty && hourCount <= 1 && minuteCount <= 1
+        // Unsupported trailing fractions cannot turn "an hour and a half"
+        // into an exact-looking one-hour duration.
+        let trailingFraction = text.range(of: "\\b(?:hours?|hrs?)\\s+and\\s+(?:a\\s+)?(?:half|quarter)\\b", options: .regularExpression) != nil
+        let validDuration = !durations.isEmpty && !unsupportedDuration && !trailingFraction && hourCount <= 1 && minuteCount <= 1
             && minutes >= 5 && minutes <= Double(SurfSession.maxDurationMinutes)
         var ratings: [Double] = []
-        for capture in captures("\\b(\(number))\\s*(?:stars?|out of five)\\b", in: text) {
-            guard let word = capture.first, let value = Double(word) ?? numbers[word],
+        let ratingCaptures = captures("\\b(\(number))\\s*(?:stars?|out of five)\\b", in: text)
+        for capture in ratingCaptures {
+            guard let word = capture.first, let value = parsedNumber(word),
                   value.rounded() == value, value >= 1, value <= 5 else { continue }
             ratings.append(value)
         }
@@ -45,7 +55,15 @@ enum VoiceLogParser {
         return VoiceLogFields(transcript: transcript, spot: matchedSpots.count == 1 ? matchedSpots[0] : nil,
                               gear: gear.filter { !$0.isArchived && containsName($0.name, in: text) },
                               durationMinutes: validDuration ? Int(minutes.rounded()) : nil,
-                              rating: ratings.count == 1 ? Int(ratings[0]) : nil)
+                              rating: ratings.count == 1 && ratingCaptures.count == 1 ? Int(ratings[0]) : nil)
+    }
+
+    private static func parsedNumber(_ text: String) -> Double? {
+        if let value = Double(text) ?? numbers[text] { return value }
+        let words = text.split(whereSeparator: { $0 == " " || $0 == "-" }).map(String.init)
+        guard words.count == 2, let tens = numbers[words[0]], tens >= 20, tens.truncatingRemainder(dividingBy: 10) == 0,
+              let unit = numbers[words[1]], (1...9).contains(unit) else { return nil }
+        return tens + unit
     }
 
     private static func containsName(_ name: String, in text: String) -> Bool {
@@ -56,9 +74,19 @@ enum VoiceLogParser {
     private static func captures(_ pattern: String, in text: String) -> [[String]] {
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return [] }
         return expression.matches(in: text, range: NSRange(text.startIndex..., in: text)).map { match in
-            (1..<match.numberOfRanges).compactMap { index in
+            var groups = (1..<match.numberOfRanges).compactMap { index in
                 Range(match.range(at: index), in: text).map { String(text[$0]) }
             }
+            if let range = Range(match.range, in: text), !groups.isEmpty {
+                let prefix = String(text[..<range.lowerBound])
+                let numericPrefix = "(?:[0-9]+(?:\\.[0-9]+)?|" +
+                    (Array(numbers.keys) + ["hundred", "thousand", "million", "point", "minus", "negative"]).joined(separator: "|") + ")"
+                if prefix.range(of: "(?:[-‐‑‒–—−]|[0-9][,.])\\s*$", options: .regularExpression) != nil ||
+                    prefix.range(of: "\\b\(numericPrefix)[\\s,‐‑‒–—−-]+(?:and\\s+)?$", options: .regularExpression) != nil {
+                    groups[0] = "unsupported number phrase"
+                }
+            }
+            return groups
         }
     }
 }

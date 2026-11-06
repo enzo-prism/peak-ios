@@ -4,6 +4,8 @@ import Foundation
 /// One interrupted NEW session. Model references are resolved against the live
 /// library at resume; no model objects or GPS routes are serialized.
 nonisolated struct SavedSessionDraft: Codable, Sendable {
+    // Optional so recovery files from the first format remain readable.
+    let draftID: UUID?
     let savedAt: Date
     let spotKey: String?
     let gearKeys: [String]
@@ -52,6 +54,7 @@ nonisolated struct SavedSessionDraft: Codable, Sendable {
     }
 
     @MainActor init(_ draft: SessionDraft, at date: Date = Date()) {
+        draftID = draft.recoveryID
         savedAt = date
         spotKey = draft.selectedSpot?.key
         gearKeys = draft.selectedGear.map(\.key)
@@ -121,6 +124,8 @@ nonisolated struct SavedSessionDraft: Codable, Sendable {
 
     @MainActor func restore(spots: [Spot], gear: [Gear], buddies: [Buddy], videoCopies: [UUID: URL] = [:]) throws -> SessionDraft {
         var draft = SessionDraft()
+        draft.isRecoveredDraft = true
+        draft.recoveryID = draftID ?? UUID()
         draft.date = date
         draft.spotName = spotName
         draft.rating = rating
@@ -186,6 +191,66 @@ nonisolated struct SavedSessionDraft: Codable, Sendable {
     }
 }
 
+/// Owns the debounce and reconciles undo-to-baseline with the durable copy.
+/// A blank editor cannot clear a different, previously interrupted draft.
+@MainActor
+final class SessionDraftAutosave {
+    private let store: SessionDraftStore
+    private var pending: Task<Void, Never>?
+    private(set) var ownsRecovery = false
+    private var draftID: UUID?
+
+    init(store: SessionDraftStore = .shared) { self.store = store }
+
+    func cancelPending() { pending?.cancel() }
+
+    @discardableResult
+    func update(_ snapshot: SavedSessionDraft?, videos: [UUID: URL] = [:],
+                immediately: Bool = false, retiringFiles: [URL] = [],
+                onResult: @escaping @MainActor (Error?) -> Void = { _ in }) -> Task<Void, Never>? {
+        // Cancellation must precede the no-change guard: undo can happen while
+        // the previous changed snapshot is still waiting for its debounce.
+        pending?.cancel()
+        guard snapshot != nil || ownsRecovery else { return nil }
+        ownsRecovery = true
+        if let snapshot { draftID = snapshot.draftID }
+        let retiringID = draftID
+        let mutationDate = snapshot?.savedAt ?? Date()
+        let store = store
+        let task = Task { @MainActor in
+            do {
+                if snapshot != nil && !immediately { try await Task.sleep(for: .milliseconds(350)) }
+                try Task.checkCancellation()
+                if let snapshot { try await store.save(snapshot, videos: videos) }
+                else if let retiringID { try await store.clear(matching: retiringID, at: mutationDate) }
+                SessionMediaStore.deleteTemporaryFiles(retiringFiles)
+                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
+                onResult(nil)
+            } catch is CancellationError {
+            } catch { onResult(error) }
+        }
+        pending = task
+        return task
+    }
+
+    @discardableResult
+    func clear(draftID: UUID, allowLegacy: Bool = false,
+               onResult: @escaping @MainActor (Error?) -> Void = { _ in }) -> Task<Void, Never> {
+        pending?.cancel()
+        let date = Date()
+        let store = store
+        let task = Task { @MainActor in
+            do {
+                try await store.clear(matching: draftID, allowLegacy: allowLegacy, at: date)
+                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
+                onResult(nil)
+            } catch { onResult(error) }
+        }
+        pending = task
+        return task
+    }
+}
+
 /// Serialized file writes plus generation ordering stop a late autosave from
 /// resurrecting a draft that has already been saved or explicitly discarded.
 actor SessionDraftStore {
@@ -234,5 +299,17 @@ actor SessionDraftStore {
         guard date >= latestMutation else { return }
         latestMutation = date
         if FileManager.default.fileExists(atPath: directory.path) { try FileManager.default.removeItem(at: directory) }
+    }
+
+    func clear(matching draftID: UUID, allowLegacy: Bool = false, at date: Date = Date()) throws {
+        guard date >= latestMutation else { return }
+        if let current = try load(), current.draftID != draftID,
+           !(allowLegacy && current.draftID == nil) {
+            // Retire older pending writes without deleting another editor's
+            // interrupted surf when this editor undoes its own changes.
+            latestMutation = date
+            return
+        }
+        try clear(at: date)
     }
 }

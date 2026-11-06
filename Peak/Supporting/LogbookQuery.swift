@@ -23,6 +23,10 @@ enum LogbookQuery {
         let operation: Operation = query.contains("how many") || query.contains("count") ? .count
             : (query.contains("which board") || query.contains("most used board")) ? .boardUsage : .find
         var matches = sessions
+        let dateScopes = ["this month", "last month", "this year"].filter { query.contains($0) }
+        guard dateScopes.count <= 1 else {
+            return Answer(title: "Choose one date range", explanation: "Ask about this month, last month or this year separately. No partial count is shown.", sessions: [])
+        }
         if query.contains("this month"), let interval = calendar.dateInterval(of: .month, for: now) {
             matches = matches.filter { interval.contains($0.date) && $0.date < interval.end }
         } else if query.contains("last month"),

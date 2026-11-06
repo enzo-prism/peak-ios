@@ -68,7 +68,7 @@ struct SessionEditorView: View {
     @State private var mediaTransferTask: Task<Void, Never>?
     @State private var mediaTransferGeneration = UUID()
     @State private var isTransferringMedia = false
-    @State private var draftSaveTask: Task<Void, Never>?
+    @State private var draftAutosave = SessionDraftAutosave()
     @State private var didDiscard = false
     @State private var draftSaveWarning: String?
     @State private var showMediaAlert = false
@@ -288,22 +288,10 @@ struct SessionEditorView: View {
         .onDisappear {
             mediaTransferTask?.cancel()
             mediaTransferGeneration = UUID()
-            draftSaveTask?.cancel()
-            if isNewSession && !didSave && !didDiscard && hasUnsavedChanges && !TestingDefaults.isRunningTests {
+            if isNewSession && !didSave && !didDiscard && !TestingDefaults.isRunningTests {
                 // Recovery owns its own video copies before temporary picker
                 // files are retired. Never race cleanup against the copy.
-                let snapshot = SavedSessionDraft(draft)
-                let videos = draftVideos
-                let pending = Array(videos.values)
-                Task {
-                    do {
-                        try await SessionDraftStore.shared.save(snapshot, videos: videos)
-                        SessionMediaStore.deleteTemporaryFiles(pending)
-                        NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
-                    } catch {
-                        // Keep source files if recovery could not commit.
-                    }
-                }
+                persistDraft(immediately: true, retiringMedia: true)
             } else if !didSave {
                 cleanupPendingMedia()
             }
@@ -1781,33 +1769,23 @@ struct SessionEditorView: View {
         })
     }
 
-    private func persistDraft(immediately: Bool = false) {
-        guard isNewSession, hasUnsavedChanges, !didSave, !didDiscard,
-              !isTransferringMedia, !TestingDefaults.isRunningTests else { return }
-        draftSaveTask?.cancel()
-        let snapshot = SavedSessionDraft(draft)
+    private func persistDraft(immediately: Bool = false, retiringMedia: Bool = false) {
+        guard isNewSession, !didSave, !didDiscard, !TestingDefaults.isRunningTests else { return }
+        draftAutosave.cancelPending()
+        guard !isTransferringMedia || retiringMedia else { return }
+        let snapshot = hasUnsavedChanges || draft.isRecoveredDraft ? SavedSessionDraft(draft) : nil
         let videos = draftVideos
-        draftSaveTask = Task {
-            do {
-                if !immediately { try await Task.sleep(for: .milliseconds(350)) }
-                try Task.checkCancellation()
-                try await SessionDraftStore.shared.save(snapshot, videos: videos)
-                draftSaveWarning = nil
-                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
-            } catch is CancellationError {
-            } catch { draftSaveWarning = "This draft could not be kept for later. Keep Peak open and save the session, or free up storage and retry." }
+        let task = draftAutosave.update(snapshot, videos: videos, immediately: immediately,
+                                       retiringFiles: retiringMedia ? Array(videos.values) : []) { error in
+            draftSaveWarning = error == nil ? nil : "This draft could not be kept for later. Keep Peak open and save the session, or free up storage and retry."
         }
+        if retiringMedia && task == nil { cleanupPendingMedia() }
     }
 
     private func clearSavedDraft() {
         guard isNewSession, !TestingDefaults.isRunningTests else { return }
-        draftSaveTask?.cancel()
-        let date = Date()
-        Task {
-            do {
-                try await SessionDraftStore.shared.clear(at: date)
-                NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
-            } catch { draftSaveWarning = "The saved draft could not be removed. Your logged session is safe." }
+        draftAutosave.clear(draftID: draft.recoveryID, allowLegacy: draft.isRecoveredDraft) { error in
+            if error != nil { draftSaveWarning = "The saved draft could not be removed. Your logged session is safe." }
         }
     }
 
