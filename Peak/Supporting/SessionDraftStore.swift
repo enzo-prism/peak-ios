@@ -223,6 +223,7 @@ final class SessionDraftAutosave {
                 try Task.checkCancellation()
                 if let snapshot { try await store.save(snapshot, videos: videos) }
                 else if let retiringID { try await store.clear(matching: retiringID, at: mutationDate) }
+                try Task.checkCancellation()
                 SessionMediaStore.deleteTemporaryFiles(retiringFiles)
                 NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
                 onResult(nil)
@@ -241,9 +242,12 @@ final class SessionDraftAutosave {
         let store = store
         let task = Task { @MainActor in
             do {
+                try Task.checkCancellation()
                 try await store.clear(matching: draftID, allowLegacy: allowLegacy, at: date)
+                try Task.checkCancellation()
                 NotificationCenter.default.post(name: .peakDraftDidChange, object: nil)
                 onResult(nil)
+            } catch is CancellationError {
             } catch { onResult(error) }
         }
         pending = task

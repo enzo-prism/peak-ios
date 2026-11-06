@@ -46,7 +46,7 @@ struct DraftRecoveryCard: View {
                     .disabled(isResuming)
                     .glassButtonStyle(prominent: true)
                     .accessibilityIdentifier("draft.resume")
-                    Button("Discard Draft", role: .destructive) { showDiscard = true }
+                    Button("Discard Draft", role: .destructive) { showDiscard = true }.disabled(isResuming)
                 }
                 .padding(Theme.Spacing.l)
                 .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassDimTint)
@@ -59,7 +59,11 @@ struct DraftRecoveryCard: View {
         .confirmationDialog("Discard the saved draft and its attachments?", isPresented: $showDiscard) {
             Button("Discard Draft", role: .destructive) {
                 Task {
-                    do { try await SessionDraftStore.shared.clear(); snapshot = nil }
+                    do {
+                        guard let discarded = snapshot else { return }
+                        try await SessionDraftStore.shared.clear(matching: discarded.draftID ?? UUID(), allowLegacy: discarded.draftID == nil)
+                        await load()
+                    }
                     catch { message = "The draft could not be removed. Try again." }
                 }
             }

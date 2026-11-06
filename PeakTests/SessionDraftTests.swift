@@ -508,6 +508,22 @@ final class PeakExperienceTests: XCTestCase {
         await resumed.clear(draftID: legacyDraft.recoveryID, allowLegacy: true).value
         let removedLegacy = try await store.load()
         XCTAssertNil(removedLegacy, "Explicit discard must also remove a resumed file from the older format")
+
+        // A failed durable write must report failure and retain picker media
+        // for the still-open editor to retry, rather than retiring it on close.
+        let blockedDirectory = directory.appendingPathComponent("not-a-directory")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data([1]).write(to: blockedDirectory)
+        let temporaryVideo = directory.appendingPathComponent("picker.mov")
+        try Data([2, 3]).write(to: temporaryVideo)
+        let failedAutosave = SessionDraftAutosave(store: SessionDraftStore(directory: blockedDirectory))
+        var reportedFailure = false
+        await failedAutosave.update(SavedSessionDraft(draft), immediately: true,
+                                    retiringFiles: [temporaryVideo]) { error in
+            reportedFailure = error != nil
+        }?.value
+        XCTAssertTrue(reportedFailure)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: temporaryVideo.path))
     }
 
     func testQuiverAdvisorRequiresComparableSingleBoardEvidence() {

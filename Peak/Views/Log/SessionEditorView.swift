@@ -70,6 +70,8 @@ struct SessionEditorView: View {
     @State private var isTransferringMedia = false
     @State private var draftAutosave = SessionDraftAutosave()
     @State private var didDiscard = false
+    @State private var didKeepDraft = false
+    @State private var recoveryActionLabel: String?
     @State private var draftSaveWarning: String?
     @State private var showMediaAlert = false
     @State private var mediaAlertMessage = ""
@@ -165,6 +167,8 @@ struct SessionEditorView: View {
     private func cancelTapped() {
         if hasUnsavedChanges {
             showDiscardConfirmation = true
+        } else if isNewSession && (draft.isRecoveredDraft || draftAutosave.ownsRecovery) {
+            finishRecoveryDecision(keeping: true)
         } else {
             dismiss()
         }
@@ -199,12 +203,10 @@ struct SessionEditorView: View {
                             titleVisibility: .visible
                         ) {
                             Button(isNewSession ? "Discard Session" : "Discard Changes", role: .destructive) {
-                                didDiscard = true
-                                clearSavedDraft()
-                                dismiss()
+                                finishRecoveryDecision(keeping: false)
                             }
                             if isNewSession {
-                                Button("Keep Draft for Later") { dismiss() }
+                                Button("Keep Draft for Later") { finishRecoveryDecision(keeping: true) }
                             }
                             Button("Keep Editing", role: .cancel) {}
                         }
@@ -218,10 +220,16 @@ struct SessionEditorView: View {
                     }
                 }
         }
+        .disabled(recoveryActionLabel != nil)
+        .overlay {
+            if let recoveryActionLabel {
+                ProgressView(recoveryActionLabel).padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
         .tint(Theme.textPrimary)
         // A swipe-down would drop typed notes and picked photos without a word;
         // once there is something to lose, only Cancel (which asks) closes the sheet.
-        .interactiveDismissDisabled(hasUnsavedChanges)
+        .interactiveDismissDisabled(hasUnsavedChanges || recoveryActionLabel != nil)
         .presentationDetents(sheetDetents, selection: $sheetDetent)
         .presentationDragIndicator(.visible)
         .presentationContentInteraction(.scrolls)
@@ -288,7 +296,7 @@ struct SessionEditorView: View {
         .onDisappear {
             mediaTransferTask?.cancel()
             mediaTransferGeneration = UUID()
-            if isNewSession && !didSave && !didDiscard && !TestingDefaults.isRunningTests {
+            if isNewSession && !didSave && !didDiscard && !didKeepDraft && !TestingDefaults.isRunningTests {
                 // Recovery owns its own video copies before temporary picker
                 // files are retired. Never race cleanup against the copy.
                 persistDraft(immediately: true, retiringMedia: true)
@@ -1770,7 +1778,7 @@ struct SessionEditorView: View {
     }
 
     private func persistDraft(immediately: Bool = false, retiringMedia: Bool = false) {
-        guard isNewSession, !didSave, !didDiscard, !TestingDefaults.isRunningTests else { return }
+        guard isNewSession, !didSave, !didDiscard, !didKeepDraft, recoveryActionLabel == nil, !TestingDefaults.isRunningTests else { return }
         draftAutosave.cancelPending()
         guard !isTransferringMedia || retiringMedia else { return }
         let snapshot = hasUnsavedChanges || draft.isRecoveredDraft ? SavedSessionDraft(draft) : nil
@@ -1782,10 +1790,50 @@ struct SessionEditorView: View {
         if retiringMedia && task == nil { cleanupPendingMedia() }
     }
 
+    /// Keep the editor and its temporary attachments alive until the durable
+    /// choice succeeds. A storage failure must remain visible and retryable.
+    private func finishRecoveryDecision(keeping: Bool) {
+        guard recoveryActionLabel == nil else { return }
+        guard isNewSession, !TestingDefaults.isRunningTests else {
+            didDiscard = true
+            dismiss()
+            return
+        }
+        guard !isTransferringMedia else {
+            draftSaveWarning = "Wait for media to finish adding, then try again."
+            return
+        }
+        recoveryActionLabel = keeping ? "Keeping Draft…" : "Discarding Draft…"
+        let completion: @MainActor (Error?) -> Void = { error in
+            recoveryActionLabel = nil
+            guard error == nil else {
+                draftSaveWarning = keeping
+                    ? "This draft could not be kept. Your details are still open. Free up storage and retry, or save the session."
+                    : "The draft could not be removed. Your details are still open. Try again."
+                return
+            }
+            didKeepDraft = keeping
+            didDiscard = !keeping
+            cleanupPendingMedia()
+            dismiss()
+        }
+        if keeping {
+            let snapshot = hasUnsavedChanges || draft.isRecoveredDraft ? SavedSessionDraft(draft) : nil
+            if draftAutosave.update(snapshot, videos: draftVideos, immediately: true, onResult: completion) == nil {
+                completion(nil)
+            }
+        } else {
+            draftAutosave.clear(draftID: draft.recoveryID, allowLegacy: draft.isRecoveredDraft, onResult: completion)
+        }
+    }
+
     private func clearSavedDraft() {
         guard isNewSession, !TestingDefaults.isRunningTests else { return }
         draftAutosave.clear(draftID: draft.recoveryID, allowLegacy: draft.isRecoveredDraft) { error in
-            if error != nil { draftSaveWarning = "The saved draft could not be removed. Your logged session is safe." }
+            if error != nil {
+                NotificationCenter.default.post(name: .peakSessionDidSave, object: modelContext.container,
+                    userInfo: ["message": "Your session was logged, but its recovery draft could not be removed. You can discard that duplicate draft from Log."])
+            }
         }
     }
 
