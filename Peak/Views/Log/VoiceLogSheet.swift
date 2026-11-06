@@ -75,6 +75,10 @@ struct VoiceLogSheet: View {
             Button("Keep Reviewing", role: .cancel) {}
         }
         .onChange(of: scenePhase) { _, phase in
+            // Permission sheets may briefly make the app inactive. Cancel a
+            // pending start only on backgrounding, so a late permission grant
+            // cannot begin microphone capture after the surfer has left Peak.
+            if phase == .background { startTask?.cancel() }
             if phase != .active, recorder.state == .recording { recorder.finish() }
         }
         .onDisappear { startTask?.cancel(); recorder.cancel() }
