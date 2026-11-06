@@ -829,7 +829,9 @@ private extension PeakUISmokeTests {
             clear.tap()
         }
         tapElement(spotField)
-        spotField.typeText(fallbackText)
+        // Submit the single-line field to dismiss its keyboard. A tap
+        // outside an unchanged iPad sheet would dismiss the entire editor.
+        spotField.typeText(fallbackText + "\n")
         selectSpotSuggestion(key: key, file: file, line: line)
     }
 

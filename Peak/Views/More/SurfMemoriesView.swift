@@ -32,9 +32,9 @@ struct SurfMemoriesView: View {
                 }
                 ForEach(selected) { session in
                     Button {
-                                PeakNavigationCoordinator.shared.handle(.session(id: SessionIntentQueries.identifier(for: session)))
-                            } label: {
-                        memory(session)
+                        PeakNavigationCoordinator.shared.handle(.session(id: SessionIntentQueries.identifier(for: session)))
+                    } label: {
+                        memory(session).contentShape(Rectangle())
                     }
                     .buttonStyle(PressFeedbackButtonStyle())
                     .accessibilityIdentifier("memories.session.\(session.id)")
