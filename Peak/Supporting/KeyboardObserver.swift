@@ -21,7 +21,7 @@ final class KeyboardObserver: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.height = 0
+            self?.publishHeight(0)
         })
     }
 
@@ -34,7 +34,7 @@ final class KeyboardObserver: ObservableObject {
 
     private func updateHeight(from notification: Notification) {
         guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
-            height = 0
+            publishHeight(0)
             return
         }
         // Measure against the app's own window, not the display: in iPad Split
@@ -42,12 +42,21 @@ final class KeyboardObserver: ObservableObject {
         // so `UIScreen.main.maxY - frame.minY` (the deprecated old math here)
         // produced a phantom inset far taller than the real overlap.
         guard let window = Self.activeKeyWindow else {
-            height = 0
+            publishHeight(0)
             return
         }
         let keyboardFrame = window.convert(frame, from: window.screen.coordinateSpace)
         let overlap = window.bounds.intersection(keyboardFrame).height
-        height = overlap.isFinite ? max(0, overlap) : 0
+        publishHeight(overlap.isFinite ? max(0, overlap) : 0)
+    }
+
+    private func publishHeight(_ value: CGFloat) {
+        // UIKit can emit keyboard notifications while SwiftUI removes the
+        // editor. Publish on the next main turn, outside that view update.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.height != value else { return }
+            self.height = value
+        }
     }
 
     private static var activeKeyWindow: UIWindow? {
