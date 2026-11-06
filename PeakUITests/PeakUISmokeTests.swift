@@ -822,13 +822,13 @@ private extension PeakUISmokeTests {
         let spotField = app.textFields["session.editor.spot"]
         assertExists(spotField, file: file, line: line)
         // New drafts arrive with the last spot filled in; clear it so the typed
-        // search starts from an empty field (the clear button also focuses it).
+        // search starts from an empty field. Re-focus the updated field after
+        // clearing: its SwiftUI replacement can resign focus during that update.
         let clear = app.buttons["session.editor.spot.clear"]
         if clear.exists, clear.isHittable {
             clear.tap()
-        } else {
-            tapElement(spotField)
         }
+        tapElement(spotField)
         spotField.typeText(fallbackText)
         selectSpotSuggestion(key: key, file: file, line: line)
     }
