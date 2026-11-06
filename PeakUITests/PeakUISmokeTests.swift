@@ -27,6 +27,46 @@ final class PeakUISmokeTests: XCTestCase {
         super.tearDown()
     }
 
+    func testKeptDraftSurvivesColdLaunchAndExplicitDiscard() {
+        app.terminate()
+        app.launchEnvironment["UITESTS_DRAFT_RECOVERY"] = UUID().uuidString
+        app.launch()
+        tapTab(named: "Log")
+        app.buttons["Log Session"].tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+        app.buttons["Cancel"].tap()
+        let keep = app.buttons["Keep Draft for Later"]
+        XCTAssertTrue(keep.waitForExistence(timeout: 5))
+        keep.tap()
+        let resume = app.buttons["draft.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+
+        // No in-process notification exists after a cold launch. The card's
+        // initial task must load the durable copy on its own.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(resume.waitForExistence(timeout: 5), "Kept draft must be discoverable immediately after relaunch")
+        scrollToVisible(resume, in: app.scrollViews.firstMatch)
+        resume.tap()
+        let spot = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spot.waitForExistence(timeout: 5))
+        XCTAssertEqual(spot.value as? String, "Trestles")
+        app.buttons["Cancel"].tap() // Unchanged resumed baseline is still a draft.
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        scrollToVisible(resume, in: app.scrollViews.firstMatch)
+        resume.tap()
+        XCTAssertTrue(spot.waitForExistence(timeout: 5))
+        app.buttons["Rate 4 stars"].tap()
+        app.buttons["Cancel"].tap()
+        let discard = app.buttons["Discard Session"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        discard.tap()
+        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertFalse(resume.waitForExistence(timeout: 3), "Explicit discard must remove the durable copy, not just hide its card")
+    }
+
     func testVerifiedBackupSavesToFilesAndVerifiesDestination() {
         tapTab(named: "More")
         app.buttons["more.settings"].tap()

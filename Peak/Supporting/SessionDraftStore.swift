@@ -264,7 +264,7 @@ actor SessionDraftStore {
 
     init(directory: URL? = nil) {
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("SessionDraft", isDirectory: true)
+            .appendingPathComponent(TestingDefaults.draftRecoveryTestID.map { "SessionDraft-UITest-" + $0.uuidString } ?? "SessionDraft", isDirectory: true)
     }
 
     func save(_ snapshot: SavedSessionDraft, videos: [UUID: URL]) throws {

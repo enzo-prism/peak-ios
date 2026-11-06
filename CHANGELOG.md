@@ -26,6 +26,7 @@ Status at a glance (App Store Connect read back November 6, 2026):
 
 ### Fixed
 
+- Load saved recovery drafts on cold launch even before the recovery card has content.
 - Reconcile autosaved drafts after undo, retain resumed draft baselines and wait for successful storage before closing Keep/Discard. Failed recovery writes preserve temporary media for retry.
 - Parse compound spoken durations without silently accepting numeric suffixes; ask for one date range rather than returning partial logbook counts.
 - Preserve primary detail selections across the context replacement required for correct staged edits. Source records from new evidence surfaces open through History.

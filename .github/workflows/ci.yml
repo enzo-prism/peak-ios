@@ -87,7 +87,7 @@ jobs:
           if [[ "$DESIGN_DEVICE" == "iphone" ]]; then
             python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 644
           fi
-          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 73
+          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 74
       - name: Upload device test evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -296,7 +296,7 @@ struct SessionEditorView: View {
         .onDisappear {
             mediaTransferTask?.cancel()
             mediaTransferGeneration = UUID()
-            if isNewSession && !didSave && !didDiscard && !didKeepDraft && !TestingDefaults.isRunningTests {
+            if isNewSession && !didSave && !didDiscard && !didKeepDraft && TestingDefaults.canPersistSessionDrafts {
                 // Recovery owns its own video copies before temporary picker
                 // files are retired. Never race cleanup against the copy.
                 persistDraft(immediately: true, retiringMedia: true)
@@ -1778,7 +1778,7 @@ struct SessionEditorView: View {
     }
 
     private func persistDraft(immediately: Bool = false, retiringMedia: Bool = false) {
-        guard isNewSession, !didSave, !didDiscard, !didKeepDraft, recoveryActionLabel == nil, !TestingDefaults.isRunningTests else { return }
+        guard isNewSession, !didSave, !didDiscard, !didKeepDraft, recoveryActionLabel == nil, TestingDefaults.canPersistSessionDrafts else { return }
         draftAutosave.cancelPending()
         guard !isTransferringMedia || retiringMedia else { return }
         let snapshot = hasUnsavedChanges || draft.isRecoveredDraft ? SavedSessionDraft(draft) : nil
@@ -1794,7 +1794,7 @@ struct SessionEditorView: View {
     /// choice succeeds. A storage failure must remain visible and retryable.
     private func finishRecoveryDecision(keeping: Bool) {
         guard recoveryActionLabel == nil else { return }
-        guard isNewSession, !TestingDefaults.isRunningTests else {
+        guard isNewSession, TestingDefaults.canPersistSessionDrafts else {
             didDiscard = true
             dismiss()
             return
@@ -1828,7 +1828,7 @@ struct SessionEditorView: View {
     }
 
     private func clearSavedDraft() {
-        guard isNewSession, !TestingDefaults.isRunningTests else { return }
+        guard isNewSession, TestingDefaults.canPersistSessionDrafts else { return }
         draftAutosave.clear(draftID: draft.recoveryID, allowLegacy: draft.isRecoveredDraft) { error in
             if error != nil {
                 NotificationCenter.default.post(name: .peakSessionDidSave, object: modelContext.container,

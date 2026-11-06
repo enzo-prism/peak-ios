@@ -16,7 +16,9 @@ struct DraftRecoveryCard: View {
     @State private var resumeTask: Task<Void, Never>?
 
     var body: some View {
-        Group {
+        // Keep a concrete container mounted even before a snapshot is loaded.
+        // An empty Group has no lifecycle node for the cold-start .task.
+        VStack(spacing: 0) {
             if let snapshot {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Finish your saved draft", systemImage: "square.and.pencil").font(.headline)
@@ -74,7 +76,7 @@ struct DraftRecoveryCard: View {
     }
 
     private func load() async {
-        guard !TestingDefaults.isRunningTests else { return }
+        guard TestingDefaults.canPersistSessionDrafts else { return }
         do { snapshot = try await SessionDraftStore.shared.load() }
         catch { message = "A saved draft needs recovery. Its files were kept on this device." }
     }
