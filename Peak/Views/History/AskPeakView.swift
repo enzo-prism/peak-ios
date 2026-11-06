@@ -8,6 +8,7 @@ struct AskPeakView: View {
     @State private var limit = 30
     @State private var searchTask: Task<Void, Never>?
     @State private var isSearching = false
+    @State private var searchGeneration = 0
     private let examples = ["How many sessions this month?", "Which board did I use most?", "Find my clean morning sessions"]
 
     var body: some View {
@@ -59,11 +60,12 @@ struct AskPeakView: View {
             }
         }
         .navigationTitle("Ask Peak")
-        .onDisappear { searchTask?.cancel() }
+        .onDisappear { searchGeneration += 1; searchTask?.cancel(); isSearching = false }
         .onChange(of: SessionQueryStamp.make(sessions)) { _, _ in if answer != nil { ask() } }
     }
 
     private func ask() {
+        searchGeneration += 1
         searchTask?.cancel()
         isSearching = false
         limit = 30
@@ -71,20 +73,24 @@ struct AskPeakView: View {
     }
 
     private func semanticSearch() {
+        searchGeneration += 1
+        let generation = searchGeneration
         searchTask?.cancel()
         let query = question
         isSearching = true
         searchTask = Task {
-            defer { isSearching = false }
+            defer { if generation == searchGeneration { isSearching = false } }
             do {
                 let ids = try await SemanticLogbookSearch.find(query)
                 try Task.checkCancellation()
+                guard generation == searchGeneration else { return }
                 let live = SessionIntentQueries.sessions(withIdentifiers: ids, in: sessions)
                 answer = LogbookQuery.Answer(title: live.isEmpty ? "No related memories found" : "Related memories",
                     explanation: "Relevance search returns examples from your on-device index and may omit records. Open the source sessions to check them. Use the exact question search for totals and board usage.", sessions: live)
             } catch is CancellationError {
-                if !Task.isCancelled { answer = LogbookQuery.Answer(title: "Search took too long", explanation: "Try the exact question search or History filters.", sessions: []) }
+                if !Task.isCancelled && generation == searchGeneration { answer = LogbookQuery.Answer(title: "Search took too long", explanation: "Try the exact question search or History filters.", sessions: []) }
             } catch {
+                guard !Task.isCancelled, generation == searchGeneration else { return }
                 answer = LogbookQuery.Answer(title: "Related search is unavailable", explanation: "Try the exact question search or History filters. Your logbook remains on this device.", sessions: [])
             }
         }
