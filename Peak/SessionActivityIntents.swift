@@ -57,3 +57,17 @@ nonisolated struct EndSessionIntent: AppIntent {
         return .result()
     }
 }
+
+
+nonisolated struct StartPlannedSurfIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Start Planned Surf"
+    static let openAppWhenRun = false
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        if ActiveSessionStore.loadActive() != nil { return .result(dialog: "Your surf timer is already running.") }
+        guard let plan = PeakWidgetStore.read().planGlance, plan.isUsable(at: Date()) else {
+            return .result(dialog: "Open Peak and check conditions to refresh your plan.")
+        }
+        SessionActivityController.start(ActiveSessionState(spotKey: plan.spotKey, spotName: plan.spotName, gearKeys: plan.gearKeys))
+        return .result(dialog: "Surf timer started with your planned setup. End it when you are out of the water.")
+    }
+}

@@ -5,13 +5,42 @@ All notable changes to Peak (iOS) are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Status at a glance (App Store Connect read back September 24, 2026):
+Status at a glance (App Store Connect read back November 6, 2026):
 
-- **App Store (live):** `3.3` build **1**, released September 24, 2026.
-- **3.5 release candidate:** build **1**. Quick log, Stats and session-detail fixes, and the new-session save path (#22, #23, #24), plus the 3.4 reliability work. Gate on this source: **615 unit / 67 UI cases per device**.
-- **TestFlight:** `3.4` build **1** (reliability, TestFlight only; its changes ship in 3.5).
+- **App Store (live):** `3.5`, `READY_FOR_DISTRIBUTION`.
+- **Candidate:** `3.6` build **2**; TestFlight delivery is recorded in the release receipt when verified.
+- **Watch:** standalone source on `feature/peak-3.6-watch-validation`, outside main and unembedded; physical ocean release gate explicitly pending.
 
-## [3.5] — Unreleased
+## [3.6] — Candidate, November 6, 2026
+
+### Added
+
+- Recoverable unfinished new-session drafts, including owned media copies, and optional iOS 26 on-device voice transcription with explicit transcript/field review.
+- Compare Boards using comparable rated single-board sessions, minimum evidence and uncertainty gates, with source sessions.
+- Save a Best Window surf plan, carry setup into logging and the timer, and view a cached plan widget. A parameterized Start Surf with Setup shortcut resolves current saved entities.
+- Explicitly find and confirm a nearby NOAA tide station; show MLLW predictions separately from model MSL data.
+- Ask Peak exact logbook questions and optional eligible iOS 27 on-device related-memory retrieval. Counts come from exact queries; source records are live-validated and model prose is never displayed.
+- Estimated-ride replay with actual-sample scrubbing and gap handling; photo-led Surf Memories by month/spot and optional selected Journaling Suggestions photos on iPhone.
+- Framed streaming full backups with checksums, completeness validation, restore preview, cancellation and a verified Files destination save. Existing JSON/base64 backups remain readable and identities survive repeated merge.
+- Standalone Watch hardening and shared timing/handoff tests retained on `feature/peak-3.6-watch-validation`, outside main. **The Watch app is not embedded or distributed.**
+
+### Fixed
+
+- Place the transcript keyboard-dismiss action in the review form, avoiding an iOS 27 keyboard-accessory frame warning. CI now rejects runtime warnings, and Files UI acceptance waits for a settled native Save control.
+- Load saved recovery drafts and surf plans on cold launch even before their cards have content.
+- Reconcile autosaved drafts after undo, retain resumed draft baselines and wait for successful storage before closing Keep/Discard. Failed recovery writes preserve temporary media for retry.
+- Parse compound spoken durations without silently accepting numeric suffixes; ask for one date range rather than returning partial logbook counts.
+- Preserve primary detail selections across the context replacement required for correct staged edits. Source records from new evidence surfaces open through History.
+- Remove full-history media prefetch, chunk Spotlight donations and cache route replay arrays. Retain context retirement after an iOS 27 observer experiment confirmed held models stay stale.
+- Stage Reset All Data before removing external videos; clear recovery drafts, plans and timers only after the library deletion commits, with honest partial-cleanup reporting.
+- Use a direct URL-based Files export after an iOS 27 SwiftUI FileWrapper crash; do not report backup success until the destination verifies.
+
+### Acceptance
+
+- Schema V12 and iOS 17 minimum remain unchanged. No backend, telemetry or cloud inference.
+- See [3.6 implementation and acceptance](docs/PEAK_3_6.md) for test receipts and manual checks. Simulator results do not establish real speech/model quality, populated-device upgrade safety, whole-app physical performance or ocean wave accuracy. The owner explicitly kept Watch acceptance pending.
+
+## [3.5] — Distributed (verified November 6, 2026)
 
 Repeat logging after a surf becomes spot-and-gear-from-history, a duration
 chip, a star, and Save. Only the *setup* is ever guessed; conditions, rating

@@ -3,6 +3,10 @@ import Foundation
 import SwiftData
 
 struct SessionDraft {
+    // Recovery restores an unsaved surf, rather than an untouched blank form.
+    // Returning to its initial fields must retain that original recovery copy.
+    var isRecoveredDraft = false
+    var recoveryID = UUID()
     var date: Date = Date()
     var spotName: String = ""
     var selectedSpot: Spot?
@@ -332,7 +336,7 @@ struct SessionMediaDraftItem: Identifiable {
         )
     }
 
-    private init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source, cropRect: CGRect) {
+    init(id: UUID, kind: SessionMediaKind, createdAt: Date, source: Source, cropRect: CGRect) {
         self.id = id
         self.kind = kind
         self.createdAt = createdAt

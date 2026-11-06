@@ -15,6 +15,9 @@ def validate(summary, minimum_tests):
         raise ValueError(f"Only {total} tests discovered; expected at least {minimum_tests}")
     if not summary.get("passedTests", 0):
         raise ValueError("No tests executed successfully")
+    if summary.get("runtimeWarnings"):
+        messages = "; ".join(item.get("message", "Runtime warning") for item in summary["runtimeWarnings"])
+        raise ValueError(f"XCTest reported runtime warnings: {messages}")
 
 
 def main():

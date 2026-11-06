@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Peak records your session notes only when you tap Record. Audio is transcribed on this device and then deleted.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Peak transcribes session notes on this device when you choose Speak Your Surf.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>CFBundleURLTypes</key>
@@ -21,5 +25,25 @@
 	<string>Peak reads Apple Watch surf workouts, heart rate, calories, and workout GPS routes to import sessions and estimate waves. Routes are not stored. If you opt in, Peak can notify you when a Watch surf is ready to log.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Peak saves your surf sessions to Apple Health as surfing workouts.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.designprism.peak.backup</string>
+			<key>UTTypeDescription</key>
+			<string>Peak Full Backup</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>peakbackup</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

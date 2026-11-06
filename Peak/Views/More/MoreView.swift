@@ -4,7 +4,10 @@ import SwiftData
 struct MoreView: View {
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Spot.name) private var spots: [Spot]
-    @State private var openedSpot: PeakEntityRef?
+    private var openedSpot: PeakEntityRef? {
+        get { navigation.moreSpotSelection }
+        nonmutating set { navigation.moreSpotSelection = newValue }
+    }
 
     var body: some View {
         NavigationStack {
@@ -14,6 +17,22 @@ struct MoreView: View {
                 ScrollView {
                     GlassContainer(spacing: 12) {
                         VStack(spacing: 12) {
+                            NavigationLink { SurfMemoriesView() } label: {
+                                Label("Surf Memories", systemImage: "photo.on.rectangle")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityIdentifier("more.memories")
+                            NavigationLink { AskPeakView() } label: {
+                                Label("Ask Peak", systemImage: "magnifyingglass")
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .accessibilityIdentifier("more.askPeak")
                             NavigationLink {
                                 SettingsView()
                             } label: {
@@ -75,7 +94,7 @@ struct MoreView: View {
                 }
             }
             .navigationTitle("More")
-            .navigationDestination(item: $openedSpot) { ref in
+            .navigationDestination(item: $navigation.moreSpotSelection) { ref in
                 if let spot = spots.first(where: { SessionIntentQueries.identifier(for: $0) == ref.id }) {
                     SpotDetailView(spot: spot)
                 }

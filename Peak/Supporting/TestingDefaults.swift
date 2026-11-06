@@ -87,6 +87,17 @@ nonisolated enum TestingDefaults {
         return NSClassFromString("XCTestCase") != nil
     }
 
+    /// The recovery UI regression uses a private, per-test directory that
+    /// survives app termination without touching production recovery files.
+    static var draftRecoveryTestID: UUID? {
+        guard isUITest, let value = ProcessInfo.processInfo.environment["UITESTS_DRAFT_RECOVERY"] else { return nil }
+        return UUID(uuidString: value)
+    }
+
+    static var canPersistSessionDrafts: Bool {
+        !isRunningTests || draftRecoveryTestID != nil
+    }
+
     static var fixedSeedDate: Date? {
         guard let value = ProcessInfo.processInfo.environment["UITESTS_FIXED_DATE"],
               !value.isEmpty else {

@@ -21,7 +21,10 @@ struct QuiverView: View {
     @State private var showArchived = false
     @State private var showEditor = false
     @State private var cachedSnapshots: [String: GearUsageSnapshot] = [:]
-    @State private var openedGear: PeakEntityRef?
+    private var openedGear: PeakEntityRef? {
+        get { navigation.gearSelection }
+        nonmutating set { navigation.gearSelection = newValue }
+    }
 
     private var snapshots: [String: GearUsageSnapshot] {
         cachedSnapshots
@@ -54,7 +57,7 @@ struct QuiverView: View {
                         .toolbar { quiverToolbar }
                         .searchable(text: $searchText, prompt: "Search gear")
                         .searchMinimizeBehavior()
-                        .navigationDestination(item: $openedGear) { ref in
+                        .navigationDestination(item: $navigation.gearSelection) { ref in
                             gearDetail(for: ref)
                         }
                 }
@@ -64,6 +67,7 @@ struct QuiverView: View {
             GearEditorView(mode: .new)
         }
         .onAppear {
+            if let openedGear, gearMatching(openedGear) == nil { self.openedGear = nil }
             consumePendingGearIfNeeded()
         }
         .onChange(of: sessionsStamp, initial: true) { _, _ in
@@ -83,6 +87,13 @@ struct QuiverView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
+                    NavigationLink {
+                        QuiverAdvisorView()
+                    } label: {
+                        Label("Compare Boards", systemImage: "chart.bar.xaxis")
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    }
+                    .accessibilityIdentifier("quiver.compare")
                     filterCard
 
                     if visibleGear.isEmpty {
@@ -146,21 +157,10 @@ struct QuiverView: View {
         }
     }
 
-    @ViewBuilder
     private func gearRow(_ item: Gear) -> some View {
-        if usesSplitNavigation {
-            Button {
-                openedGear = PeakEntityRef(id: SessionIntentQueries.identifier(for: item))
-            } label: {
-                QuiverGearRow(gear: item, snapshot: snapshots[item.key])
-            }
-        } else {
-            NavigationLink {
-                GearDetailView(gear: item)
-            } label: {
-                QuiverGearRow(gear: item, snapshot: snapshots[item.key])
-            }
-        }
+        Button {
+            openedGear = PeakEntityRef(id: SessionIntentQueries.identifier(for: item))
+        } label: { QuiverGearRow(gear: item, snapshot: snapshots[item.key]) }
     }
 
     @ViewBuilder

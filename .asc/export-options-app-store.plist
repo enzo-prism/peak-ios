@@ -9,12 +9,21 @@
 	<key>method</key>
 	<string>app-store-connect</string>
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
 	<key>stripSwiftSymbols</key>
 	<true/>
 	<key>teamID</key>
 	<string>L49MKXGVM4</string>
 	<key>uploadSymbols</key>
 	<true/>
+	<key>signingCertificate</key>
+	<string>05D3435155CAAE992FCD9E4961367E49A5E57D25</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.designprism.peak</key>
+		<string>Peak App Store 3.6 20261106</string>
+		<key>com.designprism.peak.PeakWidgets</key>
+		<string>Peak Widgets App Store 3.6 20261106</string>
+	</dict>
 </dict>
 </plist>

@@ -20,11 +20,13 @@ nonisolated struct ActiveSessionState: Codable, Equatable {
     /// Cached display name so the Live Activity can render a spot without the store.
     var spotName: String?
     var startDate: Date
+    var gearKeys: [String]?
 
-    init(spotKey: String? = nil, spotName: String? = nil, startDate: Date = Date()) {
+    init(spotKey: String? = nil, spotName: String? = nil, startDate: Date = Date(), gearKeys: [String]? = nil) {
         self.spotKey = spotKey
         self.spotName = spotName
         self.startDate = startDate
+        self.gearKeys = gearKeys
     }
 }
 

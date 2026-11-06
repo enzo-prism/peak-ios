@@ -32,6 +32,8 @@ struct LogView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         heroCard
+                        DraftRecoveryCard()
+                        SurfPlanCard()
 
                         // Right under the hero: a surf the Watch already recorded
                         // is the fastest log Peak can offer, and it goes stale.

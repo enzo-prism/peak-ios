@@ -46,6 +46,7 @@ struct PeakApp: App {
         // this container rather than opening a second one.
         PeakIntentStore.register(container)
         PeakTips.configure()
+        if #available(iOS 26.0, *) { VoiceLogRecorder.cleanAbandonedRecordings() }
 
         if !isUITest {
             UNUserNotificationCenter.current().delegate = PeakNotificationDelegate.shared
@@ -56,6 +57,7 @@ struct PeakApp: App {
             // unlogged session from an earlier run — the App Group defaults
             // outlive the in-memory store.
             ActiveSessionStore.reset()
+            if ProcessInfo.processInfo.environment["UITESTS_KEEP_PLAN"] != "1" { SurfPlanStore.clear() }
             PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
             if let size = ProcessInfo.processInfo.environment["UITESTS_LARGE_LIBRARY"].flatMap(Int.init), size > 0 {
                 // Profiling aid: see PreviewData.largeLibrary.
@@ -84,6 +86,7 @@ private struct RootView: View {
     @State private var libraryGeneration = UUID()
     @State private var isImportCompletePresented = false
     @State private var savedSessionWarning: String?
+    @State private var resetMessage: String?
 
     @AppStorage(WelcomeExperience.hasSeenWelcomeKey) private var hasSeenWelcome = false
     @State private var didEvaluateOutcome = false
@@ -113,6 +116,7 @@ private struct RootView: View {
             .onReceive(NotificationCenter.default.publisher(for: .peakLibraryDidChange)) { notification in
                 if refreshLibrary(after: notification) {
                     savedSessionWarning = notification.userInfo?["message"] as? String
+                    resetMessage = notification.userInfo?["resetMessage"] as? String
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .peakSessionDidSave)) { notification in
@@ -134,6 +138,14 @@ private struct RootView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Your backup has been saved. Your updated library is ready.")
+            }
+            .alert(resetMessage?.contains("could not") == true ? "Reset Needs Attention" : "Reset Complete", isPresented: Binding(
+                get: { resetMessage != nil },
+                set: { if !$0 { resetMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { resetMessage = nil }
+            } message: {
+                Text(resetMessage ?? "")
             }
             .alert("Session Saved", isPresented: Binding(
                 get: { savedSessionWarning != nil },

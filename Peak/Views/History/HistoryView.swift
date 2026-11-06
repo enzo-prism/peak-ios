@@ -6,12 +6,22 @@ struct HistoryView: View {
     /// Existing `HistoryView()` call sites stay valid.
     var isDedicatedSearchTab: Bool = false
 
+    init(isDedicatedSearchTab: Bool = false) {
+        self.isDedicatedSearchTab = isDedicatedSearchTab
+        let navigation = PeakNavigationCoordinator.shared
+        let query = isDedicatedSearchTab ? navigation.dedicatedSearchText : navigation.historySearchText
+        _searchText = State(initialValue: query)
+        _debouncedSearchText = State(initialValue: query)
+    }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable private var navigation = PeakNavigationCoordinator.shared
-    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies, \.media]))
+    @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
     @State private var filters = HistoryFilters()
+    @State private var didRestoreFilters = false
+    @State private var showFilterRestoreError = false
     @State private var searchText = ""
     /// Search text applied to the list, trailing `searchText` by ~275ms so we
     /// don't re-filter on every keystroke.
@@ -24,9 +34,18 @@ struct HistoryView: View {
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
     @State private var showDeleteError = false
-    /// Deep-link / split-column selection. Compact user taps still use
-    /// `NavigationLink` so iPhone UI tests that hit `history.row` keep working.
-    @State private var openedSession: PeakEntityRef?
+    /// Store-free selection survives a context replacement after an edit.
+    /// Media relationships fault only for rows entering the lazy list.
+    private var openedSession: PeakEntityRef? {
+        get { isDedicatedSearchTab ? navigation.searchSelection : navigation.historySelection }
+        nonmutating set {
+            if isDedicatedSearchTab { navigation.searchSelection = newValue }
+            else { navigation.historySelection = newValue }
+        }
+    }
+    private var sessionSelection: Binding<PeakEntityRef?> {
+        Binding(get: { openedSession }, set: { openedSession = $0 })
+    }
 
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
@@ -85,15 +104,33 @@ struct HistoryView: View {
             }
             debouncedSearchText = searchText
         }
+        .alert("Filters Could Not Be Restored", isPresented: $showFilterRestoreError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your library is unchanged. Please reapply your History filters.")
+        }
         .onAppear {
+            if !didRestoreFilters {
+                let snapshot = isDedicatedSearchTab ? navigation.searchFilters : navigation.historyFilters
+                do { filters = try snapshot.restore(in: modelContext) }
+                catch { showFilterRestoreError = true }
+                didRestoreFilters = true
+            }
             refreshResults()
+            if let openedSession, sessionMatching(openedSession) == nil { self.openedSession = nil }
             consumePendingNavigation()
         }
         .onChange(of: sessionsStamp) { _, _ in
             refreshResults()
         }
         .onChange(of: filters) { _, _ in
+            if isDedicatedSearchTab { navigation.searchFilters = HistoryFilterSnapshot(filters) }
+            else { navigation.historyFilters = HistoryFilterSnapshot(filters) }
             refreshResults()
+        }
+        .onChange(of: searchText) { _, query in
+            if isDedicatedSearchTab { navigation.dedicatedSearchText = query }
+            else { navigation.historySearchText = query }
         }
         .onChange(of: debouncedSearchText) { _, _ in
             refreshResults()
@@ -122,7 +159,7 @@ struct HistoryView: View {
                     prompt: "Spots, notes, gear, buddies"
                 )
                 .searchMinimizeBehavior(!isDedicatedSearchTab)
-                .navigationDestination(item: $openedSession) { ref in
+                .navigationDestination(item: sessionSelection) { ref in
                     sessionDetail(for: ref)
                 }
         }
@@ -204,6 +241,12 @@ struct HistoryView: View {
 
     @ToolbarContentBuilder
     private var historyToolbar: some ToolbarContent {
+        ToolbarItem(placement: .secondaryAction) {
+            NavigationLink { AskPeakView() } label: {
+                Label("Ask Peak", systemImage: "text.bubble")
+            }
+            .accessibilityIdentifier("history.askPeak")
+        }
         ToolbarItem(placement: .navigationBarLeading) {
             Button {
                 showFilters = true
@@ -278,21 +321,10 @@ struct HistoryView: View {
         .accessibilityIdentifier("history.list")
     }
 
-    @ViewBuilder
     private func sessionRow(_ session: SurfSession) -> some View {
-        if usesSplitNavigation {
-            Button {
-                openedSession = PeakEntityRef(id: SessionIntentQueries.identifier(for: session))
-            } label: {
-                SessionRowView(session: session)
-            }
-        } else {
-            NavigationLink {
-                SessionDetailView(session: session)
-            } label: {
-                SessionRowView(session: session)
-            }
-        }
+        Button {
+            openedSession = PeakEntityRef(id: SessionIntentQueries.identifier(for: session))
+        } label: { SessionRowView(session: session) }
     }
 
     @ViewBuilder

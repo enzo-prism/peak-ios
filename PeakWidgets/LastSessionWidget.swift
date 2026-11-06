@@ -28,9 +28,9 @@ struct LastSessionWidget: Widget {
 
 /// Optional spot pin. Nil keeps overall-last-session behaviour; a value looks
 /// up that key in `PeakWidgetSnapshot.spotGlances`.
-nonisolated struct LastSessionConfigurationIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Last Session"
-    static var description = IntentDescription(
+struct LastSessionConfigurationIntent: WidgetConfigurationIntent {
+    static let title: LocalizedStringResource = "Last Session"
+    static let description = IntentDescription(
         "Show your most recent surf, or the last surf at a chosen spot."
     )
 
@@ -352,4 +352,45 @@ private struct DisplayedSession {
     var rating: Int?
     var waveCount: Int?
     var sessionID: String?
+}
+
+struct SurfPlanWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "PeakSurfPlanWidget", provider: SurfPlanProvider()) { entry in
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SURF PLAN").font(.caption2.weight(.semibold))
+                if let plan = entry.snapshot.planGlance, plan.isUsable(at: entry.date) {
+                    Text(plan.spotName).font(.headline)
+                    Text(plan.start, style: .time).font(.subheadline)
+                    Text("Forecast · checked \(plan.fetchedAt.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                    Button(intent: StartPlannedSurfIntent()) { Label("Start", systemImage: "play.fill") }
+                } else {
+                    Text("Check conditions in Peak to save a fresh plan.").font(.subheadline)
+                }
+            }
+            .containerBackground(.fill.tertiary, for: .widget)
+            .widgetURL(URL(string: "peak://plan")!)
+        }
+        .configurationDisplayName("Surf Plan")
+        .description("Your saved conditions window, with its check time. Start a timer with the planned setup.")
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
+private struct SurfPlanProvider: TimelineProvider {
+    func placeholder(in context: Context) -> PeakEntry { PeakEntry(date: .now, snapshot: .empty) }
+    func getSnapshot(in context: Context, completion: @escaping (PeakEntry) -> Void) {
+        completion(PeakEntry(date: .now, snapshot: PeakWidgetStore.read()))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<PeakEntry>) -> Void) {
+        let snapshot = PeakWidgetStore.read()
+        let now = Date()
+        var entries = [PeakEntry(date: now, snapshot: snapshot)]
+        if let plan = snapshot.planGlance {
+            let expiry = min(plan.end, plan.fetchedAt.addingTimeInterval(6 * 3600))
+            if expiry > now { entries.append(PeakEntry(date: expiry, snapshot: snapshot)) }
+        }
+        completion(Timeline(entries: entries, policy: .never))
+    }
 }

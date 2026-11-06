@@ -27,6 +27,164 @@ final class PeakUISmokeTests: XCTestCase {
         super.tearDown()
     }
 
+    func testKeptDraftSurvivesColdLaunchAndExplicitDiscard() {
+        app.terminate()
+        app.launchEnvironment["UITESTS_DRAFT_RECOVERY"] = UUID().uuidString
+        app.launch()
+        tapTab(named: "Log")
+        app.buttons["Log Session"].tap()
+        selectSpot(key: "trestles", fallbackText: "Trestles")
+        app.buttons["Cancel"].tap()
+        let keep = app.buttons["Keep Draft for Later"]
+        XCTAssertTrue(keep.waitForExistence(timeout: 5))
+        keep.tap()
+        let resume = app.buttons["draft.resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+
+        // No in-process notification exists after a cold launch. The card's
+        // initial task must load the durable copy on its own.
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(resume.waitForExistence(timeout: 5), "Kept draft must be discoverable immediately after relaunch")
+        scrollToVisible(resume, in: app.scrollViews.firstMatch)
+        resume.tap()
+        let spot = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spot.waitForExistence(timeout: 5))
+        XCTAssertEqual(spot.value as? String, "Trestles")
+        app.buttons["Cancel"].tap() // Unchanged resumed baseline is still a draft.
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        scrollToVisible(resume, in: app.scrollViews.firstMatch)
+        resume.tap()
+        XCTAssertTrue(spot.waitForExistence(timeout: 5))
+        app.buttons["Rate 4 stars"].tap()
+        app.buttons["Cancel"].tap()
+        let discard = app.buttons["Discard Session"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        discard.tap()
+        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertFalse(resume.waitForExistence(timeout: 3), "Explicit discard must remove the durable copy, not just hide its card")
+    }
+
+    func testSavedSurfPlanAppearsAfterColdLaunch() {
+        app.terminate()
+        app.launchEnvironment["UITESTS_WINDOW_SCENARIO"] = "confident"
+        app.launch()
+        tapTab(named: "Log")
+        let scroll = app.scrollViews.firstMatch
+        let check = app.buttons["Check conditions"]
+        scrollToVisible(check, in: scroll)
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        check.tap()
+        let save = app.buttons["window.savePlan"]
+        XCTAssertTrue(save.waitForExistence(timeout: 10))
+        scrollToVisible(save, in: scroll)
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
+        let remove = app.buttons["Remove plan"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "Saving must publish the plan in the current app")
+        app.terminate()
+        app.launchEnvironment["UITESTS_KEEP_PLAN"] = "1"
+        app.launch()
+        XCTAssertTrue(remove.waitForExistence(timeout: 5), "A saved plan must load without an in-process notification after cold launch")
+        scrollToVisible(remove, in: app.scrollViews.firstMatch)
+        remove.tap()
+        app.terminate()
+        app.launch()
+        XCTAssertFalse(remove.waitForExistence(timeout: 3), "Removed plans must not reappear after relaunch")
+    }
+
+    func testVerifiedBackupSavesToFilesAndVerifiesDestination() {
+        // Exercise the system document provider with its normal presentation
+        // animations, including a freshly initialized iPad Files service.
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "UITESTS_DISABLE_ANIMATIONS")
+        app.launch()
+        tapTab(named: "More")
+        app.buttons["more.settings"].tap()
+        let backup = app.buttons["Back Up Everything"]
+        scrollToVisible(backup, in: app.scrollViews.firstMatch)
+        XCTAssertTrue(backup.waitForExistence(timeout: 3))
+        backup.tap()
+        let save = app.buttons["DOCPicker.actionButton"]
+        XCTAssertTrue(save.waitForExistence(timeout: 45), "Verified backup must offer the system Files destination picker, including first-use Files startup")
+        var lastFrame = CGRect.null
+        var unchangedSince = Date()
+        let settled = NSPredicate { _, _ in
+            guard save.exists, save.isEnabled, save.isHittable else {
+                lastFrame = .null
+                unchangedSince = Date()
+                return false
+            }
+            let current = save.frame
+            if current != lastFrame {
+                lastFrame = current
+                unchangedSince = Date()
+                return false
+            }
+            return Date().timeIntervalSince(unchangedSince) >= 0.5
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 15), .completed,
+                       "Files Save must finish its remote-sheet layout before tapping")
+        // Use the settled screen rectangle relative to the app window for
+        // the remote document provider in an offset iPad sheet.
+        let frame = save.frame
+        let appFrame = app.frame
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+            dx: frame.midX - appFrame.minX, dy: frame.midY - appFrame.minY
+        )).tap()
+        XCTAssertTrue(app.alerts["Backup Saved"].waitForExistence(timeout: 15), "The destination bytes must verify before reporting success")
+        app.alerts["Backup Saved"].buttons["OK"].tap()
+        XCTAssertTrue(backup.waitForExistence(timeout: 5))
+    }
+
+    func testAskPeakShowsCalculatedAnswerAndSources() {
+        tapTab(named: "More")
+        app.buttons["more.askPeak"].tap()
+        XCTAssertTrue(app.navigationBars["Ask Peak"].waitForExistence(timeout: 3))
+        app.buttons["Which board did I use most?"].tap()
+        XCTAssertTrue(app.staticTexts["ask.answer"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Source sessions"].exists)
+    }
+
+    func testQuiverComparisonExplainsSparseEvidence() {
+        tapTab(named: "Quiver")
+        app.buttons["quiver.compare"].tap()
+        XCTAssertTrue(app.navigationBars["Compare Boards"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "three")).firstMatch.exists)
+    }
+
+    func testMemoriesOpenSavedSession() {
+        tapTab(named: "More")
+        app.buttons["more.memories"].tap()
+        XCTAssertTrue(app.navigationBars["Surf Memories"].waitForExistence(timeout: 3))
+        let memory = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "memories.session.")).firstMatch
+        XCTAssertTrue(memory.waitForExistence(timeout: 3))
+        memory.tap()
+        XCTAssertTrue(app.buttons["session.detail.share"].waitForExistence(timeout: 3))
+    }
+
+    func testTypedVoiceReviewAppliesOnlyAfterConfirmation() {
+        tapTab(named: "Log")
+        app.buttons["Log Session"].tap()
+        app.buttons["session.editor.voice"].tap()
+        let transcript = app.textViews["voice.transcript"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 3))
+        transcript.tap()
+        transcript.typeText("Trestles, ninety minutes, four stars, voice review marker")
+        let doneEditing = app.buttons["Done Editing"]
+        XCTAssertTrue(doneEditing.waitForExistence(timeout: 3))
+        doneEditing.tap()
+        app.buttons["Use Transcript"].tap()
+        saveSession()
+        tapTab(named: "History")
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "voice review marker")).firstMatch.waitForExistence(timeout: 5))
+    }
+
     func testCreateSessionAppearsInHistory() {
         tapTab(named: "Log")
 
@@ -262,6 +420,30 @@ final class PeakUISmokeTests: XCTestCase {
     /// Logging a new session leaves the rest of the app where it was. Before
     /// 3.5 every save rebuilt the whole view tree, so a session page open on
     /// the History tab was gone when you came back to it.
+    func testEditingSessionKeepsDetailOpenWithFreshValues() {
+        tapTab(named: "History")
+        app.buttons["Filters"].tap()
+        tapRow(label: "Trestles")
+        app.buttons["Done"].tap()
+        let row = latestHistoryRow()
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        app.buttons["Edit"].tap()
+        let scrollView = app.scrollViews["session.editor.scroll"]
+        showOptionalFields(in: scrollView)
+        let notes = app.textViews["session.editor.notes"]
+        scrollToVisible(notes, in: scrollView)
+        notes.tap()
+        notes.typeText(" preserved detail marker")
+        saveSession()
+        XCTAssertTrue(app.navigationBars["Session"].waitForExistence(timeout: 5))
+        let updated = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "preserved detail marker")).firstMatch
+        XCTAssertTrue(updated.waitForExistence(timeout: 5), "Detail must resolve the edited record from the new context")
+        app.navigationBars["Session"].buttons["History"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", "Trestles")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Ocean Beach"].exists, "The pre-edit History filter must survive context replacement")
+    }
+
     func testLoggingANewSessionKeepsOtherTabsWhereTheyWere() {
         tapTab(named: "History")
         let row = latestHistoryRow()
@@ -739,14 +921,16 @@ private extension PeakUISmokeTests {
         let spotField = app.textFields["session.editor.spot"]
         assertExists(spotField, file: file, line: line)
         // New drafts arrive with the last spot filled in; clear it so the typed
-        // search starts from an empty field (the clear button also focuses it).
+        // search starts from an empty field. Re-focus the updated field after
+        // clearing: its SwiftUI replacement can resign focus during that update.
         let clear = app.buttons["session.editor.spot.clear"]
         if clear.exists, clear.isHittable {
             clear.tap()
-        } else {
-            tapElement(spotField)
         }
-        spotField.typeText(fallbackText)
+        tapElement(spotField)
+        // Submit the single-line field to dismiss its keyboard. A tap
+        // outside an unchanged iPad sheet would dismiss the entire editor.
+        spotField.typeText(fallbackText + "\n")
         selectSpotSuggestion(key: key, file: file, line: line)
     }
 
@@ -1382,7 +1566,7 @@ final class PeakMarketingCaptureTests: XCTestCase {
         try capture("01-log")
 
         tapTab("History")
-        _ = app.staticTexts["Trestles"].firstMatch.waitForExistence(timeout: 8)
+        _ = app.staticTexts.matching(NSPredicate(format: "label == %@", "Trestles")).firstMatch.waitForExistence(timeout: 8)
         settle()
         try capture("02-history")
 

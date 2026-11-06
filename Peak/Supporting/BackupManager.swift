@@ -3,23 +3,18 @@ import SwiftData
 
 /// Full-data backup + restore for Peak.
 ///
-/// A `.peakbackup` file is a single self-contained JSON document:
-/// `{ "export": <PeakExport>, "manifest": { backup_version, exported_at, media:[…] } }`.
-/// Every piece of session media (photos, thumbnails, videos) is inlined as
-/// base64 so one file round-trips the entire library — no sidecars, no zip or
-/// AppleArchive framework. Media base64 is encoded per-entry inside an
-/// `autoreleasepool` so transient memory (raw bytes + encoder temporaries)
-/// stays bounded even for large videos.
+/// New backups use checked binary frames with streamed videos. Legacy JSON /
+/// base64 backups remain readable; neither format is encrypted by Peak.
 enum BackupManager {
-    static let backupVersion = "1"
-    static let fileExtension = "peakbackup"
-    static let filePrefix = "Peak-Backup"
+    nonisolated static let backupVersion = "1"
+    nonisolated static let fileExtension = "peakbackup"
+    nonisolated static let filePrefix = "Peak-Backup"
 
     // MARK: - Off-main snapshot
 
     /// A Sendable snapshot of one media row, gathered on the MainActor so the
     /// base64 encoding can run off the main actor without touching the model.
-    struct RawMediaSnapshot: Sendable {
+    nonisolated struct RawMediaSnapshot: Sendable {
         let sessionId: String
         let kind: String
         let sortIndex: Int
@@ -37,16 +32,15 @@ enum BackupManager {
     // MARK: - Backup
 
     /// Builds a `.peakbackup` file capturing every session/spot/gear/buddy plus
-    /// all inlined media, writes it to the temporary directory, and returns the URL.
-    ///
-    /// The export + media snapshot are read on the MainActor (model access);
-    /// base64 encoding and JSON serialization are hopped off-main.
+    /// all media, writes it to the temporary directory, and verifies the bytes.
+    /// Models are read on the main actor; file I/O and hashing run off-main.
     static func makeBackupFile(
         sessions: [SurfSession],
         spots: [Spot],
         gear: [Gear],
         buddies: [Buddy],
-        now: Date = Date()
+        now: Date = Date(),
+        progress: (@MainActor (Int, Int) -> Void)? = nil
     ) async throws -> URL {
         let signpost = PeakSignposts.begin("Backup file")
         defer { PeakSignposts.end(signpost) }
@@ -58,36 +52,38 @@ enum BackupManager {
             now: now
         )
 
-        var snapshots: [RawMediaSnapshot] = []
-        for session in sessions {
-            let sessionId = SessionIntentQueries.identifier(for: session)
-            let ordered = session.media.sorted { $0.sortIndex < $1.sortIndex }
-            for media in ordered {
-                let videoURL = media.videoFileName.map { SessionMediaStore.videoURL(for: $0) }
-                snapshots.append(
-                    RawMediaSnapshot(
-                        sessionId: sessionId,
-                        kind: media.kind.rawValue,
-                        sortIndex: media.sortIndex,
-                        cropOriginX: media.cropOriginX,
-                        cropOriginY: media.cropOriginY,
-                        cropWidth: media.cropWidth,
-                        cropHeight: media.cropHeight,
-                        createdAt: media.createdAt,
-                        photoData: media.photoData,
-                        thumbnailData: media.thumbnailData,
-                        videoURL: videoURL
-                    )
-                )
-            }
-        }
-
-        let exportedAt = ExportDateFormatter.string(from: now)
-        let data = try await encodeBackup(export: export, snapshots: snapshots, exportedAt: exportedAt)
-
         let url = backupURL(now: now)
-        try data.write(to: url, options: [.atomic])
-        return url
+        let total = sessions.reduce(0) { $0 + $1.media.count }
+        var completed = 0
+        let writer = try FramedBackupWriter(url: url, export: export, mediaCount: total)
+        progress?(0, total)
+        do {
+            // Only one media value crosses to the writer at a time. Videos are
+            // streamed from disk instead of retained/base64-expanded in memory.
+            for session in sessions {
+                let sessionId = SessionIntentQueries.identifier(for: session)
+                for media in session.media.sorted(by: { $0.sortIndex < $1.sortIndex }) {
+                    let snapshot = RawMediaSnapshot(
+                        sessionId: sessionId, kind: media.kind.rawValue, sortIndex: media.sortIndex,
+                        cropOriginX: media.cropOriginX, cropOriginY: media.cropOriginY,
+                        cropWidth: media.cropWidth, cropHeight: media.cropHeight, createdAt: media.createdAt,
+                        photoData: media.photoData, thumbnailData: media.thumbnailData,
+                        videoURL: media.videoFileName.map { SessionMediaStore.videoURL(for: $0) })
+                    try await writer.append(snapshot)
+                    completed += 1
+                    progress?(completed, total)
+                }
+            }
+            try await writer.finish()
+            // Verify the actual bytes before offering an export, not just the
+            // values we intended to write. Inspection never mutates SwiftData.
+            _ = try await FramedBackupReader.read(url: url, stageMedia: false)
+            try Task.checkCancellation()
+            return url
+        } catch {
+            await writer.cancel()
+            throw error
+        }
     }
 
     /// Off-main assembly: reads video bytes, base64-encodes each entry inside an
@@ -135,7 +131,7 @@ enum BackupManager {
 
     /// A manifest entry with its base64 payloads decoded and its video already
     /// written into the media store, ready for main-actor model insertion.
-    struct PreparedMediaEntry: Sendable {
+    nonisolated struct PreparedMediaEntry: Sendable {
         let sessionId: String
         let kind: SessionMediaKind
         let sortIndex: Int
@@ -187,8 +183,13 @@ enum BackupManager {
     /// `encodeBackup` is `@concurrent` on the way out.
     @concurrent
     nonisolated static func prepareRestore(from url: URL) async throws -> (PeakBackupFile, [PreparedMediaEntry]) {
+        if try FramedBackupReader.isFramed(url) {
+            let read = try await FramedBackupReader.read(url: url, stageMedia: true)
+            return (read.file, read.prepared)
+        }
         let data = try Data(contentsOf: url)
         let file = try decodeBackupFile(data)
+        try validateLegacyMedia(file)
 
         var prepared: [PreparedMediaEntry] = []
         prepared.reserveCapacity(file.manifest.media.count)
@@ -197,15 +198,14 @@ enum BackupManager {
         do {
             for entry in file.manifest.media {
                 let item: PreparedMediaEntry? = try autoreleasepool {
-                    let kind = SessionMediaKind(rawValue: entry.kind) ?? .photo
+                    guard let kind = SessionMediaKind(rawValue: entry.kind),
+                          let createdAt = mediaDate(from: entry.createdAt) else { throw BackupIntegrityError.invalid }
                     var videoFileName: String?
                     if kind == .video {
-                        // A corrupt or absent video payload is dropped outright:
-                        // inserting a `SessionMedia(videoFileName: nil)` row
-                        // would be a permanently broken tile that even
-                        // `deleteStoredMedia` skips.
+                        // A corrupt or absent video fails the entire restore
+                        // before the library transaction begins.
                         guard let base64 = entry.videoBase64,
-                              let videoData = Data(base64Encoded: base64) else { return nil }
+                              let videoData = Data(base64Encoded: base64) else { throw BackupIntegrityError.missingMedia }
                         let name = try writeRestoredVideo(videoData)
                         videoFileName = name
                         writtenVideoFileNames.append(name)
@@ -218,7 +218,7 @@ enum BackupManager {
                         cropOriginY: entry.cropOriginY,
                         cropWidth: entry.cropWidth,
                         cropHeight: entry.cropHeight,
-                        createdAt: ExportDateFormatter.date(from: entry.createdAt) ?? Date(),
+                        createdAt: createdAt,
                         photoData: entry.photoBase64.flatMap { Data(base64Encoded: $0) },
                         thumbnailData: entry.thumbnailBase64.flatMap { Data(base64Encoded: $0) },
                         videoFileName: videoFileName
@@ -311,6 +311,53 @@ enum BackupManager {
         return stored.fileName
     }
 
+    nonisolated struct Inspection: Sendable {
+        let sessions: Int
+        let spots: Int
+        let gear: Int
+        let buddies: Int
+        let photos: Int
+        let videos: Int
+        let checksummed: Bool
+        var summary: String {
+            "Contains \(sessions) sessions, \(spots) spots, \(gear) gear items, \(buddies) buddies, \(photos) photos and \(videos) videos. "
+                + (checksummed ? "All file checksums verified. " : "Legacy format: media payloads checked; no file checksums. ")
+                + "Merge preserves other sessions and replaces media for matching sessions. Replace removes your current library after the import is ready."
+        }
+    }
+
+    @concurrent nonisolated static func inspect(_ url: URL) async throws -> Inspection {
+        let framed = try FramedBackupReader.isFramed(url)
+        let file: PeakBackupFile
+        if framed { file = try await FramedBackupReader.read(url: url, stageMedia: false).file }
+        else {
+            file = try decodeBackupFile(Data(contentsOf: url))
+            try validateLegacyMedia(file)
+        }
+        return Inspection(sessions: file.export.sessions.count, spots: file.export.spots.count,
+            gear: file.export.gear.count, buddies: file.export.buddies.count, photos: file.manifest.media.filter { $0.kind == "photo" }.count,
+            videos: file.manifest.media.filter { $0.kind == "video" }.count, checksummed: framed)
+    }
+
+    nonisolated private static func validateLegacyMedia(_ file: PeakBackupFile) throws {
+        guard file.manifest.backupVersion == "1" else { throw BackupIntegrityError.invalid }
+        let sessionIDs = Set(file.export.sessions.map(\.id))
+        var entryIDs = Set<String>()
+        for entry in file.manifest.media {
+            guard let kind = SessionMediaKind(rawValue: entry.kind),
+                  entryIDs.insert(entry.id).inserted, sessionIDs.contains(entry.sessionId),
+                  entry.sortIndex >= 0, mediaDate(from: entry.createdAt) != nil else { throw BackupIntegrityError.invalid }
+            let payload = kind == .photo ? entry.photoBase64 : entry.videoBase64
+            guard let payload, let data = Data(base64Encoded: payload), !data.isEmpty else { throw BackupIntegrityError.missingMedia }
+            if let thumb = entry.thumbnailBase64, Data(base64Encoded: thumb) == nil { throw BackupIntegrityError.invalid }
+        }
+    }
+
+    nonisolated static func mediaDate(from string: String) -> Date? {
+        // Keep fractional timestamps; older archives may contain whole seconds.
+        ExportDateFormatter.date(from: string) ?? ISO8601DateFormatter().date(from: string)
+    }
+
     // MARK: - Pure encode/decode (testable)
 
     nonisolated static func encodeBackupFile(_ file: PeakBackupFile) throws -> Data {
@@ -327,7 +374,7 @@ enum BackupManager {
 
     nonisolated static func backupURL(now: Date = Date()) -> URL {
         let stamp = ExportDateFormatter.fileSafeString(from: now)
-        let filename = "\(filePrefix)-\(stamp).\(fileExtension)"
+        let filename = "\(filePrefix)-\(stamp)-\(UUID().uuidString).\(fileExtension)"
         return FileManager.default.temporaryDirectory.appendingPathComponent(filename)
     }
 }
