@@ -105,7 +105,27 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         for title in ["History", "Stats", "Quiver"] {
             tapTab(title, in: app)
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
-            try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
+            if title == "Stats" {
+                // At AX5 a metric can straddle the floating tab bar. Audit
+                // every metric fully in view, with strict clipping and font
+                // audits after each scroll.
+                for prefix in ["Surf days in ", "Sessions in ", "Current streak, ", "Longest streak, "] {
+                    // SwiftUI propagates StatCardView's identifier to its
+                    // child Texts. Select the unique spoken card instead.
+                    let card = app.descendants(matching: .any)
+                        .matching(NSPredicate(format: "label BEGINSWITH %@", prefix)).firstMatch
+                    XCTAssertTrue(card.waitForExistence(timeout: 3))
+                    let scroll = app.scrollViews["stats.scroll"]
+                    scrollToVisible(card, in: scroll, app: app, fullyVisible: true)
+                    XCTAssertTrue(isVisible(card, in: scroll, app: app, fullyVisible: true), "Metric must fit fully in the usable viewport: \(prefix)")
+                    try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
+                }
+                // Scrolling metrics minimizes the iPhone tab strip. A reverse
+                // scroll restores the labeled destinations before navigation.
+                app.scrollViews["stats.scroll"].swipeDown()
+            } else {
+                try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
+            }
         }
     }
 
@@ -125,10 +145,10 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         button.tap()
     }
 
-    private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15) {
+    private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !isCentreVisible(element, in: scrollView, app: app) && attempts < maxSwipes {
+        while !isVisible(element, in: scrollView, app: app, fullyVisible: fullyVisible) && attempts < maxSwipes {
             if element.exists, element.frame.height > 0 {
                 let visible = visibleContentFrame(in: scrollView, app: app)
                 // Full swipes can alternate above/below a short iPad sheet
@@ -151,11 +171,12 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         }
     }
 
-    private func isCentreVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication) -> Bool {
+    private func isVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, fullyVisible: Bool = false) -> Bool {
         guard element.exists, element.isHittable else { return false }
         let frame = element.frame
         guard frame.height > 0 else { return false }
-        return visibleContentFrame(in: scrollView, app: app).contains(CGPoint(x: frame.midX, y: frame.midY))
+        let visible = visibleContentFrame(in: scrollView, app: app)
+        return fullyVisible ? visible.contains(frame) : visible.contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func visibleContentFrame(in scrollView: XCUIElement, app: XCUIApplication) -> CGRect {
@@ -170,6 +191,12 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                 let bottom = visible.maxY
                 visible.origin.y = frame.maxY
                 visible.size.height = bottom - frame.maxY
+            }
+        }
+        for bar in app.tabBars.allElementsBoundByIndex where bar.exists {
+            let frame = bar.frame
+            if frame.intersects(visible), frame.minY > visible.minY {
+                visible.size.height = frame.minY - visible.minY
             }
         }
         let save = app.buttons["Save"]

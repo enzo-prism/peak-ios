@@ -22,6 +22,7 @@ Status at a glance (App Store Connect read back November 11, 2026):
 - Exact recent-date/time queries with missing-duration coverage; visible Ask Peak entry and reviewable History-filter handoff.
 - Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage. Recovery follows SwiftData’s actual configured store, includes separately stored videos, retains external media originals and keeps legacy recovery copies discoverable.
 - Empty-library, large-text, sparse-data, permission-failure and validation-leakage regressions. SDK-specific cross-process intent checks are isolated from the normal runner.
+- Stats metrics grow vertically with text and expose one spoken summary per card. Large-text acceptance scrolls each metric fully into view and restores minimized tabs before navigation.
 
 ### Release boundaries
 

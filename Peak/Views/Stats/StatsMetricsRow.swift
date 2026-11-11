@@ -21,10 +21,9 @@ struct StatsMetricsRow: View {
                     StatCardView(
                         title: tile.title,
                         value: tile.value,
-                        subtitle: tile.subtitle
+                        subtitle: tile.subtitle,
+                        accessibilitySummary: tile.accessibilityLabel
                     )
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(tile.accessibilityLabel)
                 }
             }
         }
