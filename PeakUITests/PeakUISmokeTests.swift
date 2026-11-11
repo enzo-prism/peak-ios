@@ -42,9 +42,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         XCTAssertTrue(app.buttons["Save"].isEnabled)
         app.buttons["Save"].tap()
         XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
-        let history = app.tabBars.buttons["History"]
-        XCTAssertTrue(history.waitForExistence(timeout: 8))
-        history.tap()
+        tapTab("History", in: app)
         XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["First reef"].firstMatch.waitForExistence(timeout: 8))
         XCTAssertFalse(app.alerts.firstMatch.exists)
@@ -52,7 +50,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
 
     func testComparisonStartsAtRecentSpotAndShowsPerBoardProgress() {
         let app = launch()
-        app.tabBars.buttons["Quiver"].tap()
+        tapTab("Quiver", in: app)
         app.buttons["quiver.compare"].tap()
         XCTAssertTrue(app.staticTexts["San Onofre State Beach - Old Man's"].firstMatch.waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "qualifying surfs")).firstMatch.exists)
@@ -79,10 +77,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testHealthEntryExplainsPreferenceWithoutClaimingConnection() {
         let app = launch()
         let entry = app.buttons["log.healthImport"]
-        for _ in 0..<10 {
-            if entry.exists && entry.isHittable { break }
-            app.swipeUp()
-        }
+        scrollToVisible(entry, in: app.scrollViews.firstMatch, app: app)
         XCTAssertTrue(entry.exists)
         entry.tap()
         XCTAssertTrue(app.switches["health.integration.toggle"].waitForExistence(timeout: 8))
@@ -108,10 +103,26 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testCoreScreensAtAccessibilityTextSizeKeepContentReadable() throws {
         let app = launch(largeText: true)
         for title in ["History", "Stats", "Quiver"] {
-            app.tabBars.buttons[title].tap()
+            tapTab(title, in: app)
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
             try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
         }
+    }
+
+    private func tapTab(_ name: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        // iPadOS can expose its top tab strip as ordinary buttons even in the
+        // compact navigation test lane. Match the shipped tab before tapping.
+        let tab = app.tabBars.buttons[name]
+        if tab.waitForExistence(timeout: 3) {
+            tab.tap()
+            return
+        }
+        let button = app.buttons[name].firstMatch
+        guard button.waitForExistence(timeout: 5) else {
+            XCTFail("Missing tab: \(name)", file: file, line: line)
+            return
+        }
+        button.tap()
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15) {
@@ -148,7 +159,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     private func visibleContentFrame(in scrollView: XCUIElement, app: XCUIApplication) -> CGRect {
-        var visible = scrollView.frame
+        var visible = scrollView.frame.intersection(app.frame)
         // A sheet's ScrollView extends behind its navigation bar on iPad.
         // AX can call a partly covered button hittable even when its centre is
         // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll
@@ -172,7 +183,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testUnsupportedQuestionHandsKnownDateToHistoryFilters() {
         for entry in ["History", "More"] {
             let app = launch()
-            app.tabBars.buttons[entry].tap()
+            tapTab(entry, in: app)
             app.buttons[entry == "History" ? "history.askPeak" : "more.askPeak"].tap()
             let question = app.textFields["ask.question"]
             XCTAssertTrue(question.waitForExistence(timeout: 8))
