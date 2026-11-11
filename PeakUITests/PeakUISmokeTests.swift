@@ -109,13 +109,27 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         if isPad {
             // Exercise the shipping, scalable sidebar rather than the compact
             // compatibility lane's UIKit top-tab labels.
-            let showSidebar = app.buttons.matching(NSPredicate(format:
-                "(label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar') AND NOT label CONTAINS[c] 'hide'"
-            )).firstMatch
-            if showSidebar.waitForExistence(timeout: 3), showSidebar.isHittable { showSidebar.tap() }
-            XCTAssertTrue(app.buttons.matching(NSPredicate(format:
-                "label CONTAINS[c] 'hide' AND label CONTAINS[c] 'sidebar'"
-            )).firstMatch.waitForExistence(timeout: 5))
+            func sidebarIsVisible() -> Bool {
+                // Inspect the destination column, not the toggle's localized
+                // title: a visible sidebar can still say "Toggle Sidebar".
+                ["Log", "History", "Stats", "Quiver"].allSatisfy { title in
+                    let predicate = NSPredicate(format: "label == %@", title)
+                    return [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)]
+                        .contains { query in query.allElementsBoundByIndex.contains {
+                            $0.exists && $0.isHittable && $0.frame.maxX < app.frame.midX
+                        } }
+                }
+            }
+            let visible = NSPredicate { _, _ in sidebarIsVisible() }
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 3) != .completed {
+                let showSidebar = app.buttons.matching(NSPredicate(format:
+                    "(label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar') AND NOT label CONTAINS[c] 'hide'"
+                )).firstMatch
+                XCTAssertTrue(showSidebar.waitForExistence(timeout: 3) && showSidebar.isHittable)
+                if showSidebar.exists && showSidebar.isHittable { showSidebar.tap() }
+            }
+            XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 5), .completed,
+                           "The shipping sidebar must show its destination column")
         }
         for title in ["History", "Stats", "Quiver"] {
             tapTab(title, in: app)
@@ -148,15 +162,26 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         // iPadOS can expose its top tab strip as ordinary buttons even in the
         // compact navigation test lane. Match the shipped tab before tapping.
         let predicate = NSPredicate(format: "label == %@", name)
-        let tab = app.tabBars.buttons.matching(predicate).firstMatch
-        if tab.waitForExistence(timeout: 3), tab.isHittable {
-            tab.tap()
-            return
+        var destination: XCUIElement?
+        let reachable = NSPredicate { _, _ in
+            for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
+                if let element = query.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable }) {
+                    destination = element
+                    return true
+                }
+            }
+            return false
         }
-        for query in [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
-            if let button = query.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable }) {
-                button.tap()
+        for attempt in 0..<2 {
+            if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: reachable, object: nil)], timeout: 5) == .completed,
+               let destination {
+                destination.tap()
                 return
+            }
+            if attempt == 0, UIDevice.current.userInterfaceIdiom == .phone {
+                // The native minimized tab strip can finish collapsing after
+                // the preceding audit. Restore it and wait for hittability.
+                app.scrollViews.firstMatch.swipeDown()
             }
         }
         XCTFail("Missing navigation destination: \(name)", file: file, line: line)
