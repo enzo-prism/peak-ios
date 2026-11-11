@@ -5,11 +5,29 @@ All notable changes to Peak (iOS) are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Status at a glance (App Store Connect read back November 6, 2026):
+Status at a glance (App Store Connect read back November 11, 2026):
 
 - **App Store (live):** `3.5`, `READY_FOR_DISTRIBUTION`.
-- **Candidate:** `3.6` build **2**; TestFlight delivery is recorded in the release receipt when verified.
+- **Current review:** `3.6 (2)` waiting for review; replacement candidate `3.7 (1)` is in acceptance.
 - **Watch:** standalone source on `feature/peak-3.6-watch-validation`, outside main and unembedded; physical ocean release gate explicitly pending.
+
+## [3.7] — Candidate, November 11, 2026
+
+### Improved
+
+- Compact returning-user logging and a single optional welcome; explicit elapsed-time timer labels, contextual Health entry, and full-height editing. A new spot name can be saved atomically with the first surf.
+- Honest Health preference/request/write-access states, surfaced authorization failures and clearer empty imports. Read authorization is never inferred.
+- Recent/useful default spots in Compare Boards, per-board progress, mixed-condition labeling and source-session actions before enough evidence exists.
+- Best Window history coverage, exclusion of unrated sessions and a chronological evaluation tool with no future/same-time leakage.
+- Exact recent-date/time queries with missing-duration coverage; visible Ask Peak entry and reviewable History-filter handoff.
+- Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage.
+- Empty-library, large-text, sparse-data, permission-failure and validation-leakage regressions. SDK-specific cross-process intent checks are isolated from the normal runner.
+
+### Release boundaries
+
+- iOS 17 minimum and local-only V12 schema unchanged. Existing backups and identities remain readable. No backend, analytics SDK or cloud inference.
+- Watch remains separate and unembedded pending physical ocean acceptance. Device/pilot/forecast outcomes are distinct from simulator tests. See [3.7 acceptance](docs/PEAK_3_7.md).
+
 
 ## [3.6] — Candidate, November 6, 2026
 

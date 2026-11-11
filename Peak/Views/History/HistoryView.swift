@@ -119,6 +119,7 @@ struct HistoryView: View {
             refreshResults()
             if let openedSession, sessionMatching(openedSession) == nil { self.openedSession = nil }
             consumePendingNavigation()
+            applyRequestedFilters()
         }
         .onChange(of: sessionsStamp) { _, _ in
             refreshResults()
@@ -134,6 +135,9 @@ struct HistoryView: View {
         }
         .onChange(of: debouncedSearchText) { _, _ in
             refreshResults()
+        }
+        .onChange(of: navigation.historyFilterRequest) { _, _ in
+            applyRequestedFilters()
         }
         .onChange(of: navigation.pendingSessionID) { _, _ in
             consumePendingSessionIfNeeded()
@@ -241,7 +245,7 @@ struct HistoryView: View {
 
     @ToolbarContentBuilder
     private var historyToolbar: some ToolbarContent {
-        ToolbarItem(placement: .secondaryAction) {
+        ToolbarItem(placement: .navigationBarTrailing) {
             NavigationLink { AskPeakView() } label: {
                 Label("Ask Peak", systemImage: "text.bubble")
             }
@@ -523,6 +527,17 @@ struct HistoryView: View {
             let values = grouped[key, default: []].sorted { $0.date > $1.date }
             return (key: key, value: values)
         }
+    }
+
+    private func applyRequestedFilters() {
+        guard !isDedicatedSearchTab, navigation.historyFilterRequest != nil else { return }
+        do {
+            filters = try navigation.historyFilters.restore(in: modelContext)
+            searchText = ""
+            debouncedSearchText = ""
+            navigation.historyFilterRequest = nil
+            refreshResults()
+        } catch { showFilterRestoreError = true }
     }
 
     private func sessionRowIdentifier(for session: SurfSession) -> String {

@@ -58,7 +58,9 @@ struct PeakApp: App {
             // outlive the in-memory store.
             ActiveSessionStore.reset()
             if ProcessInfo.processInfo.environment["UITESTS_KEEP_PLAN"] != "1" { SurfPlanStore.clear() }
-            PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
+            if ProcessInfo.processInfo.environment["UITESTS_EMPTY_LIBRARY"] != "1" {
+                PreviewData.seed(context: container.mainContext, baseDate: TestingDefaults.fixedSeedDate ?? Date())
+            }
             if let size = ProcessInfo.processInfo.environment["UITESTS_LARGE_LIBRARY"].flatMap(Int.init), size > 0 {
                 // Profiling aid: see PreviewData.largeLibrary.
                 PreviewData.seedLargeLibrary(context: container.mainContext, count: size)

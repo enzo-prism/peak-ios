@@ -9,6 +9,14 @@ init_common
 
 UI_TEST_TARGET="${UI_TEST_TARGET:-PeakUITests}"
 
+# Optional SDK/runtime integration lane. Keep the framework out of the normal
+# test bundle: mismatched Apple runtimes can otherwise fail before XCTest loads.
+# This override affects this test build only; shipping targets retain iOS 17.
+EXTRA_BUILD_ARGS=(CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO)
+if [[ "${PEAK_SYSTEM_INTENT_TESTS:-0}" == "1" ]]; then
+  EXTRA_BUILD_ARGS+=('OTHER_SWIFT_FLAGS=$(inherited) -DPEAK_SYSTEM_INTENT_TESTS' 'IPHONEOS_DEPLOYMENT_TARGET=27.0')
+fi
+
 export DESTINATION_NAME
 export DESTINATION_UDID
 "${SCRIPT_DIR}/boot-sim.sh"
@@ -27,8 +35,7 @@ xcodebuild test \
   -derivedDataPath "${DERIVED_DATA}" \
   -resultBundlePath "${RESULT_BUNDLE}" \
   -only-testing:"${UI_TEST_TARGET}" \
-  CODE_SIGNING_ALLOWED=NO \
-  CODE_SIGNING_REQUIRED=NO
+  "${EXTRA_BUILD_ARGS[@]}"
 status=$?
 set -e
 

@@ -68,7 +68,7 @@ struct HealthImportView: View {
                 if workouts.isEmpty {
                     EmptyStateView(
                         title: "Nothing to import",
-                        message: "Apple Watch surf workouts you haven't logged will appear here.",
+                        message: "No readable, unlogged surfing workouts were found. Health may have no matching workouts or access may be limited. Review Peak’s access in Health; manual logging always works.",
                         systemImage: "applewatch"
                     )
                 } else {

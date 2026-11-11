@@ -5,14 +5,14 @@ import SwiftUI
 /// streaks. Optional tiles (time, average length) drop out cleanly when there
 /// is no logged duration, so the grid stays tidy on a thin logbook.
 struct StatsMetricsRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let yearSummary: SurfYearSummary
     let timeSummary: SurfTimeSummary
     let longestStreak: Int
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2)
+    }
 
     var body: some View {
         GlassContainer(spacing: 12) {

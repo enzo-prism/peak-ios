@@ -1896,8 +1896,9 @@ final class TodayWindowServiceTests: XCTestCase {
         addSessions(9, at: elsewhere, from: base, in: context)
 
         let sessions = try context.fetch(FetchDescriptor<SurfSession>())
-        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: here).count, 6)
-        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: elsewhere).count, 9)
+        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: here).count, 4)
+        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: sessions, at: elsewhere).count, 7)
+        XCTAssertTrue(TodayWindowService.ratedHistory(sessions: sessions, at: here).allSatisfy { $0.rating > 0 }, "Zero represents an unentered rating")
     }
 
     func testRatedHistoryCarriesTideAndSessionIdentity() throws {

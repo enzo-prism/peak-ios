@@ -9,6 +9,10 @@ struct HistoryFilters: Equatable {
     /// Relative date windows for narrowing the session list.
     enum DateRange: String, CaseIterable, Identifiable, Equatable {
         case allTime
+        case today
+        case yesterday
+        case lastWeek
+        case lastMonth
         case thisMonth
         case lastThreeMonths
         case thisYear
@@ -19,6 +23,10 @@ struct HistoryFilters: Equatable {
             switch self {
             case .allTime:
                 return "All time"
+            case .today: return "Today"
+            case .yesterday: return "Yesterday"
+            case .lastWeek: return "Last week"
+            case .lastMonth: return "Last month"
             case .thisMonth:
                 return "This month"
             case .lastThreeMonths:
@@ -33,6 +41,18 @@ struct HistoryFilters: Equatable {
             switch self {
             case .allTime:
                 return true
+            case .today: return calendar.isDate(date, inSameDayAs: now)
+            case .yesterday:
+                guard let previous = calendar.date(byAdding: .day, value: -1, to: now) else { return false }
+                return calendar.isDate(date, inSameDayAs: previous)
+            case .lastWeek:
+                guard let previous = calendar.date(byAdding: .weekOfYear, value: -1, to: now),
+                      let interval = calendar.dateInterval(of: .weekOfYear, for: previous) else { return false }
+                return date >= interval.start && date < interval.end
+            case .lastMonth:
+                guard let previous = calendar.date(byAdding: .month, value: -1, to: now),
+                      let interval = calendar.dateInterval(of: .month, for: previous) else { return false }
+                return date >= interval.start && date < interval.end
             case .thisMonth:
                 return calendar.isDate(date, equalTo: now, toGranularity: .month)
             case .lastThreeMonths:

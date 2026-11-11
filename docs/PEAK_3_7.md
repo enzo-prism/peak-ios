@@ -1,0 +1,39 @@
+# Peak 3.7 implementation and acceptance
+
+Owner request, November 11, 2026: implement the reassessment, test and iterate, push main, deliver TestFlight and submit the latest candidate to App Review. This supersedes the earlier TestFlight-only boundary. Public release after review remains manual. The physical Watch/ocean acceptance gate remains a real prerequisite; no ocean or participant results may be invented.
+
+## Changes
+
+1. Returning-user Log prioritizes a compact finished-surf action and recent sessions. Draft recovery precedes it. Start/End copy explicitly describes an elapsed-time timer; foregrounding refreshes system-initiated timer state. The editor uses a large sheet, secondary speech control, and fewer repeated setup controls. A name-only new spot is created atomically with its session on Save, preserving spot limits and duplicate detection; cancelling or failing the stage cannot save an orphan spot.
+2. One optional welcome screen leads to a first log without Health or gear prerequisites. Permission requests move to the optional action.
+3. A shared Health control distinguishes Peak's preference, request failure and observable workout-write denial. It never claims knowledge of read authorization. Import empty states explain missing/limited data. Manual logging remains available.
+4. Compare Boards selects a spot with an actionable comparison, falling back to the latest surfed spot; per-board progress links to recent evidence. Mixed filters are labeled. Source ratings remain observational; existing uncertainty and sample gates stay.
+5. Best Window explains history coverage and excludes rating zero (unrated). Plans keep existing provenance/expiry rules. `WindowValidation` evaluates chronological holdouts with strictly older training records, abstention and a baseline measured on the same accepted rows. It evaluates historical similarity, not archived forecast accuracy or prospective/ocean usefulness.
+6. The separate Watch validation branch remains outside main and the iPhone archive. Its existing recovery/handoff implementation is preserved; five reference ocean sessions, physical battery/GPS and transfer acceptance remain pending. This release cannot establish them in a Simulator.
+7. Exact logbook queries support today/yesterday/last week/last month, plus recorded-time totals with missing-duration coverage. Unsupported requests offer reviewable, prefilled History filters. Related-memory retrieval stays optional and never supplies totals. Existing iOS 17/manual paths remain.
+8. Logbook protection becomes discoverable after a meaningful library exists, with last verified Files-save time and current sessions changed since it. Existing streaming/checksummed backups, restore preview and verified Files destination behavior remain the data path.
+9. Added empty-library, large-text, chronological leakage, permission-failure and sparse-cohort regressions. Existing media-rich restore/migration and 10,000-session tests remain in the required gates. Runtime/device evidence is recorded separately below.
+10. Prepare the store around fast logging, quiver evidence and private history, with fresh screenshots. Accessibility claims require actual criterion coverage; no unsupported declaration may be published. A product-page experiment can be prepared, but sufficient public traffic and elapsed time are required to establish a winner.
+
+## Apple guidance applied
+
+- Teach with the first action; optional setup is contextual (HIG Onboarding).
+- Keep navigation/search scope explicit; surface usable filters and deterministic totals (WWDC26 Search).
+- HealthKit read status is deliberately opaque. A completed permissions sheet does not establish a grant (HealthKit authorization).
+- Preserve Dynamic Type, adequate targets and scrolling rather than shrinking text. Audit each changed screen and validate on both phone and tablet (Accessibility audits/HIG).
+- Measure comparable runs with existing signposts; keep correctness safeguards for SwiftData's held models (WWDC26 Instruments).
+
+The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking and privacy promise are unchanged. No accounts, backend, telemetry, cloud inference or new third-party runtime dependency is introduced. AdditionalDocumentation remains out of the app bundle.
+
+## Validation record
+
+- First unit candidate compiled and ran 653 cases; two old zero-rating inclusion expectations failed. Corrected the service test to assert the intended exclusion.
+- Second unit candidate: 653 passed, zero failures. `.build/TestResults.xcresult` passed the repository result validator, including its runtime-warning gate. Source was a working candidate; this is not yet a clean-source release receipt.
+- After the first-use fix, 654 unit cases passed, zero failures; the validator also passed its runtime-warning gate. The new `testNameOnlySpotSharesSessionTransactionAndPreservesDuplicatesAndLimit` ran and passed. It covers no orphan spot before commit/after rollback, normalized duplicates, atomic spot/session save and the spot cap.
+- Focused UI initially passed the logging and core-screen large-text audits, comparison progress, Health messaging and filter handoff. The first-use recording exposed that a typed new spot still required the separate spot form; Save now stages it atomically with the session. The updated flow and backup discovery need their final rerun.
+- Optional AppIntentsTesting could not run: 27.2 failed to load the SDK-mismatched framework, and matching 27.0 rejected internal-test execution on a customer runtime (`AppIntentsServicesSecurityErrorDomain` 803). The opt-in lane remains isolated; this is not passing system-integration evidence.
+- Final two-device design gate, source review, final signed archive and delivery readbacks: pending. Update this record with observed counts, source and artifacts before release.
+
+## Remaining physical/longitudinal evidence
+
+Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

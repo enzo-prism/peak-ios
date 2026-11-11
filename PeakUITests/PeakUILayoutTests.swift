@@ -25,11 +25,11 @@ final class PeakUILayoutTests: XCTestCase {
     func testLogLayoutFits() {
         tapTab(named: "Log")
 
-        let heroTitle = app.staticTexts["Peak"]
+        let heroTitle = app.navigationBars["Log"]
         assertExists(heroTitle)
         assertFits(heroTitle)
 
-        let heroCTA = app.buttons["Log Session"]
+        let heroCTA = app.buttons["Log a finished surf"]
         assertExists(heroCTA)
         assertFits(heroCTA)
 
@@ -311,7 +311,7 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(heroTitle)
         assertFits(heroTitle)
 
-        let heroCTA = app.buttons["Log Session"]
+        let heroCTA = app.buttons["Log a finished surf"]
         assertExists(heroCTA)
         assertFits(heroCTA)
 

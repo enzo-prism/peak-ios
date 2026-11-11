@@ -1,4 +1,5 @@
 import Foundation
+import CoreData
 import SwiftData
 
 /// Session edits/deletions are staged in an expendable context. SwiftData can
@@ -11,6 +12,19 @@ enum SessionPersistence {
         let context = ModelContext(source.container)
         context.autosaveEnabled = false
         return context
+    }
+
+    /// Resolve a saved choice or create a name-only spot in the SAME staging
+    /// context as the session. Cancelling or failing the session cannot leave
+    /// an orphan spot in the library. Fetch errors must not become duplicates.
+    static func spot(selection: Spot?, name: String, in context: ModelContext) throws -> Spot {
+        if let selection { return try resolve(selection, in: context) }
+        guard let name = name.trimmedNonEmpty else { throw CocoaError(.validationMissingMandatoryProperty) }
+        let key = Spot.makeKey(from: name)
+        var descriptor = FetchDescriptor<Spot>(predicate: #Predicate { $0.key == key })
+        descriptor.fetchLimit = 1
+        if let existing = try context.fetch(descriptor).first { return existing }
+        return try context.createSpot(name: name, locationName: nil, latitude: nil, longitude: nil)
     }
 
     /// Retire external videos only after the deletion transaction commits.

@@ -82,6 +82,11 @@ struct BestWindowTodayCard: View {
                         needsLocation(spot: spot)
                     } else {
                         content(spot: spot)
+                        Text(TodayWindowService.historyCoverage(sessions: sessions, at: spot).summary)
+                            .font(.caption)
+                            .foregroundStyle(Theme.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("window.coverage")
                         backfillRow(spot: spot)
                         refreshButton(spot: spot)
                         TideStationCard(spot: spot).id(spot.persistentModelID)
@@ -227,7 +232,7 @@ struct BestWindowTodayCard: View {
 
             // Says out loud that this is a pattern from the surfer's own log, not
             // a forecast service's verdict.
-            Text("Based on your own sessions at this spot.")
+            Text("Similar to your past rated surfs here. This is a personal-history match, not a validated break forecast.")
                 .font(.caption)
                 .foregroundStyle(Theme.textMuted)
             if let fetchedAt {
@@ -249,7 +254,11 @@ struct BestWindowTodayCard: View {
                 .disabled(Date().timeIntervalSince(fetchedAt) >= 6 * 3600 || recommendation.end <= Date())
                 .accessibilityIdentifier("window.savePlan")
                 if let spot = selectedSpot {
-                    NavigationLink { QuiverAdvisorView(initialSpotKey: spot.key) } label: {
+                    NavigationLink {
+                        QuiverAdvisorView(initialSpotKey: spot.key,
+                                          initialHeight: matchedSession(for: recommendation).flatMap { GearInsightsCalculator.waveBand(for: $0) },
+                                          initialPeriod: matchedSession(for: recommendation)?.swellWavePeriodSeconds.map(SwellPeriodBand.band(forSeconds:)))
+                    } label: {
                         Label("Compare boards at this spot", systemImage: "surfboard")
                             .frame(minHeight: 44)
                     }

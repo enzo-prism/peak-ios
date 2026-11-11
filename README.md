@@ -7,10 +7,10 @@ Peak is a fast, private surf-session logbook. Track when you surfed, where you p
 Verified November 6, 2026:
 
 - **App Store public:** `3.5` (`READY_FOR_DISTRIBUTION` in App Store Connect).
-- **Candidate:** `3.6` build `2`. See [implementation and acceptance](docs/PEAK_3_6.md) for delivered behavior and outstanding hardware validation. The dated [preparation receipt](docs/releases/3.6-build2.json) pins the compiled source and IPA; TestFlight delivery must be read back separately.
+- **Candidate:** `3.7` build `1`. See [implementation and acceptance](docs/PEAK_3_7.md). The owner authorized main, TestFlight and App Review on November 11; public release remains manual. Delivery state must be read back independently.
 - **Source of truth:** exact commit + ASC version/build, not a branch name. See [RELEASE_PLAYBOOK.md](RELEASE_PLAYBOOK.md).
 - **Watch companion:** hardening and standalone validation are retained on `feature/peak-3.6-watch-validation`, outside main. The iPhone app does **not** contain a Watch target or embedded Watch app. Five real ocean sessions with reference observations remain a release gate, explicitly kept pending by the owner.
-- **Data:** local SwiftData schema V12 remains unchanged in 3.6. Existing session UUIDs and media associations are preserved by export/restore.
+- **Data:** local SwiftData schema V12 remains unchanged in 3.7. Existing session UUIDs and media associations are preserved by export/restore.
 - **Real-user pilot:** [surfer protocol and device checklist](docs/SURFER_VALIDATION.md). Simulator tests do not establish populated-device upgrades, microphone/model quality or ocean accuracy.
 - App Group `group.com.designprism.peak` is registered. Release profiles must cover both app and widget and the optional Journaling Suggestions entitlement.
 
@@ -101,7 +101,7 @@ Verified November 6, 2026:
 - See `ARCHITECTURE.md` for a full overview of the app structure, data model, and key flows.
 
 ## Platform decisions
-- Platform: Minimum iOS: 17.0 (SwiftData), unchanged in 3.6
+- Platform: Minimum iOS: 17.0 (SwiftData), unchanged in 3.7
 - Data store: SwiftData (local only), schema V12
 - UI: SwiftUI
 - Targets: `Peak` (app), `PeakWidgets` (widget extension: widgets, Control Center control, Live Activity), `PeakTests`, `PeakUITests`
@@ -168,7 +168,7 @@ Optional overrides:
 
 ## Testing
 
-The 3.6 suite discovers **644 unit cases on Xcode 27** (643 on Xcode 26.6, which lacks the iOS 27 ResultsObserver probe) and **75 UI cases per device**. The 3.5 baseline had 615 unit / 67 UI cases. Device-specific UI cases can be explicitly skipped; report actual pass/skip counts and result bundles. The result gate rejects runtime warnings as well as failures and incomplete suite counts. See [3.6 acceptance](docs/PEAK_3_6.md) for verified receipts.
+The 3.7 suite discovers **654 unit cases on Xcode 27** (653 on Xcode 26.6, which lacks the iOS 27 ResultsObserver probe) and **82 UI cases per device**. The preceding 3.6 baseline had 644 unit / 75 UI cases; 3.7 adds ten unit and seven UI cases. Device-specific UI cases can be explicitly skipped; report actual pass/skip counts and result bundles. The result gate rejects runtime warnings as well as failures and incomplete suite counts. See [3.7 acceptance](docs/PEAK_3_7.md) for observed results and limitations.
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See

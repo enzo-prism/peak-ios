@@ -76,7 +76,7 @@ struct StatsView: View {
                             MonthlyGoalCard(progress: cachedGoal, monthName: currentMonthName)
 
                             if let cachedRecap {
-                                MonthlyRecapCard(recap: cachedRecap)
+                                MonthlyRecapCard(recap: cachedRecap, durationCoverage: monthlyDurationCoverage)
                             }
 
                             if !cachedHeatmap.isEmpty {
@@ -159,6 +159,16 @@ struct StatsView: View {
         }
     }
 
+    @State private var monthlyDurationCoverage: String?
+
+    private func durationCoverage() -> String? {
+        let calendar = Calendar.current
+        let month = sessions.filter { calendar.isDate($0.date, equalTo: Date(), toGranularity: .month) }
+        let recorded = month.filter { ($0.durationMinutes ?? 0) > 0 }.count
+        guard recorded < month.count else { return nil }
+        return "Time recorded for \(recorded) of \(month.count) sessions; missing durations are excluded."
+    }
+
     private var currentMonthName: String {
         Date().formatted(.dateTime.month(.wide))
     }
@@ -204,6 +214,7 @@ struct StatsView: View {
     }
 
     private func computeSummaries() {
+        monthlyDurationCoverage = durationCoverage()
         cachedSummary = StatsCalculator.summarize(sessions: sessions)
         cachedYearSummary = StatsCalculator.surfDaysThisYear(sessions: sessions)
         cachedTimeSummary = StatsCalculator.timeInWater(sessions: sessions)

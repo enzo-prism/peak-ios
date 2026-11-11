@@ -67,6 +67,7 @@ final class PeakNavigationCoordinator {
     // resolve fresh models by ID; they never carry retired SwiftData objects.
     var historyFilters = HistoryFilterSnapshot()
     var searchFilters = HistoryFilterSnapshot()
+    var historyFilterRequest: UUID?
     var historySearchText = ""
     var dedicatedSearchText = ""
     var historySelection: PeakEntityRef?
@@ -80,7 +81,16 @@ final class PeakNavigationCoordinator {
 
     private init() {}
 
+    func showHistory(filters: HistoryFilters) {
+        historyFilters = HistoryFilterSnapshot(filters)
+        historySearchText = ""
+        historySelection = nil
+        selectedTab = .history
+        historyFilterRequest = UUID()
+    }
+
     func clearLibraryNavigation() {
+        historyFilterRequest = nil
         historyFilters = HistoryFilterSnapshot()
         searchFilters = HistoryFilterSnapshot()
         historySearchText = ""

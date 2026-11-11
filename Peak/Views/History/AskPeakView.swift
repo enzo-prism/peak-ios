@@ -3,13 +3,18 @@ import SwiftUI
 
 struct AskPeakView: View {
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear])) private var sessions: [SurfSession]
-    @State private var question = ""
+    @State private var question: String
+    @State private var reviewFilters = HistoryFilters()
+    @State private var showFilters = false
+
+    init(initialQuestion: String = "") { _question = State(initialValue: initialQuestion) }
+
     @State private var answer: LogbookQuery.Answer?
     @State private var limit = 30
     @State private var searchTask: Task<Void, Never>?
     @State private var isSearching = false
     @State private var searchGeneration = 0
-    private let examples = ["How many sessions this month?", "Which board did I use most?", "Find my clean morning sessions"]
+    private let examples = ["How many sessions this month?", "Which board did I use most?", "How many hours last week?", "Find my clean morning sessions"]
 
     var body: some View {
         List {
@@ -21,7 +26,7 @@ struct AskPeakView: View {
                 Button("Search My Logbook", systemImage: "magnifyingglass", action: ask)
                     .disabled(question.trimmedNonEmpty == nil)
                     .accessibilityIdentifier("ask.submit")
-                if SemanticLogbookSearch.isAvailable {
+                if SemanticLogbookSearch.isAvailable, answer?.needsFilters == true {
                     Button("Find Related Memories On Device", systemImage: "sparkle.magnifyingglass") { semanticSearch() }
                         .disabled(question.trimmedNonEmpty == nil || isSearching)
                     if isSearching { ProgressView("Searching your private index…") }
@@ -33,6 +38,22 @@ struct AskPeakView: View {
                 Section {
                     Text(answer.title).font(.headline).accessibilityIdentifier("ask.answer")
                     Text(answer.explanation).font(.subheadline)
+                    if answer.needsFilters {
+                        Button("Review History filters") {
+                            reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
+                            showFilters = true
+                        }
+                        .frame(minHeight: 44)
+                        Text("Recognized dates, spots and gear are prefilled. Review them before viewing History; other words have not been applied.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Button("View these criteria in History") {
+                            reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
+                            showFilters = true
+                        }
+                        Text("Review the filters: note concepts and time-of-day words are only applied in this answer.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 Section("Source sessions") {
                     ForEach(Array(answer.sessions.prefix(limit))) { session in
@@ -60,6 +81,10 @@ struct AskPeakView: View {
             }
         }
         .navigationTitle("Ask Peak")
+        .sheet(isPresented: $showFilters, onDismiss: {
+            PeakNavigationCoordinator.shared.showHistory(filters: reviewFilters)
+        }) { HistoryFilterSheetView(filters: $reviewFilters) }
+        .onAppear { if !question.isEmpty && answer == nil { ask() } }
         .onDisappear { searchGeneration += 1; searchTask?.cancel(); isSearching = false }
         .onChange(of: SessionQueryStamp.make(sessions)) { _, _ in if answer != nil { ask() } }
     }

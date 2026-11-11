@@ -1,4 +1,192 @@
 import XCTest
+#if PEAK_SYSTEM_INTENT_TESTS && canImport(AppIntentsTesting)
+import AppIntentsTesting
+#endif
+
+final class PeakPolishAcceptanceTests: XCTestCase {
+    #if PEAK_SYSTEM_INTENT_TESTS && canImport(AppIntentsTesting)
+    func testSystemIntentExecutesAcrossProcessesAndResolvesSpotEntities() async throws {
+        guard #available(iOS 27.0, *) else { throw XCTSkip("AppIntentsTesting requires iOS 27") }
+        let app = launch()
+        XCTAssertTrue(app.buttons["Log a finished surf"].waitForExistence(timeout: 8))
+        let definitions = IntentDefinitions(bundleIdentifier: "com.designprism.peak")
+        let result = try await definitions.intents["SessionsThisMonthIntent"].makeIntent().run()
+        let count: Int = try result.value
+        XCTAssertGreaterThanOrEqual(count, 0)
+        XCTAssertLessThanOrEqual(count, 4)
+        let spots = try await definitions.entities["SpotEntity"].entities(matching: "Trestles")
+        XCTAssertEqual(spots.count, 1)
+        XCTAssertNotNil(spots.first?.identifier)
+    }
+    #endif
+
+    private func launch(empty: Bool = false, largeText: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITESTS"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
+        app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
+        app.launchEnvironment["UITESTS_DRAFT_RECOVERY"] = UUID().uuidString
+        if empty { app.launchEnvironment["UITESTS_EMPTY_LIBRARY"] = "1" }
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", largeText ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryL"]
+        app.launch()
+        return app
+    }
+
+    func testFirstSurfNeedsNoHistoryGearOrPermission() {
+        let app = launch(empty: true)
+        app.buttons["Log a finished surf"].tap()
+        let spot = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spot.waitForExistence(timeout: 8))
+        spot.tap()
+        spot.typeText("First reef")
+        XCTAssertTrue(app.buttons["Save"].isEnabled)
+        app.buttons["Save"].tap()
+        XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
+        let history = app.tabBars.buttons["History"]
+        XCTAssertTrue(history.waitForExistence(timeout: 8))
+        history.tap()
+        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["First reef"].firstMatch.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.alerts.firstMatch.exists)
+    }
+
+    func testComparisonStartsAtRecentSpotAndShowsPerBoardProgress() {
+        let app = launch()
+        app.tabBars.buttons["Quiver"].tap()
+        app.buttons["quiver.compare"].tap()
+        XCTAssertTrue(app.staticTexts["San Onofre State Beach - Old Man's"].firstMatch.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "qualifying surfs")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Mixed conditions")).firstMatch.exists)
+    }
+
+    func testGrowingLibraryOffersProtectionAndOpensFullBackupSettings() {
+        let app = launch()
+        app.buttons["Log a finished surf"].tap()
+        let spot = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spot.waitForExistence(timeout: 8))
+        app.buttons["Save"].tap()
+        XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
+        let protection = app.buttons["log.backupProtection"]
+        scrollToVisible(protection, in: app.scrollViews.firstMatch, app: app)
+        XCTAssertTrue(protection.exists && protection.isHittable)
+        protection.tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 8))
+        let backup = app.buttons["Back Up Everything"]
+        scrollToVisible(backup, in: app.collectionViews.firstMatch, app: app)
+        XCTAssertTrue(backup.exists)
+    }
+
+    func testHealthEntryExplainsPreferenceWithoutClaimingConnection() {
+        let app = launch()
+        let entry = app.buttons["log.healthImport"]
+        for _ in 0..<10 {
+            if entry.exists && entry.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(entry.exists)
+        entry.tap()
+        XCTAssertTrue(app.switches["health.integration.toggle"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Apple Health connected"].exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "elapsed time only")).firstMatch.exists)
+    }
+
+    func testLoggingAtAccessibilityTextSizeKeepsSaveAndRatingReachable() throws {
+        let app = launch(largeText: true)
+        app.buttons["Log a finished surf"].tap()
+        let spot = app.textFields["session.editor.spot"]
+        XCTAssertTrue(spot.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Save"].isHittable)
+        let rating = app.buttons["Rate 4 stars"]
+        let scroll = app.scrollViews["session.editor.scroll"]
+        scrollToVisible(rating, in: scroll, app: app)
+        XCTAssertTrue(rating.isHittable)
+        rating.tap()
+        XCTAssertTrue(app.buttons["Save"].isHittable)
+        try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
+    }
+
+    func testCoreScreensAtAccessibilityTextSizeKeepContentReadable() throws {
+        let app = launch(largeText: true)
+        for title in ["History", "Stats", "Quiver"] {
+            app.tabBars.buttons[title].tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
+            try app.performAccessibilityAudit(for: [.dynamicType, .textClipped])
+        }
+    }
+
+    private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15) {
+        guard scrollView.exists else { return }
+        var attempts = 0
+        while !isCentreVisible(element, in: scrollView, app: app) && attempts < maxSwipes {
+            if element.exists, element.frame.height > 0 {
+                let visible = visibleContentFrame(in: scrollView, app: app)
+                // Full swipes can alternate above/below a short iPad sheet
+                // forever. Once AX has a frame, move toward the visible centre
+                // by a measured distance and release without flick momentum.
+                let limit = visible.height * 0.45
+                let delta = min(limit, max(-limit, visible.midY - element.frame.midY))
+                guard abs(delta) > 1 else { break }
+                let origin = scrollView.coordinate(withNormalizedOffset: .zero)
+                // Trailing scroll padding avoids dragging an editable slider.
+                let x = visible.maxX - scrollView.frame.minX - 4
+                let startY = visible.midY - delta / 2 - scrollView.frame.minY
+                let start = origin.withOffset(CGVector(dx: x, dy: startY))
+                let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+            } else {
+                scrollView.swipeUp()
+            }
+            attempts += 1
+        }
+    }
+
+    private func isCentreVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication) -> Bool {
+        guard element.exists, element.isHittable else { return false }
+        let frame = element.frame
+        guard frame.height > 0 else { return false }
+        return visibleContentFrame(in: scrollView, app: app).contains(CGPoint(x: frame.midX, y: frame.midY))
+    }
+
+    private func visibleContentFrame(in scrollView: XCUIElement, app: XCUIApplication) -> CGRect {
+        var visible = scrollView.frame
+        // A sheet's ScrollView extends behind its navigation bar on iPad.
+        // AX can call a partly covered button hittable even when its centre is
+        // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll
+        // direction; otherwise a target above the usable viewport scrolls away.
+        for bar in app.navigationBars.allElementsBoundByIndex where bar.exists {
+            let frame = bar.frame
+            if frame.intersects(visible), frame.maxY < visible.maxY {
+                let bottom = visible.maxY
+                visible.origin.y = frame.maxY
+                visible.size.height = bottom - frame.maxY
+            }
+        }
+        let save = app.buttons["Save"]
+        if save.exists && save.frame.minY > visible.midY && save.frame.minY < visible.maxY {
+            visible.size.height = save.frame.minY - visible.minY
+        }
+        // A centre resting exactly on an edge is not reliably tappable.
+        return visible.insetBy(dx: 8, dy: 8)
+    }
+
+    func testUnsupportedQuestionHandsKnownDateToHistoryFilters() {
+        let app = launch()
+        app.tabBars.buttons["More"].tap()
+        app.buttons["more.askPeak"].tap()
+        let question = app.textFields["ask.question"]
+        XCTAssertTrue(question.waitForExistence(timeout: 8))
+        question.tap()
+        question.typeText("Find fastest surf last week")
+        app.buttons["ask.submit"].tap()
+        let review = app.buttons["Review History filters"]
+        XCTAssertTrue(review.waitForExistence(timeout: 8))
+        review.tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 8))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists)
+    }
+}
 
 final class PeakUISmokeTests: XCTestCase {
     private var app: XCUIApplication!
@@ -32,7 +220,7 @@ final class PeakUISmokeTests: XCTestCase {
         app.launchEnvironment["UITESTS_DRAFT_RECOVERY"] = UUID().uuidString
         app.launch()
         tapTab(named: "Log")
-        app.buttons["Log Session"].tap()
+        app.buttons["Log a finished surf"].tap()
         selectSpot(key: "trestles", fallbackText: "Trestles")
         app.buttons["Cancel"].tap()
         let keep = app.buttons["Keep Draft for Later"]
@@ -61,7 +249,7 @@ final class PeakUISmokeTests: XCTestCase {
         let discard = app.buttons["Discard Session"]
         XCTAssertTrue(discard.waitForExistence(timeout: 5))
         discard.tap()
-        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Log a finished surf"].waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
         XCTAssertFalse(resume.waitForExistence(timeout: 3), "Explicit discard must remove the durable copy, not just hide its card")
@@ -167,7 +355,7 @@ final class PeakUISmokeTests: XCTestCase {
 
     func testTypedVoiceReviewAppliesOnlyAfterConfirmation() {
         tapTab(named: "Log")
-        app.buttons["Log Session"].tap()
+        app.buttons["Log a finished surf"].tap()
         app.buttons["session.editor.voice"].tap()
         let transcript = app.textViews["voice.transcript"]
         XCTAssertTrue(transcript.waitForExistence(timeout: 3))
@@ -188,7 +376,7 @@ final class PeakUISmokeTests: XCTestCase {
     func testCreateSessionAppearsInHistory() {
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -223,7 +411,7 @@ final class PeakUISmokeTests: XCTestCase {
     func testAutoFillConditionsEndToEnd() {
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -272,7 +460,7 @@ final class PeakUISmokeTests: XCTestCase {
         launchAppWithUITestEnvironment(surfConditionsScenario: "remote_error")
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -300,7 +488,7 @@ final class PeakUISmokeTests: XCTestCase {
         launchAppWithUITestEnvironment(surfConditionsScenario: "no_data")
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -337,7 +525,7 @@ final class PeakUISmokeTests: XCTestCase {
     func testWaveCountIsEditableAndReachesSessionDetail() {
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -385,7 +573,7 @@ final class PeakUISmokeTests: XCTestCase {
     func testEditorExplainsWhereWaveStatsComeFrom() {
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
 
@@ -453,7 +641,7 @@ final class PeakUISmokeTests: XCTestCase {
         assertExists(deleteButton)
 
         tapTab(named: "Log")
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
         selectSpot(key: "trestles", fallbackText: "Trestles")
@@ -482,7 +670,7 @@ final class PeakUISmokeTests: XCTestCase {
         XCTAssertTrue(deleteButton.waitForNonExistence(timeout: 5), "deleting did not leave the session page")
 
         tapTab(named: "Log")
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         assertExists(cta)
         cta.tap()
         selectSpot(key: "trestles", fallbackText: "Trestles")
@@ -1250,35 +1438,8 @@ final class PeakWelcomeUITests: XCTestCase {
             "Expected the first welcome screen"
         )
 
-        let firstNext = app.buttons["welcome.next"]
-        XCTAssertTrue(firstNext.waitForExistence(timeout: 3))
-        firstNext.tap()
-
-        XCTAssertTrue(
-            app.staticTexts["Stays on your phone"].waitForExistence(timeout: 3),
-            "Expected the privacy promise screen"
-        )
-
-        let secondNext = app.buttons["welcome.next"]
-        XCTAssertTrue(secondNext.waitForExistence(timeout: 3))
-        secondNext.tap()
-
-        // The simulator has Apple Health, so the Watch opt-in page appears. It is
-        // not tapped here: that would raise the system Health sheet.
-        XCTAssertTrue(
-            app.staticTexts["Surf with an Apple Watch?"].waitForExistence(timeout: 3),
-            "Expected the Apple Watch opt-in screen"
-        )
-        XCTAssertTrue(app.buttons["welcome.health.connect"].exists, "Missing the Connect Apple Health button")
-
-        let thirdNext = app.buttons["welcome.next"]
-        XCTAssertTrue(thirdNext.waitForExistence(timeout: 3))
-        thirdNext.tap()
-
-        XCTAssertTrue(
-            app.staticTexts["Log your first session"].waitForExistence(timeout: 3),
-            "Expected the CTA screen"
-        )
+        XCTAssertFalse(app.buttons["welcome.next"].exists, "First log should not require a slideshow")
+        XCTAssertFalse(app.buttons["welcome.health.connect"].exists, "Optional Health access belongs to import")
 
         let cta = app.buttons["welcome.cta"]
         XCTAssertTrue(cta.waitForExistence(timeout: 3))
@@ -1299,7 +1460,7 @@ final class PeakWelcomeUITests: XCTestCase {
         XCTAssertTrue(skip.waitForExistence(timeout: 10))
         skip.tap()
 
-        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Log a finished surf"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["welcome.cta"].exists)
     }
 
@@ -1307,7 +1468,7 @@ final class PeakWelcomeUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.buttons["Log Session"].waitForExistence(timeout: 10),
+            app.buttons["Log a finished surf"].waitForExistence(timeout: 10),
             "A plain UI-test launch must land on the Log tab, not the welcome"
         )
         XCTAssertFalse(app.buttons["welcome.next"].exists)
@@ -1556,7 +1717,7 @@ final class PeakMarketingCaptureTests: XCTestCase {
 
     func testCaptureAppStoreScreenshots() throws {
         tapTab("Log")
-        _ = app.staticTexts["Peak"].waitForExistence(timeout: 8)
+        _ = app.buttons["Log a finished surf"].waitForExistence(timeout: 8)
         // Left on the Best Window card's call to action deliberately. Tapping
         // it here would render the canned UI-test forecast, whose hours ignore
         // the daylight filter the real service applies — a late-night "best
@@ -1564,6 +1725,12 @@ final class PeakMarketingCaptureTests: XCTestCase {
         // a store screenshot.
         settle()
         try capture("01-log")
+        app.buttons["Log a finished surf"].tap()
+        XCTAssertTrue(app.textFields["session.editor.spot"].waitForExistence(timeout: 8))
+        settle()
+        try capture("01b-editor")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.textFields["session.editor.spot"].waitForNonExistence(timeout: 8))
 
         tapTab("History")
         _ = app.staticTexts.matching(NSPredicate(format: "label == %@", "Trestles")).firstMatch.waitForExistence(timeout: 8)
@@ -1595,6 +1762,10 @@ final class PeakMarketingCaptureTests: XCTestCase {
         tapTab("Quiver")
         settle()
         try capture("05-quiver")
+        app.buttons["quiver.compare"].tap()
+        settle()
+        try capture("05b-comparison")
+        back()
 
         tapTab("More")
         let recap = app.buttons["Year in Review"].firstMatch

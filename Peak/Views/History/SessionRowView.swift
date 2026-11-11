@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct SessionRowView: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let session: SurfSession
     /// Opt-in: the Log tab passes true to show cropped media previews. History keeps the default
     /// (false) so its rows stay pixel- and hit-area-identical.
@@ -10,7 +11,7 @@ struct SessionRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            headerLayout {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(session.date.sessionTitle)
                         .font(.subheadline.weight(.semibold))
@@ -33,7 +34,7 @@ struct SessionRowView: View {
                         sessionChips
                     }
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 88), spacing: 8, alignment: .leading)],
+                        columns: typeSize.isAccessibilitySize ? [GridItem(.flexible(), alignment: .leading)] : [GridItem(.adaptive(minimum: 88), spacing: 8, alignment: .leading)],
                         alignment: .leading,
                         spacing: 8
                     ) {
@@ -57,6 +58,10 @@ struct SessionRowView: View {
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("history.row")
+    }
+
+    private var headerLayout: AnyLayout {
+        typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout())
     }
 
     /// Short wave-height value for the card chip: prefers the precise measured value, falls back to
