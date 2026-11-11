@@ -307,7 +307,7 @@ final class PeakUILayoutTests: XCTestCase {
 
         tapTab(named: "Log")
 
-        let heroTitle = app.staticTexts["Peak"]
+        let heroTitle = app.navigationBars["Log"]
         assertExists(heroTitle)
         assertFits(heroTitle)
 
