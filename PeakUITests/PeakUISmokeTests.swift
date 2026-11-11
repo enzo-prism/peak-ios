@@ -170,21 +170,24 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     func testUnsupportedQuestionHandsKnownDateToHistoryFilters() {
-        let app = launch()
-        app.tabBars.buttons["More"].tap()
-        app.buttons["more.askPeak"].tap()
-        let question = app.textFields["ask.question"]
-        XCTAssertTrue(question.waitForExistence(timeout: 8))
-        question.tap()
-        question.typeText("Find fastest surf last week")
-        app.buttons["ask.submit"].tap()
-        let review = app.buttons["Review History filters"]
-        XCTAssertTrue(review.waitForExistence(timeout: 8))
-        review.tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists)
+        for entry in ["History", "More"] {
+            let app = launch()
+            app.tabBars.buttons[entry].tap()
+            app.buttons[entry == "History" ? "history.askPeak" : "more.askPeak"].tap()
+            let question = app.textFields["ask.question"]
+            XCTAssertTrue(question.waitForExistence(timeout: 8))
+            question.tap()
+            question.typeText("Find fastest surf last week")
+            app.buttons["ask.submit"].tap()
+            let review = app.buttons["Review History filters"]
+            XCTAssertTrue(review.waitForExistence(timeout: 8))
+            review.tap()
+            XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 8))
+            app.buttons["Done"].tap()
+            XCTAssertTrue(app.navigationBars["Ask Peak"].waitForNonExistence(timeout: 8))
+            XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists)
+        }
     }
 }
 

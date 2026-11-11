@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct AskPeakView: View {
+    @Environment(\.dismiss) private var dismiss
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear])) private var sessions: [SurfSession]
     @State private var question: String
     @State private var reviewFilters = HistoryFilters()
@@ -82,6 +83,7 @@ struct AskPeakView: View {
         }
         .navigationTitle("Ask Peak")
         .sheet(isPresented: $showFilters, onDismiss: {
+            dismiss()
             PeakNavigationCoordinator.shared.showHistory(filters: reviewFilters)
         }) { HistoryFilterSheetView(filters: $reviewFilters) }
         .onAppear { if !question.isEmpty && answer == nil { ask() } }
