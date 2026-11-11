@@ -6,7 +6,7 @@ nonisolated struct StoreRecoveryIssue: Error, Equatable, Codable, Sendable {
     let archivedPath: String?
     let details: String
     let phase: Phase?
-    /// Relative to Application Support; survives an iOS sandbox relocation.
+    /// Relative to the selected store directory; survives a sandbox relocation.
     let archiveDirectory: String?
 
     nonisolated enum Phase: String, Codable, Sendable {
@@ -38,7 +38,6 @@ struct StoreLoadResult {
 /// Never retries an on-disk store after unsuccessful preservation. A durable
 /// marker also prevents reopening a partly removed store on the next launch.
 enum PeakDataStore {
-    nonisolated private static let storeFileName = "default.store"
     nonisolated static let recoveryMarkerName = "Peak Store Recovery.json"
     nonisolated static let recoveryRecordName = "Peak Preserved Library.json"
     static let headSchema: any VersionedSchema.Type = PeakSchemaV12.self
@@ -48,12 +47,40 @@ enum PeakDataStore {
         if isUITest {
             return StoreLoadResult(container: makeInMemoryOrCrash(schema: schema), outcome: .normal)
         }
+        let configuration = ModelConfiguration(schema: schema)
         return loadPersistent(
-            open: { try makeContainer(schema: schema, inMemory: false) },
-            fallback: { makeInMemoryOrCrash(schema: schema) },
-            recover: { try archiveDefaultStore() },
-            pending: { try pendingRecovery(in: applicationSupport()) },
-            preservedArchive: { try preservedArchive(in: applicationSupport()) }
+            configuration: configuration,
+            mediaDirectory: SessionMediaStore.recoveryDirectoryURL,
+            legacyArchiveDirectory: try? applicationSupport(),
+            open: { try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration]) },
+            fallback: { makeInMemoryOrCrash(schema: schema) }
+        )
+    }
+
+    /// SwiftData's automatic configuration uses the primary App Group. Recovery
+    /// must use that exact URL, while videos can live in the app's private folder.
+    static func loadPersistent(
+        configuration: ModelConfiguration,
+        mediaDirectory: () throws -> URL,
+        legacyArchiveDirectory: URL? = nil,
+        open: () throws -> ModelContainer,
+        fallback: () -> ModelContainer
+    ) -> StoreLoadResult {
+        let directory = configuration.url.deletingLastPathComponent()
+        return loadPersistent(
+            open: open,
+            fallback: fallback,
+            recover: {
+                let media = try mediaDirectory()
+                return try relocateStoreFiles(in: directory, storeName: configuration.url.lastPathComponent, mediaDirectory: media)
+            },
+            pending: { try pendingRecovery(in: directory) },
+            preservedArchive: {
+                if let current = try preservedArchive(in: directory) { return current }
+                guard let legacyArchiveDirectory,
+                      legacyArchiveDirectory.standardizedFileURL.path != directory.standardizedFileURL.path else { return nil }
+                return try preservedArchive(in: legacyArchiveDirectory)
+            }
         )
     }
 
@@ -107,11 +134,6 @@ enum PeakDataStore {
         } catch {
             return recoverAndOpen(reason: "Library could not open: \(error.localizedDescription)")
         }
-    }
-
-    private static func makeContainer(schema: Schema, inMemory: Bool) throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
     }
 
     private static func makeInMemoryOrCrash(schema: Schema) -> ModelContainer {
@@ -178,12 +200,14 @@ enum PeakDataStore {
     }
 
     nonisolated static func canOpenDefaultStore() -> Bool {
-        do { return canOpenStore(in: try applicationSupport()) } catch { return false }
+        canOpenStore(in: ModelConfiguration().url.deletingLastPathComponent())
     }
 
     @discardableResult
     nonisolated static func archiveDefaultStore(now: Date = Date()) throws -> URL {
-        try relocateStoreFiles(in: applicationSupport(), storeName: storeFileName, now: now)
+        let store = ModelConfiguration().url
+        return try relocateStoreFiles(in: store.deletingLastPathComponent(), storeName: store.lastPathComponent,
+                                     mediaDirectory: SessionMediaStore.recoveryDirectoryURL(), now: now)
     }
 
     /// Copies every component before removing any original. If a copy, removal,
@@ -193,6 +217,7 @@ enum PeakDataStore {
     nonisolated static func relocateStoreFiles(
         in directory: URL,
         storeName: String = "default.store",
+        mediaDirectory: URL? = nil,
         now: Date = Date(),
         copyItem: (URL, URL) throws -> Void = { try FileManager.default.copyItem(at: $0, to: $1) },
         removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
@@ -210,9 +235,10 @@ enum PeakDataStore {
         let stamp = ExportDateFormatter.fileSafeString(from: now)
         let archive = directory.appendingPathComponent("Archived Store \(stamp) \(UUID().uuidString)", isDirectory: true)
         let baseName = (storeName as NSString).deletingPathExtension
-        let sources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT", "SessionMedia"]
+        let storeSources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT"]
             .map { directory.appendingPathComponent($0) }
-            .filter { fm.fileExists(atPath: $0.path) }
+        let media = mediaDirectory ?? directory.appendingPathComponent("SessionMedia", isDirectory: true)
+        let sources = (storeSources + [media]).filter { fm.fileExists(atPath: $0.path) }
         // No source is not proof that a library was preserved.
         guard !sources.isEmpty else {
             throw StoreRecoveryIssue(archivedPath: nil, details: "No existing library files could be found to preserve.")
@@ -230,7 +256,12 @@ enum PeakDataStore {
             let preserved = StoreRecoveryIssue(archivedPath: nil, details: "A complete library copy was preserved, but preparing a fresh library did not finish.", phase: .removing, archiveDirectory: archive.lastPathComponent)
             try JSONEncoder().encode(preserved).write(to: marker, options: .atomic)
             try JSONEncoder().encode(preserved).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
-            for source in sources { try removeItem(source) }
+            // Media outside the selected store directory may also belong to a
+            // preserved legacy store. Include it in the archive without retiring
+            // those originals. Same-directory recovery keeps its existing move.
+            for source in sources where source.deletingLastPathComponent().standardizedFileURL.path == directory.standardizedFileURL.path {
+                try removeItem(source)
+            }
             try removeItem(marker)
             return archive
         } catch {

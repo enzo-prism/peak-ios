@@ -564,6 +564,83 @@ final class ExportImportTests: XCTestCase {
 
     // MARK: - Crash-proof store recovery
 
+    func testConfiguredRecoveryResumesSharedMarkerAndIncludesPrivateMedia() throws {
+        let shared = try makeRecoveryFixture()
+        let app = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: shared); try? FileManager.default.removeItem(at: app) }
+        try FileManager.default.removeItem(at: shared.appendingPathComponent("SessionMedia"))
+        let media = app.appendingPathComponent("SessionMedia")
+        let configuration = ModelConfiguration(url: shared.appendingPathComponent("default.store"))
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: shared, mediaDirectory: media, copyItem: { source, destination in
+            if source.lastPathComponent == "SessionMedia" { throw CocoaError(.fileWriteOutOfSpace) }
+            try FileManager.default.copyItem(at: source, to: destination)
+        }))
+        XCTAssertEqual(try PeakDataStore.pendingRecovery(in: shared)?.phase, .copying)
+        let memory = try makeContainer()
+        var opens = 0
+        let result = PeakDataStore.loadPersistent(configuration: configuration, mediaDirectory: { media }, legacyArchiveDirectory: app, open: {
+            opens += 1
+            XCTAssertFalse(FileManager.default.fileExists(atPath: shared.appendingPathComponent("default.store").path), "Preserve the selected shared store before opening disk")
+            return memory
+        }, fallback: { XCTFail("Preservation retry should succeed"); return memory })
+        guard case .recoveredFresh(let path) = result.outcome else { return XCTFail("Expected shared-store recovery") }
+        XCTAssertEqual(opens, 1)
+        XCTAssertTrue(path.hasPrefix(shared.path + "/"))
+        try assertRecoveryBytes(in: URL(fileURLWithPath: path))
+        try assertRecoveryBytes(in: app)
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: shared))
+    }
+
+    func testConfiguredRecoveryArchivesFailedSharedOpenInsteadOfLegacyStore() throws {
+        let shared = try makeRecoveryFixture()
+        let app = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: shared); try? FileManager.default.removeItem(at: app) }
+        try FileManager.default.removeItem(at: shared.appendingPathComponent("SessionMedia"))
+        let configuration = ModelConfiguration(url: shared.appendingPathComponent("default.store"))
+        let memory = try makeContainer()
+        var opens = 0
+        let result = PeakDataStore.loadPersistent(configuration: configuration, mediaDirectory: { app.appendingPathComponent("SessionMedia") }, legacyArchiveDirectory: app, open: {
+            opens += 1
+            if opens == 1 { throw CocoaError(.fileReadCorruptFile) }
+            XCTAssertFalse(FileManager.default.fileExists(atPath: shared.appendingPathComponent("default.store").path))
+            return memory
+        }, fallback: { XCTFail("Fresh open should succeed"); return memory })
+        guard case .recoveredFresh(let path) = result.outcome else { return XCTFail("Expected selected-store archive") }
+        XCTAssertEqual(opens, 2)
+        XCTAssertTrue(path.hasPrefix(shared.path + "/"))
+        try assertRecoveryBytes(in: URL(fileURLWithPath: path))
+        try assertRecoveryBytes(in: app)
+    }
+
+    func testConfiguredRecoveryKeepsLegacyArchiveReceiptVisible() throws {
+        let shared = try makeRecoveryFixture()
+        let app = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: shared); try? FileManager.default.removeItem(at: app) }
+        let legacyArchive = try PeakDataStore.relocateStoreFiles(in: app)
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(configuration: ModelConfiguration(url: shared.appendingPathComponent("default.store")), mediaDirectory: {
+            XCTFail("A healthy shared library should not need a media lookup")
+            throw CocoaError(.fileReadNoPermission)
+        }, legacyArchiveDirectory: app, open: { memory }, fallback: { XCTFail("Expected healthy library"); return memory })
+        XCTAssertEqual(result.outcome, .recoveredFresh(archivedPath: legacyArchive.path))
+        try assertRecoveryBytes(in: legacyArchive)
+        try assertRecoveryBytes(in: shared)
+    }
+
+    func testConfiguredRecoveryMediaLookupFailureLeavesSharedLibraryIntact() throws {
+        let shared = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: shared) }
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(configuration: ModelConfiguration(url: shared.appendingPathComponent("default.store")), mediaDirectory: {
+            throw CocoaError(.fileReadNoPermission)
+        }, open: { throw CocoaError(.fileReadCorruptFile) }, fallback: { memory })
+        guard case .inMemoryFallback(let issue) = result.outcome else { return XCTFail("Unavailable media must prevent source removal") }
+        XCTAssertTrue(issue.details.contains("Preservation failed"))
+        try assertRecoveryBytes(in: shared)
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: shared))
+        XCTAssertNil(try PeakDataStore.preservedArchive(in: shared))
+    }
+
     func testRecoveryVideoCopyFailureResumesBeforeOpeningFreshStore() throws {
         let root = try makeRecoveryFixture()
         defer { try? FileManager.default.removeItem(at: root) }

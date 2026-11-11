@@ -20,7 +20,7 @@ Status at a glance (App Store Connect read back November 11, 2026):
 - Recent/useful default spots in Compare Boards, per-board progress, mixed-condition labeling and source-session actions before enough evidence exists.
 - Best Window history coverage, exclusion of unrated sessions and a chronological evaluation tool with no future/same-time leakage.
 - Exact recent-date/time queries with missing-duration coverage; visible Ask Peak entry and reviewable History-filter handoff.
-- Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage.
+- Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage. Recovery follows SwiftData’s actual configured store, includes separately stored videos, retains external media originals and keeps legacy recovery copies discoverable.
 - Empty-library, large-text, sparse-data, permission-failure and validation-leakage regressions. SDK-specific cross-process intent checks are isolated from the normal runner.
 
 ### Release boundaries

@@ -121,6 +121,14 @@ enum SessionMediaStore {
         try? FileManager.default.removeItem(at: url)
     }
 
+    /// Recovery uses the same location as video reads/imports, including its
+    /// app-container fallback when SwiftData itself lives in an App Group.
+    nonisolated static func recoveryDirectoryURL() throws -> URL {
+        // A recovery copy must not silently substitute an empty temporary
+        // folder when the persistent media location cannot be accessed.
+        try mediaDirectoryURL()
+    }
+
     nonisolated private static func resolvedMediaDirectoryURL() -> URL {
         if TestingDefaults.isRunningTests {
             let directory = FileManager.default.temporaryDirectory

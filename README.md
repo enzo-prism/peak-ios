@@ -168,7 +168,7 @@ Optional overrides:
 
 ## Testing
 
-The 3.7 suite discovers **654 unit cases on Xcode 27** (653 on Xcode 26.6, which lacks the iOS 27 ResultsObserver probe) and **82 UI cases per device**. The preceding 3.6 baseline had 644 unit / 75 UI cases; 3.7 adds ten unit and seven UI cases. Device-specific UI cases can be explicitly skipped; report actual pass/skip counts and result bundles. The result gate rejects runtime warnings as well as failures and incomplete suite counts. See [3.7 acceptance](docs/PEAK_3_7.md) for observed results and limitations.
+The 3.7 suite discovers **658 unit cases on Xcode 27** (657 on Xcode 26.6, which lacks the iOS 27 ResultsObserver probe) and **82 UI cases per device**. The preceding 3.6 baseline had 644 unit / 75 UI cases; 3.7 adds fourteen unit and seven UI cases. Device-specific UI cases can be explicitly skipped; report actual pass/skip counts and result bundles. The result gate rejects runtime warnings as well as failures and incomplete suite counts. See [3.7 acceptance](docs/PEAK_3_7.md) for observed results and limitations.
 
 > **Run exactly one `xcodebuild` at a time.** The simulator is a single shared
 > resource; concurrent runs produce false failures that look like real bugs. See
