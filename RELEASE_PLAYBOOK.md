@@ -32,7 +32,7 @@ asc status --app 6757644027
 ## Candidate acceptance before upload
 
 1. Record the source SHA and run one `xcodebuild` at a time. Use `./scripts/test-unit.sh` and relevant UI suites, including production iPad navigation when touched. Keep the actual result bundle/log and test count; historical counts do not prove current coverage.
-2. Run the populated-device upgrade, backup/restore and Health checks in [SURFER_VALIDATION.md](docs/SURFER_VALIDATION.md). Distinguish synthetic migration fixtures, simulator UI coverage and physical device evidence. For 3.7, the paired iPhone has Developer Mode disabled; the owner explicitly chose Simulator validation and recording the physical-device limitation. No device backup was obtained or device install performed.
+2. Run the populated-device upgrade, backup/restore and Health checks in [SURFER_VALIDATION.md](docs/SURFER_VALIDATION.md). Distinguish synthetic migration fixtures, simulator UI coverage and physical device evidence. The owner's initial Simulator-only choice was superseded when the unlocked iPhone connected with Developer Mode enabled. Protected app/shared-container copies succeeded, the copied database passed its integrity check, and Peak 3.6 saved a verified full backup through Files. These establish backup access, not a completed 3.7 upgrade, restore or Health acceptance. Record those outcomes separately before claiming them.
 3. Reconcile README, architecture, changelog and release notes with the candidate's actual schema, user-facing behavior and test evidence. Never describe unrun device/ocean checks as passed.
 4. Verify distribution signing/profiles and App Group access for **both** app and widget extension. The App Group `group.com.designprism.peak` was registered July 29. Past archives used manual signing; re-read current profile validity and build settings before selecting export options. Do not assume the tracked automatic-signing plist matches installed manual profiles.
 5. Verify privacy/export-compliance answers against the actual binary. Current networking uses standard HTTPS; no telemetry SDK is added by Apple's analytics reporting request.
@@ -70,6 +70,8 @@ For a new App Store candidate: prepare metadata and user-facing What's New, atta
 - Explain any new navigation or migration behavior specific to the candidate; do not paste old version notes unchanged.
 
 ## Release record template
+
+The canonical [Peak research and release record](https://app.notion.com/p/4103429581eb81bc8b08c1e8f7dd6d77) holds final delivery and lifecycle readbacks. Keep private device copies and source/artifact receipts in ignored `.asc/artifacts/`; do not commit journal contents or device provisioning profiles. Preparation documents describe evidence available at preparation time, not a later release result.
 
 ```text
 Version/build:
