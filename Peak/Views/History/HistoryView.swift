@@ -16,6 +16,7 @@ struct HistoryView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
@@ -49,8 +50,11 @@ struct HistoryView: View {
 
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
+    /// Accessibility sizes also need the full pane rather than a narrow list
+    /// between the app sidebar and a second detail column.
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
+        horizontalSizeClass == .regular && !typeSize.isAccessibilitySize
+            && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {

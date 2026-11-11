@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 #if PEAK_SYSTEM_INTENT_TESTS && canImport(AppIntentsTesting)
 import AppIntentsTesting
 #endif
@@ -20,10 +21,10 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
     #endif
 
-    private func launch(empty: Bool = false, largeText: Bool = false) -> XCUIApplication {
+    private func launch(empty: Bool = false, largeText: Bool = false, productionNavigation: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITESTS"] = "1"
-        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "1"
+        app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = productionNavigation ? "0" : "1"
         app.launchEnvironment["UITESTS_DISABLE_ANIMATIONS"] = "1"
         app.launchEnvironment["UITESTS_DRAFT_RECOVERY"] = UUID().uuidString
         if empty { app.launchEnvironment["UITESTS_EMPTY_LIBRARY"] = "1" }
@@ -101,7 +102,21 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     func testCoreScreensAtAccessibilityTextSizeKeepContentReadable() throws {
-        let app = launch(largeText: true)
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        XCUIDevice.shared.orientation = isPad ? .landscapeLeft : .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = launch(largeText: true, productionNavigation: true)
+        if isPad {
+            // Exercise the shipping, scalable sidebar rather than the compact
+            // compatibility lane's UIKit top-tab labels.
+            let showSidebar = app.buttons.matching(NSPredicate(format:
+                "(label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar') AND NOT label CONTAINS[c] 'hide'"
+            )).firstMatch
+            if showSidebar.waitForExistence(timeout: 3), showSidebar.isHittable { showSidebar.tap() }
+            XCTAssertTrue(app.buttons.matching(NSPredicate(format:
+                "label CONTAINS[c] 'hide' AND label CONTAINS[c] 'sidebar'"
+            )).firstMatch.waitForExistence(timeout: 5))
+        }
         for title in ["History", "Stats", "Quiver"] {
             tapTab(title, in: app)
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 8))
@@ -132,17 +147,19 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     private func tapTab(_ name: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         // iPadOS can expose its top tab strip as ordinary buttons even in the
         // compact navigation test lane. Match the shipped tab before tapping.
-        let tab = app.tabBars.buttons[name]
-        if tab.waitForExistence(timeout: 3) {
+        let predicate = NSPredicate(format: "label == %@", name)
+        let tab = app.tabBars.buttons.matching(predicate).firstMatch
+        if tab.waitForExistence(timeout: 3), tab.isHittable {
             tab.tap()
             return
         }
-        let button = app.buttons[name].firstMatch
-        guard button.waitForExistence(timeout: 5) else {
-            XCTFail("Missing tab: \(name)", file: file, line: line)
-            return
+        for query in [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
+            if let button = query.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable }) {
+                button.tap()
+                return
+            }
         }
-        button.tap()
+        XCTFail("Missing navigation destination: \(name)", file: file, line: line)
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {
