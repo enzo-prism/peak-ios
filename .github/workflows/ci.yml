@@ -24,10 +24,10 @@ jobs:
         include:
           - runner: macos-26
             xcode: '26.6'
-            minimum: 657
+            minimum: 669
           - runner: xcode-27
             xcode: '27.0'
-            minimum: 658
+            minimum: 670
     steps:
       - uses: actions/checkout@v4
       - uses: maxim-lobanov/setup-xcode@v1
@@ -85,9 +85,9 @@ jobs:
           DESIGN_DEVICE: ${{ matrix.device }}
         run: |
           if [[ "$DESIGN_DEVICE" == "iphone" ]]; then
-            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 658
+            python3 scripts/check-test-results.py artifacts/design-check/iphone/UnitTests.xcresult 670
           fi
-          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 82
+          python3 scripts/check-test-results.py "artifacts/design-check/$DESIGN_DEVICE/UITests.xcresult" 83
       - name: Upload device test evidence
         if: always()
         uses: actions/upload-artifact@v4

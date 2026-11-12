@@ -41,6 +41,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - The iPad compatibility top-tab lane reported five UIKit-label font warnings on a separate CI runner as well as locally; concurrency did not explain them. The large-text case now uses the shipping sidebar in landscape with no audit issue filter. History and Quiver retain their stack layouts at accessibility sizes so the app sidebar does not squeeze a second list/detail split. This focused native iPad audit passed once with working changes over `1707383`; clean-source full-suite validation is still required.
 
+- Reviewed recovery and filter-handoff follow-ups add protected-data, transient-error, interrupted-removal and pinned-spot coverage. Resuming removal verifies remaining bytes against the archive and repairs its durable receipt before deleting originals. Cancel and swipe dismissal now have an explicit UI regression. The expected clean-source floor is 670 unit cases on Xcode 27, 669 on Xcode 26.6, and 83 UI cases per device; these are requirements until observed passing receipts exist.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

@@ -1143,6 +1143,80 @@ final class ExportImportTests: XCTestCase {
         try assertRecoveryBytes(in: root)
     }
 
+    func testWrappedTransientFailuresDoNotArchive() {
+        let corrupt = NSError(domain: "NSSQLiteErrorDomain", code: 11)
+        for cause in [CocoaError(.fileReadNoPermission) as NSError,
+                      CocoaError(.fileWriteOutOfSpace) as NSError,
+                      NSError(domain: "NSSQLiteErrorDomain", code: 5)] {
+            let wrapper = NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileReadCorruptFile.rawValue,
+                                  userInfo: [NSUnderlyingErrorKey: cause])
+            XCTAssertFalse(PeakDataStore.isArchiveWorthy(wrapper))
+        }
+        let failedMigration = NSError(domain: NSCocoaErrorDomain, code: 134110,
+                                      userInfo: [NSUnderlyingErrorKey: corrupt])
+        XCTAssertFalse(PeakDataStore.isArchiveWorthy(failedMigration))
+        XCTAssertFalse(PeakDataStore.isArchiveWorthy(NSError(domain: NSCocoaErrorDomain, code: 134020)),
+                       "A database-level error can mean permission failure, not model incompatibility")
+        XCTAssertTrue(PeakDataStore.isArchiveWorthy(NSError(domain: "NSSQLiteErrorDomain", code: 779)),
+                      "An extended SQLITE_CORRUPT code is still corruption")
+    }
+
+    func testRemovalResumeRepairsMissingReceiptBeforeDeletingOriginals() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }))
+        let pending = try XCTUnwrap(try PeakDataStore.pendingRecovery(in: root))
+        let archive = URL(fileURLWithPath: try XCTUnwrap(pending.archivedPath))
+        let receipt = root.appendingPathComponent(PeakDataStore.recoveryRecordName)
+        try FileManager.default.removeItem(at: receipt)
+        let resumed = try PeakDataStore.relocateStoreFiles(in: root, removeItem: { url in
+            XCTAssertTrue(FileManager.default.fileExists(atPath: receipt.path),
+                          "The receipt must be durable before resuming removal")
+            try FileManager.default.removeItem(at: url)
+        })
+        XCTAssertEqual(resumed, archive)
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: root))
+        XCTAssertEqual(try PeakDataStore.preservedArchive(in: root), archive.path)
+        try assertRecoveryBytes(in: archive)
+    }
+
+    func testRemovalResumeRefusesIncompleteArchive() throws {
+        for missing in [true, false] {
+            let root = try makeRecoveryFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in
+                throw CocoaError(.fileWriteNoPermission)
+            }))
+            let pending = try XCTUnwrap(try PeakDataStore.pendingRecovery(in: root))
+            let archive = URL(fileURLWithPath: try XCTUnwrap(pending.archivedPath))
+            let wal = archive.appendingPathComponent("default.store-wal")
+            if missing { try FileManager.default.removeItem(at: wal) }
+            else { try Data("changed bytes".utf8).write(to: wal) }
+            var attemptedRemoval = false
+            XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in
+                attemptedRemoval = true
+            }))
+            XCTAssertFalse(attemptedRemoval)
+            XCTAssertEqual(try PeakDataStore.pendingRecovery(in: root)?.phase, .removing)
+            try assertRecoveryBytes(in: root)
+        }
+    }
+
+    func testRemovalResumeWaitsForProtectedData() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in
+            throw CocoaError(.fileWriteNoPermission)
+        }))
+        XCTAssertThrowsError(try PeakDataStore.relocateStoreFiles(in: root, removeItem: { _ in
+            XCTFail("Locked protected data must not resume any removal")
+        }, isProtectedDataAvailable: { false }))
+        XCTAssertEqual(try PeakDataStore.pendingRecovery(in: root)?.phase, .removing)
+        try assertRecoveryBytes(in: root)
+    }
+
     private func makeRecoveryFixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("PeakRecovery-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root.appendingPathComponent(".default_SUPPORT"), withIntermediateDirectories: true)

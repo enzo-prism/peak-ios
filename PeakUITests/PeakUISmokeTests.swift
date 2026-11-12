@@ -266,7 +266,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
 
     func testUnsupportedQuestionHandsKnownDateToHistoryFilters() {
         for entry in ["History", "More"] {
-            let app = launch()
+            let app = launch(productionNavigation: true)
             tapTab(entry, in: app)
             app.buttons[entry == "History" ? "history.askPeak" : "more.askPeak"].tap()
             let question = app.textFields["ask.question"]
@@ -282,6 +282,40 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             XCTAssertTrue(app.navigationBars["Ask Peak"].waitForNonExistence(timeout: 8))
             XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
             XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists)
+        }
+    }
+
+    func testUnconfirmedFilterReviewKeepsAskPeakAndDoesNotChangeHistory() {
+        for entry in ["History", "More"] {
+            let app = launch(productionNavigation: true)
+            tapTab(entry, in: app)
+            app.buttons[entry == "History" ? "history.askPeak" : "more.askPeak"].tap()
+            let question = app.textFields["ask.question"]
+            XCTAssertTrue(question.waitForExistence(timeout: 8))
+            question.tap()
+            question.typeText("Find fastest surf last week")
+            app.buttons["ask.submit"].tap()
+            let review = app.buttons["Review History filters"]
+            XCTAssertTrue(review.waitForExistence(timeout: 8))
+            review.tap()
+            let filters = app.navigationBars["Filters"]
+            XCTAssertTrue(filters.waitForExistence(timeout: 8))
+            filters.buttons["Cancel"].tap()
+            XCTAssertTrue(filters.waitForNonExistence(timeout: 8))
+            XCTAssertTrue(app.navigationBars["Ask Peak"].exists)
+
+            review.tap()
+            XCTAssertTrue(filters.waitForExistence(timeout: 8))
+            filters.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+                .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+            XCTAssertTrue(filters.waitForNonExistence(timeout: 8), "Swipe dismissal must close only the review sheet")
+            let ask = app.navigationBars["Ask Peak"]
+            XCTAssertTrue(ask.exists)
+            ask.buttons.firstMatch.tap()
+            if entry == "More" { tapTab("History", in: app) }
+            XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
+            XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists,
+                           "Unconfirmed review filters must not be applied to History")
         }
     }
 }

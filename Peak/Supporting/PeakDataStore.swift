@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import UIKit
+import Darwin
 
 /// Details retained for recovery, without exposing filesystem paths in the UI.
 nonisolated struct StoreRecoveryIssue: Error, Equatable, Codable, Sendable {
@@ -278,6 +279,9 @@ enum PeakDataStore {
     ) throws -> URL {
         let fm = FileManager.default
         let marker = directory.appendingPathComponent(recoveryMarkerName)
+        guard isProtectedDataAvailable() else {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "Protected data is not available yet. Original files have not been changed.")
+        }
         if let issue = try pendingRecovery(in: directory) {
             if issue.phase == .removing {
                 do {
@@ -303,9 +307,6 @@ enum PeakDataStore {
             if let incomplete = archiveURL(for: issue, in: directory) {
                 try removeItem(incomplete)
             }
-        }
-        guard isProtectedDataAvailable() else {
-            throw StoreRecoveryIssue(archivedPath: nil, details: "Protected data is not available yet. Original files have not been changed.")
         }
         let stamp = ExportDateFormatter.fileSafeString(from: now)
         let archive = directory.appendingPathComponent("Archived Store \(stamp) \(UUID().uuidString)", isDirectory: true)
@@ -357,23 +358,35 @@ enum PeakDataStore {
     /// retire a library that may still be healthy.
     nonisolated static func isArchiveWorthy(_ error: Error) -> Bool {
         var current: NSError? = error as NSError
+        var visited = Set<ObjectIdentifier>()
+        var worthy = false
         while let ns = current {
+            guard visited.insert(ObjectIdentifier(ns)).inserted else { return false }
+            // A transient cause vetoes recovery even when a wrapper reports
+            // corruption or a model mismatch. Keep the original for retry.
+            if ns.domain == NSCocoaErrorDomain,
+               PersistentStoreFailure.transientCocoaCodes.contains(ns.code) { return false }
+            if ns.domain == NSPOSIXErrorDomain,
+               PersistentStoreFailure.transientPOSIXCodes.contains(ns.code) { return false }
+            let sqliteCode = ns.code & 0xff
             if ns.domain == PersistentStoreFailure.sqliteDomain,
-               PersistentStoreFailure.sqliteCorruptionCodes.contains(ns.code) {
-                return true
+               PersistentStoreFailure.transientSQLiteCodes.contains(sqliteCode) { return false }
+            if ns.domain == PersistentStoreFailure.sqliteDomain,
+               PersistentStoreFailure.sqliteCorruptionCodes.contains(sqliteCode) {
+                worthy = true
             }
             if ns.domain == NSCocoaErrorDomain {
-                if ns.code == CocoaError.fileReadCorruptFile.rawValue { return true }
-                if PersistentStoreFailure.incompatibleModelCodes.contains(ns.code) { return true }
+                if ns.code == CocoaError.fileReadCorruptFile.rawValue { worthy = true }
+                if PersistentStoreFailure.incompatibleModelCodes.contains(ns.code) { worthy = true }
             }
             current = ns.userInfo[NSUnderlyingErrorKey] as? NSError
         }
-        return false
+        return worthy
     }
 
     nonisolated static func protectedDataAvailable() -> Bool {
         if Thread.isMainThread {
-            return UIApplication.shared.isProtectedDataAvailable
+            return MainActor.assumeIsolated { UIApplication.shared.isProtectedDataAvailable }
         }
         return DispatchQueue.main.sync { UIApplication.shared.isProtectedDataAvailable }
     }
@@ -413,12 +426,44 @@ enum PeakDataStore {
     ) throws -> URL {
         guard let archive = archiveURL(for: issue, in: directory) else { throw issue }
         let leftovers = existingLibrarySources(in: directory, storeName: storeName, mediaDirectory: mediaDirectory)
+        let fm = FileManager.default
+        let storeCopy = archive.appendingPathComponent(storeName)
+        let livePath = directory.standardizedFileURL.path
+        let removable = leftovers.filter { $0.deletingLastPathComponent().standardizedFileURL.path == livePath }
+        guard (try? storeCopy.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+              removable.allSatisfy({ remainingSourceIsPreserved($0, in: archive) }) else {
+            throw StoreRecoveryIssue(archivedPath: archive.path,
+                                     details: "The preserved copy is incomplete or differs from remaining files. Original files have not been changed.",
+                                     phase: .removing, archiveDirectory: archive.lastPathComponent)
+        }
+        // The crash may have happened after the complete-copy marker but
+        // before its durable receipt. Keep the archive discoverable next launch.
+        let receipt = StoreRecoveryIssue(archivedPath: nil, details: issue.details,
+                                         phase: .removing, archiveDirectory: archive.lastPathComponent)
+        try JSONEncoder().encode(receipt).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
         try removeLiveSources(leftovers, in: directory, removeItem: removeItem)
         let marker = directory.appendingPathComponent(recoveryMarkerName)
-        if FileManager.default.fileExists(atPath: marker.path) {
+        if fm.fileExists(atPath: marker.path) {
             try removeItem(marker)
         }
         return archive
+    }
+
+    /// A partially removed directory is a subset of its preserved copy. Every
+    /// remaining leaf must still match before it can be removed.
+    nonisolated private static func remainingSourceIsPreserved(_ source: URL, in archive: URL) -> Bool {
+        let fm = FileManager.default
+        let copy = archive.appendingPathComponent(source.lastPathComponent)
+        guard let values = try? source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              let copyValues = try? copy.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              values.isSymbolicLink != true, copyValues.isSymbolicLink != true else { return false }
+        guard values.isDirectory == true else {
+            return fm.contentsEqual(atPath: source.path, andPath: copy.path)
+        }
+        guard copyValues.isDirectory == true else { return false }
+        guard let children = try? fm.contentsOfDirectory(at: source,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: []) else { return false }
+        return children.allSatisfy { remainingSourceIsPreserved($0, in: copy) }
     }
 
     nonisolated private static func existingLibrarySources(
@@ -469,5 +514,15 @@ enum PeakDataStore {
 private enum PersistentStoreFailure {
     static let sqliteDomain = "NSSQLiteErrorDomain"
     static let sqliteCorruptionCodes: Set<Int> = [11, 24, 26]
-    static let incompatibleModelCodes: Set<Int> = [134000, 134010, 134020, 134100]
+    // 134020 is also used for permission/database-level errors; it alone is
+    // not proof of model incompatibility. 134100 is a version-hash mismatch.
+    static let incompatibleModelCodes: Set<Int> = [134100]
+    static let transientSQLiteCodes: Set<Int> = [3, 5, 6, 7, 8, 10, 13, 14, 23]
+    static let transientCocoaCodes: Set<Int> = [
+        CocoaError.fileReadNoPermission.rawValue, CocoaError.fileWriteNoPermission.rawValue,
+        CocoaError.fileWriteOutOfSpace.rawValue,
+        132000, 132010, 134090, // Context/coordinator locks and store timeout.
+        134110, 134111, 134120, 134130, 134140, 134150, 134160 // Migration failures.
+    ]
+    static let transientPOSIXCodes = Set([EACCES, EPERM, ENOSPC, EBUSY, EROFS, EAGAIN, ENFILE, EMFILE, ENOMEM].map { Int($0) })
 }

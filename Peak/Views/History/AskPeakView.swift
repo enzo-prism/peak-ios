@@ -7,6 +7,7 @@ struct AskPeakView: View {
     @State private var question: String
     @State private var reviewFilters = HistoryFilters()
     @State private var showFilters = false
+    @State private var confirmedFilterReview = false
 
     init(initialQuestion: String = "") { _question = State(initialValue: initialQuestion) }
 
@@ -80,10 +81,14 @@ struct AskPeakView: View {
             }
         }
         .navigationTitle("Ask Peak")
-        .sheet(isPresented: $showFilters) {
+        .sheet(isPresented: $showFilters, onDismiss: {
+            guard confirmedFilterReview else { return }
+            confirmedFilterReview = false
+            confirmHistoryHandoff()
+        }) {
             HistoryFilterSheetView(
                 filters: $reviewFilters,
-                onConfirm: confirmHistoryHandoff,
+                onConfirm: { confirmedFilterReview = true },
                 showsCancel: true
             )
         }
@@ -93,6 +98,7 @@ struct AskPeakView: View {
     }
 
     private func presentFilterReview() {
+        confirmedFilterReview = false
         reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
         showFilters = true
     }
