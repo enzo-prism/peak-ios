@@ -110,32 +110,26 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             // Exercise the shipping, scalable sidebar rather than the compact
             // compatibility lane's UIKit top-tab labels.
             func sidebarIsVisible() -> Bool {
-                // Inspect the destination column, not the toggle's localized
-                // title: a visible sidebar can still say "Toggle Sidebar".
-                // Accessibility XXXL rows do not all fit; later destinations
-                // stay in the left column below the fold, so requiring every
-                // title on-screen treats an open sidebar as hidden and then
-                // demands a Show control that is "Hide Sidebar" instead.
-                let frames = ["Log", "History", "Stats", "Quiver"].compactMap { title -> CGRect? in
-                    let predicate = NSPredicate(format: "label == %@", title)
-                    for query in [app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
-                        if let item = query.allElementsBoundByIndex.first(where: {
-                            $0.exists && !$0.frame.isEmpty
-                                && $0.frame.minX >= app.frame.minX && $0.frame.maxX < app.frame.midX
-                        }) { return item.frame }
+                // The native sidebar is a left-edge collection of destination
+                // cells. Scope to it instead of matching duplicate content
+                // headings or using Application.frame as the display bounds.
+                let bounds = app.windows.firstMatch.frame
+                guard !bounds.isEmpty else { return false }
+                return app.collectionViews.allElementsBoundByIndex.contains { column in
+                    let frame = column.frame
+                    guard !frame.isEmpty, abs(frame.minX - bounds.minX) < 32,
+                          frame.maxX < bounds.midX else { return false }
+                    let rows = ["Log", "History", "Stats", "Quiver"].compactMap { title -> CGRect? in
+                        column.cells.matching(NSPredicate(format: "label == %@", title))
+                            .allElementsBoundByIndex.first(where: {
+                                let row = $0.frame
+                                return !row.isEmpty && bounds.contains(CGPoint(x: row.midX, y: row.midY))
+                            })?.frame
+                    }.sorted { $0.minY < $1.minY }
+                    guard rows.count >= 2 else { return false }
+                    return zip(rows, rows.dropFirst()).allSatisfy { previous, next in
+                        next.minY - previous.minY > 20
                     }
-                    return nil
-                }.sorted { $0.minY < $1.minY }
-                // Top tabs may also occupy the left half. A sidebar is a
-                // vertical destination column, not labels on one row.
-                // Overflow is valid; a hidden/offscreen column is not. Keep
-                // two actual row centres inside the window before accepting it.
-                let visibleRows = frames.filter {
-                    app.frame.contains(CGPoint(x: $0.midX, y: $0.midY))
-                }
-                guard visibleRows.count >= 2 else { return false }
-                return zip(frames, frames.dropFirst()).allSatisfy { previous, next in
-                    next.minY - previous.minY > 20
                 }
             }
             let visible = NSPredicate { _, _ in sidebarIsVisible() }
@@ -196,8 +190,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: reachable, object: nil)], timeout: 5) == .completed,
                let destination {
                 let frame = destination.frame
-                app.coordinate(withNormalizedOffset: .zero)
-                    .withOffset(CGVector(dx: frame.midX - app.frame.minX, dy: frame.midY - app.frame.minY)).tap()
+                let window = app.windows.firstMatch
+                window.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: frame.midX - window.frame.minX, dy: frame.midY - window.frame.minY)).tap()
                 if app.navigationBars[name].waitForExistence(timeout: 8) { return }
             }
             if attempt == 0, UIDevice.current.userInterfaceIdiom == .phone {
@@ -216,7 +211,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         // when an adaptive sidebar cell has no usable activation point.
         return !frame.isEmpty && !frame.isInfinite && !frame.isNull
             && frame.midX.isFinite && frame.midY.isFinite
-            && app.frame.insetBy(dx: 2, dy: 2).contains(CGPoint(x: frame.midX, y: frame.midY))
+            && app.windows.firstMatch.frame.insetBy(dx: 2, dy: 2).contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {

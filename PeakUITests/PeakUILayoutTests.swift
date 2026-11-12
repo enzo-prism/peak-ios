@@ -495,7 +495,9 @@ final class PeakUILayoutTests: XCTestCase {
         scrollToVisible(notesField, in: scrollView)
         assertExists(notesField)
         notesField.tap()
-        app.typeText("Long notes to confirm the editor stays visible above the keyboard.")
+        let notes = "Long notes to confirm the editor stays visible above the keyboard."
+        notesField.typeText(notes)
+        XCTAssertTrue((notesField.value as? String)?.contains(notes) == true, "Typing must reach the session Notes field")
         assertNotCoveredByKeyboard(notesField)
     }
 
@@ -900,12 +902,16 @@ private extension PeakUILayoutTests {
         while !isComfortablyVisible(element, in: scrollView) && attempts < maxSwipes {
             let viewport = visibleScrollFrame(in: scrollView)
             guard viewport.height > 80 else { return }
-            let movingDown = element.exists && element.frame.minY < viewport.minY
-            let startY = movingDown ? viewport.minY + viewport.height * 0.3 : viewport.maxY - viewport.height * 0.3
-            let endY = movingDown ? viewport.maxY - viewport.height * 0.3 : viewport.minY + viewport.height * 0.3
-            let origin = app.coordinate(withNormalizedOffset: .zero)
-            let start = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: startY - app.frame.minY))
-            let end = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: endY - app.frame.minY))
+            let limit = viewport.height * 0.4
+            let delta = element.exists && !element.frame.isEmpty
+                ? min(limit, max(-limit, viewport.midY - element.frame.midY)) : -limit
+            guard abs(delta) > 1 else { return }
+            let startY = delta > 0 ? viewport.minY + viewport.height * 0.25 : viewport.maxY - viewport.height * 0.25
+            let window = app.windows.firstMatch
+            let origin = window.coordinate(withNormalizedOffset: .zero)
+            // Drag the gutter, so a TextEditor/slider cannot consume the drag.
+            let start = origin.withOffset(CGVector(dx: viewport.maxX - 6 - window.frame.minX, dy: startY - window.frame.minY))
+            let end = origin.withOffset(CGVector(dx: viewport.maxX - 6 - window.frame.minX, dy: startY + delta - window.frame.minY))
             start.press(forDuration: 0.05, thenDragTo: end)
             attempts += 1
         }
@@ -1028,14 +1034,14 @@ private extension PeakUILayoutTests {
         for label in ["Done", "return", "Hide keyboard"] {
             let predicate = NSPredicate(format: "label ==[c] %@ OR identifier ==[c] %@", label, label)
             if let button = app.keyboards.buttons.matching(predicate).allElementsBoundByIndex.first(where: {
-                $0.exists && $0.isHittable && app.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+                $0.exists && $0.isHittable && app.windows.firstMatch.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
             }) {
                 button.tap()
                 if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
             }
         }
 
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
         if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
         app.scrollViews["session.editor.scroll"].swipeDown()
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 3), .completed,
@@ -1184,7 +1190,7 @@ private extension PeakUILayoutTests {
 
     func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let shown = NSPredicate { _, _ in self.onscreenKeyboard() != nil }
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: nil)], timeout: 3), .completed,
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: nil)], timeout: 8), .completed,
                        "Show the software keyboard; an offscreen hardware-keyboard preview is not keyboard-avoidance coverage", file: file, line: line)
         guard let keyboard = onscreenKeyboard() else { return }
 
@@ -1203,8 +1209,9 @@ private extension PeakUILayoutTests {
     }
 
     func onscreenKeyboard() -> XCUIElement? {
-        app.keyboards.allElementsBoundByIndex.first {
-            $0.exists && $0.frame.intersection(app.frame).height > 100
+        let bounds = app.windows.firstMatch.frame
+        return app.keyboards.allElementsBoundByIndex.first {
+            $0.exists && $0.frame.intersection(bounds).height > 100
         }
     }
 }
