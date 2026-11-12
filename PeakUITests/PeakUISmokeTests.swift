@@ -66,8 +66,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
         let protection = app.buttons["log.backupProtection"]
-        scrollToVisible(protection, in: app.scrollViews.firstMatch, app: app)
-        XCTAssertTrue(protection.exists && protection.isHittable)
+        XCTAssertTrue(protection.waitForExistence(timeout: 8), "A fifth session must surface logbook protection")
+        scrollToVisible(protection, in: app.scrollViews["log.scroll"], app: app)
+        XCTAssertTrue(protection.isHittable)
         protection.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 8))
         let backup = app.buttons["Back Up Everything"]
@@ -78,8 +79,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testHealthEntryExplainsPreferenceWithoutClaimingConnection() {
         let app = launch()
         let entry = app.buttons["log.healthImport"]
-        scrollToVisible(entry, in: app.scrollViews.firstMatch, app: app)
-        XCTAssertTrue(entry.exists)
+        XCTAssertTrue(entry.waitForExistence(timeout: 8))
+        scrollToVisible(entry, in: app.scrollViews["log.scroll"], app: app)
+        XCTAssertTrue(entry.isHittable)
         entry.tap()
         XCTAssertTrue(app.switches["health.integration.toggle"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["Apple Health connected"].exists)
@@ -249,7 +251,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     private func visibleContentFrame(in scrollView: XCUIElement, app: XCUIApplication) -> CGRect {
-        var visible = scrollView.frame.intersection(app.frame)
+        var visible = scrollView.frame.intersection(app.windows.firstMatch.frame)
         // A sheet's ScrollView extends behind its navigation bar on iPad.
         // AX can call a partly covered button hittable even when its centre is
         // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll

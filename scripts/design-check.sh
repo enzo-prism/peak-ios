@@ -214,6 +214,7 @@ if [[ -z "${UI_TEST_TARGET}" ]]; then
 fi
 
 if [[ "${DESIGN_DEVICE}" != "ipad" ]]; then
+  DESTINATION_NAME="${IPHONE_NAME}" DESTINATION_UDID="${IPHONE_UDID}" "${SCRIPT_DIR}/boot-sim.sh"
   run_ui_tests "iPhone: ${IPHONE_NAME}" "${IPHONE_UDID}" "${IPHONE_DIR}/UITests.xcresult"
   if [[ "${SKIP_SCREENSHOTS:-}" != "1" ]]; then
     capture_screenshot "${IPHONE_UDID}" "${IPHONE_DIR}/screenshot.png" "iPhone"

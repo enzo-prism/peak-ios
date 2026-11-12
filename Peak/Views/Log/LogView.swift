@@ -100,6 +100,7 @@ struct LogView: View {
                     .offset(y: showContent || reduceMotion ? 0 : 12)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
                 }
+                .accessibilityIdentifier("log.scroll")
             }
             .navigationTitle("Log")
             .toolbar {
