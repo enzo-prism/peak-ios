@@ -4,6 +4,7 @@ import SwiftData
 struct MoreView: View {
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Spot.name) private var spots: [Spot]
+    @State private var isAskPeakPresented = false
     private var openedSpot: PeakEntityRef? {
         get { navigation.moreSpotSelection }
         nonmutating set { navigation.moreSpotSelection = newValue }
@@ -25,11 +26,20 @@ struct MoreView: View {
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
                             .accessibilityIdentifier("more.memories")
-                            NavigationLink { AskPeakView() } label: {
-                                Label("Ask Peak", systemImage: "magnifyingglass")
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+                            Button {
+                                isAskPeakPresented = true
+                            } label: {
+                                HStack {
+                                    Label("Ask Peak", systemImage: "magnifyingglass")
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(Theme.textMuted)
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+                                .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
                             .accessibilityIdentifier("more.askPeak")
@@ -99,6 +109,9 @@ struct MoreView: View {
                     SpotDetailView(spot: spot)
                 }
             }
+            .navigationDestination(isPresented: $isAskPeakPresented) {
+                AskPeakView(onClose: { isAskPeakPresented = false })
+            }
         }
         .tint(Theme.textPrimary)
         .onAppear {
@@ -109,6 +122,10 @@ struct MoreView: View {
         }
         .onChange(of: navigation.selectedTab) { _, _ in
             consumePendingSpotIfNeeded()
+        }
+        .onChange(of: navigation.dismissAskPeakRequest) { _, request in
+            guard request != nil else { return }
+            isAskPeakPresented = false
         }
     }
 

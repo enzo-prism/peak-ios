@@ -16,6 +16,7 @@ struct HistoryView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(SurfSession.sortedByDateDescending(prefetch: [\.spot, \.gear, \.buddies]))
     private var sessions: [SurfSession]
@@ -34,6 +35,7 @@ struct HistoryView: View {
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
     @State private var showDeleteError = false
+    @State private var isAskPeakPresented = false
     /// Store-free selection survives a context replacement after an edit.
     /// Media relationships fault only for rows entering the lazy list.
     private var openedSession: PeakEntityRef? {
@@ -49,8 +51,11 @@ struct HistoryView: View {
 
     /// Regular-width History gets a sidebar + detail. The dedicated Search tab
     /// always stays a stack so it can host `.searchable` as its primary chrome.
+    /// Accessibility sizes also need the full pane rather than a narrow list
+    /// between the app sidebar and a second detail column.
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
+        horizontalSizeClass == .regular && !typeSize.isAccessibilitySize
+            && !isDedicatedSearchTab && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {
@@ -119,6 +124,7 @@ struct HistoryView: View {
             refreshResults()
             if let openedSession, sessionMatching(openedSession) == nil { self.openedSession = nil }
             consumePendingNavigation()
+            applyRequestedFilters()
         }
         .onChange(of: sessionsStamp) { _, _ in
             refreshResults()
@@ -135,6 +141,9 @@ struct HistoryView: View {
         .onChange(of: debouncedSearchText) { _, _ in
             refreshResults()
         }
+        .onChange(of: navigation.historyFilterRequest) { _, _ in
+            applyRequestedFilters()
+        }
         .onChange(of: navigation.pendingSessionID) { _, _ in
             consumePendingSessionIfNeeded()
         }
@@ -143,6 +152,10 @@ struct HistoryView: View {
         }
         .onChange(of: navigation.selectedTab) { _, _ in
             consumePendingNavigation()
+        }
+        .onChange(of: navigation.dismissAskPeakRequest) { _, request in
+            guard request != nil else { return }
+            isAskPeakPresented = false
         }
     }
 
@@ -162,6 +175,9 @@ struct HistoryView: View {
                 .navigationDestination(item: sessionSelection) { ref in
                     sessionDetail(for: ref)
                 }
+                .navigationDestination(isPresented: $isAskPeakPresented) {
+                    AskPeakView(onClose: { isAskPeakPresented = false })
+                }
         }
     }
 
@@ -176,6 +192,9 @@ struct HistoryView: View {
                     prompt: "Spots, notes, gear, buddies"
                 )
                 .searchMinimizeBehavior(!isDedicatedSearchTab)
+                .navigationDestination(isPresented: $isAskPeakPresented) {
+                    AskPeakView(onClose: { isAskPeakPresented = false })
+                }
         } detail: {
             if let ref = openedSession, let session = sessionMatching(ref) {
                 SessionDetailView(session: session)
@@ -241,8 +260,10 @@ struct HistoryView: View {
 
     @ToolbarContentBuilder
     private var historyToolbar: some ToolbarContent {
-        ToolbarItem(placement: .secondaryAction) {
-            NavigationLink { AskPeakView() } label: {
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button {
+                isAskPeakPresented = true
+            } label: {
                 Label("Ask Peak", systemImage: "text.bubble")
             }
             .accessibilityIdentifier("history.askPeak")
@@ -523,6 +544,17 @@ struct HistoryView: View {
             let values = grouped[key, default: []].sorted { $0.date > $1.date }
             return (key: key, value: values)
         }
+    }
+
+    private func applyRequestedFilters() {
+        guard !isDedicatedSearchTab, navigation.historyFilterRequest != nil else { return }
+        do {
+            filters = try navigation.historyFilters.restore(in: modelContext)
+            searchText = ""
+            debouncedSearchText = ""
+            navigation.historyFilterRequest = nil
+            refreshResults()
+        } catch { showFilterRestoreError = true }
     }
 
     private func sessionRowIdentifier(for session: SurfSession) -> String {

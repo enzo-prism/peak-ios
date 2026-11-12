@@ -87,7 +87,7 @@ No social/sharing, accounts, or backend for now.
 - For any UI change, run `./scripts/design-check.sh` (or explain why it’s not applicable).
 - Use `./scripts/test-ui.sh` when you need the iPhone UI suite without the full two-device design check.
 - **Report the test counts you observed**, and reconcile them against the baseline
-  (546 unit / 54 UI on `main`). An unexplained drop is a stale runner or a
+  (3.7 candidate: 674 unit / 83 UI; preceding main: 644 / 75). An unexplained drop is a stale runner or a
   concurrent run, not a pass.
 - If you added tests, name one in your summary and confirm you saw it in the output.
 - No new warnings or broken builds.
@@ -199,7 +199,7 @@ If not using MCP tools, use repo scripts (do not invent custom `xcodebuild` comm
 - iPhone UI tests: `./scripts/test-ui.sh`
 - iPhone + iPad UI/design check: `./scripts/design-check.sh`
 
-Baseline on `main`: **546 unit tests, 54 UI tests.** If your run reports fewer,
+Expected 3.7 baseline: **674 unit tests, 83 UI cases** (Xcode 27; Xcode 26.6 has 673 unit cases). If your run reports fewer,
 re-read rules 1 and 2 before you believe it.
 
 **Marketing screenshots.** `PeakMarketingCaptureTests` lives at the end of
@@ -223,14 +223,10 @@ alpha, which Apple rejects. Upload with `asc screenshots upload --device-type
 IPHONE_67` (the CLI aliases 6.9" onto the `APP_IPHONE_67` set) and
 `IPAD_PRO_3GEN_129`.
 
-**Known iPad breakage (2026-07-29):** 8 of the 54 UI tests fail on the iPad leg
-of `design-check.sh` on current `main` (verified by stashing all local changes
-and re-running — the failures are identical on a clean tree). Two clusters: a
-"tab bar never appeared / Missing tab" group (PeakInsightsUITests ×4,
-PeakEcosystemUITests ×2, PeakWindowCardUITests settings test) and
-`testQuiverRowHitAreaFullWidth` (row hit area 688 pt vs expected ≥794 pt).
-iPhone runs all 54 green. Do not attribute these to your diff; fixing them is
-open work.
+**Historical iPad breakage (2026-07-29):** the old 54-case suite had eight
+failures. That historical result is not a waiver for current candidates. Use
+the current two-device receipts in `docs/PEAK_3_7.md` and require the full suite;
+report any remaining failure explicitly.
 
 Project/scheme assumptions:
 - App/UI scheme is `Peak`; `PeakUnit` is the fast unit-only scheme.
@@ -281,7 +277,7 @@ Project/scheme assumptions:
 
 #### Schema rule (do not improvise around this)
 
-Only the HEAD schema (currently `PeakSchemaV10`, `Schema.Version(1, 9, 0)`)
+Only the HEAD schema (currently `PeakSchemaV12`, `Schema.Version(1, 11, 0)`)
 references the live `@Model` classes. Every earlier `PeakSchemaVn` is a **frozen
 inline snapshot** of the shape it shipped with.
 
@@ -411,7 +407,7 @@ Xcode, no iOS Simulator, and no `xcodebuild`.
 - Do **not** treat a missing `./scripts/test.sh` run as a pass. The Definition of
   Done still requires `./scripts/test.sh` (and UI/design scripts when applicable)
   on a Mac host with Xcode, one `xcodebuild` at a time.
-- Expected suite after the performance and library-UX passes: **546 unit / 54 UI**.
+- Expected suite after the performance and library-UX passes: **674 unit / 83 UI**.
 - Do not archive, notarize, or upload to App Store Connect from Cloud. Cut
   TestFlight / App Store builds on a Mac per `RELEASE_PLAYBOOK.md`.
 - When asked to push to production, fast-forward `origin/prod` to the same SHA

@@ -4,20 +4,22 @@ struct RatingPickerView: View {
     @Binding var rating: Int
 
     var body: some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 8) {
             ForEach(1...5, id: \.self) { value in
                 Button {
                     rating = value
                 } label: {
                     Image(systemName: value <= rating ? "star.fill" : "star")
                         .foregroundStyle(value <= rating ? Theme.textPrimary : Theme.textMuted.opacity(0.5))
-                        .font(.title3)
+                        .font(.system(size: 22))
                         .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(PressFeedbackButtonStyle())
                 .accessibilityLabel("Rate \(value) stars")
             }
+          }
             if rating > 0 {
                 Button {
                     rating = 0

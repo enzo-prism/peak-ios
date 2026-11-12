@@ -67,6 +67,7 @@ final class PeakNavigationCoordinator {
     // resolve fresh models by ID; they never carry retired SwiftData objects.
     var historyFilters = HistoryFilterSnapshot()
     var searchFilters = HistoryFilterSnapshot()
+    var historyFilterRequest: UUID?
     var historySearchText = ""
     var dedicatedSearchText = ""
     var historySelection: PeakEntityRef?
@@ -77,10 +78,23 @@ final class PeakNavigationCoordinator {
     var pendingSpotID: String?
     var pendingGearID: String?
     var pendingSearchQuery: String?
+    /// Parents observe this to close Ask Peak. `dismiss()` is a no-op in some
+    /// iPad split-view presentations, so the presenter must pop its own destination.
+    var dismissAskPeakRequest: UUID?
 
     private init() {}
 
+    func showHistory(filters: HistoryFilters) {
+        historyFilters = HistoryFilterSnapshot(filters)
+        historySearchText = ""
+        historySelection = nil
+        selectedTab = .history
+        historyFilterRequest = UUID()
+        dismissAskPeak()
+    }
+
     func clearLibraryNavigation() {
+        historyFilterRequest = nil
         historyFilters = HistoryFilterSnapshot()
         searchFilters = HistoryFilterSnapshot()
         historySearchText = ""
@@ -93,6 +107,11 @@ final class PeakNavigationCoordinator {
         pendingSpotID = nil
         pendingGearID = nil
         pendingSearchQuery = nil
+        dismissAskPeak()
+    }
+
+    func dismissAskPeak() {
+        dismissAskPeakRequest = UUID()
     }
 
     func handle(_ destination: PeakDeepLink.Destination) {

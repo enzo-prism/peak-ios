@@ -10,6 +10,7 @@ enum QuiverSortOption: String, CaseIterable, Identifiable {
 }
 
 struct QuiverView: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable private var navigation = PeakNavigationCoordinator.shared
     @Query(sort: \Gear.name) private var gear: [Gear]
@@ -31,7 +32,8 @@ struct QuiverView: View {
     }
 
     private var usesSplitNavigation: Bool {
-        horizontalSizeClass == .regular && !TestingDefaults.usesClassicNavigation
+        horizontalSizeClass == .regular && !typeSize.isAccessibilitySize
+            && !TestingDefaults.usesClassicNavigation
     }
 
     var body: some View {
@@ -129,12 +131,17 @@ struct QuiverView: View {
 
     private var filterCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Sort", selection: $sortOption) {
-                ForEach(QuiverSortOption.allCases) { option in
-                    Text(option.rawValue).tag(option)
+            Group {
+                if typeSize.isAccessibilitySize {
+                    Picker("Sort", selection: $sortOption) {
+                        ForEach(QuiverSortOption.allCases) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.menu)
+                } else {
+                    Picker("Sort", selection: $sortOption) {
+                        ForEach(QuiverSortOption.allCases) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented)
                 }
             }
-            .pickerStyle(.segmented)
 
             Toggle("Show archived", isOn: $showArchived)
                 .toggleStyle(SwitchToggleStyle(tint: Theme.surfGreen))
@@ -249,6 +256,7 @@ struct QuiverView: View {
 }
 
 private struct QuiverGearRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let gear: Gear
     let snapshot: GearUsageSnapshot?
 
@@ -276,7 +284,7 @@ private struct QuiverGearRow: View {
                 }
             }
 
-            HStack(spacing: 12) {
+            usageLayout {
                 Text("Times used: \(snapshot?.count ?? 0)")
                 Spacer()
                 Text(lastUsedLabel)
@@ -289,6 +297,10 @@ private struct QuiverGearRow: View {
         .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint, isInteractive: false)
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .accessibilityIdentifier("quiver.row")
+    }
+
+    private var usageLayout: AnyLayout {
+        typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))
     }
 
     private var lastUsedLabel: String {

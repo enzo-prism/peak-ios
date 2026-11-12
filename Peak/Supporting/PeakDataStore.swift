@@ -1,12 +1,15 @@
 import Foundation
 import SwiftData
+import UIKit
+import Darwin
+import SQLite3
 
 /// Details retained for recovery, without exposing filesystem paths in the UI.
 nonisolated struct StoreRecoveryIssue: Error, Equatable, Codable, Sendable {
     let archivedPath: String?
     let details: String
     let phase: Phase?
-    /// Relative to Application Support; survives an iOS sandbox relocation.
+    /// Relative to the selected store directory; survives a sandbox relocation.
     let archiveDirectory: String?
 
     nonisolated enum Phase: String, Codable, Sendable {
@@ -35,10 +38,9 @@ struct StoreLoadResult {
     let outcome: StoreLoadOutcome
 }
 
-/// Never retries an on-disk store after unsuccessful preservation. A durable
-/// marker also prevents reopening a partly removed store on the next launch.
+/// Opens the on-disk library when it is safe, and archives only when the store
+/// is genuinely unreadable. Transient failures stay in memory for this launch.
 enum PeakDataStore {
-    nonisolated private static let storeFileName = "default.store"
     nonisolated static let recoveryMarkerName = "Peak Store Recovery.json"
     nonisolated static let recoveryRecordName = "Peak Preserved Library.json"
     static let headSchema: any VersionedSchema.Type = PeakSchemaV12.self
@@ -48,28 +50,89 @@ enum PeakDataStore {
         if isUITest {
             return StoreLoadResult(container: makeInMemoryOrCrash(schema: schema), outcome: .normal)
         }
+        let configuration = ModelConfiguration(schema: schema)
         return loadPersistent(
-            open: { try makeContainer(schema: schema, inMemory: false) },
-            fallback: { makeInMemoryOrCrash(schema: schema) },
-            recover: { try archiveDefaultStore() },
-            pending: { try pendingRecovery(in: applicationSupport()) },
-            preservedArchive: { try preservedArchive(in: applicationSupport()) }
+            configuration: configuration,
+            mediaDirectory: SessionMediaStore.recoveryDirectoryURL,
+            legacyArchiveDirectory: try? applicationSupport(),
+            open: { try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration]) },
+            fallback: { makeInMemoryOrCrash(schema: schema) }
+        )
+    }
+
+    /// SwiftData's automatic configuration uses the primary App Group. Recovery
+    /// must use that exact URL, while videos can live in the app's private folder.
+    static func loadPersistent(
+        configuration: ModelConfiguration,
+        mediaDirectory: () throws -> URL,
+        legacyArchiveDirectory: URL? = nil,
+        open: () throws -> ModelContainer,
+        fallback: () -> ModelContainer,
+        isProtectedDataAvailable: @escaping () -> Bool = { PeakDataStore.protectedDataAvailable() },
+        availableCapacity: @escaping (URL) -> Int64? = { PeakDataStore.volumeCapacity(for: $0) }
+    ) -> StoreLoadResult {
+        let directory = configuration.url.deletingLastPathComponent()
+        return loadPersistent(
+            open: open,
+            fallback: fallback,
+            recover: {
+                let media = try mediaDirectory()
+                return try relocateStoreFiles(
+                    in: directory,
+                    storeName: configuration.url.lastPathComponent,
+                    mediaDirectory: media,
+                    isProtectedDataAvailable: isProtectedDataAvailable,
+                    availableCapacity: availableCapacity
+                )
+            },
+            pending: { try pendingRecovery(in: directory) },
+            preservedArchive: {
+                if let current = try preservedArchive(in: directory) { return current }
+                guard let legacyArchiveDirectory,
+                      legacyArchiveDirectory.standardizedFileURL.path != directory.standardizedFileURL.path else { return nil }
+                return try preservedArchive(in: legacyArchiveDirectory)
+            },
+            isProtectedDataAvailable: isProtectedDataAvailable,
+            clearIncompleteRecovery: { try abandonIncompleteCopy(in: directory) },
+            shouldArchive: { error in
+                if isArchiveWorthy(error) { return true }
+                // ModelContainer can hide its underlying store failure. Never
+                // guess from that wrapper: require independent SQLite proof.
+                guard (error as? SwiftDataError) == .loadIssueModelContainer,
+                      isProtectedDataAvailable() else { return false }
+                return sqliteStoreIsCorrupt(at: configuration.url)
+            }
         )
     }
 
     /// Dependency seam for failure-path tests; production and tests use the same
-    /// ordering, including checking an interrupted recovery before opening disk.
+    /// ordering: open first, archive only for genuine corruption/incompatibility.
     static func loadPersistent(
         open: () throws -> ModelContainer,
         fallback: () -> ModelContainer,
         recover: () throws -> URL,
         pending: () throws -> StoreRecoveryIssue?,
-        preservedArchive: () throws -> String? = { nil }
+        preservedArchive: () throws -> String? = { nil },
+        isProtectedDataAvailable: () -> Bool = { true },
+        clearIncompleteRecovery: () throws -> Void = { },
+        shouldArchive: (Error) -> Bool = PeakDataStore.isArchiveWorthy
     ) -> StoreLoadResult {
         func temporary(_ issue: StoreRecoveryIssue) -> StoreLoadResult {
             StoreLoadResult(container: fallback(), outcome: .inMemoryFallback(recovery: issue))
         }
-        func recoverAndOpen(reason: String) -> StoreLoadResult {
+        func healthy(_ container: ModelContainer) -> StoreLoadResult {
+            let previousArchive = try? preservedArchive()
+            return StoreLoadResult(container: container, outcome: previousArchive.map { .recoveredFresh(archivedPath: $0) } ?? .normal)
+        }
+        func recoverAndOpen(reason: String, existing: StoreRecoveryIssue? = nil) -> StoreLoadResult {
+            guard isProtectedDataAvailable() else {
+                return temporary(StoreRecoveryIssue(
+                    archivedPath: existing?.archivedPath,
+                    details: "\(reason). Protected data is not available yet. Original files have not been changed. Peak will retry on the next launch.",
+                    phase: existing?.phase,
+                    archiveDirectory: existing?.archiveDirectory
+                ))
+            }
             let archive: URL
             do {
                 archive = try recover()
@@ -88,30 +151,50 @@ enum PeakDataStore {
                 return temporary(StoreRecoveryIssue(archivedPath: archive.path, details: "Old library preserved; fresh library could not open: \(error.localizedDescription)"))
             }
         }
+        func openOrHold(reason prefix: String) -> StoreLoadResult {
+            do {
+                return healthy(try open())
+            } catch {
+                let reason = "\(prefix)\(error.localizedDescription)"
+                if shouldArchive(error) { return recoverAndOpen(reason: reason) }
+                return temporary(StoreRecoveryIssue(
+                    archivedPath: nil,
+                    details: "\(reason). Original files have not been changed. Peak will retry on the next launch.",
+                    phase: nil
+                ))
+            }
+        }
         do {
             if let issue = try pending() {
-                // Only a recorded pre-removal phase proves every original is
-                // intact. Resume preservation before attempting any disk open.
-                if issue.phase == .copying { return recoverAndOpen(reason: issue.details) }
+                if issue.phase == .copying {
+                    do {
+                        let container = try open()
+                        try? clearIncompleteRecovery()
+                        return healthy(container)
+                    } catch {
+                        if shouldArchive(error) { return recoverAndOpen(reason: issue.details, existing: issue) }
+                        return temporary(StoreRecoveryIssue(
+                            archivedPath: nil,
+                            details: "Library could not open: \(error.localizedDescription). Original files have not been changed. Peak will retry on the next launch.",
+                            phase: .copying
+                        ))
+                    }
+                }
+                if issue.phase == .removing {
+                    // Some originals may already be gone, including a WAL.
+                    // Opening the leftovers could silently lose transactions.
+                    // Resume only from a verified copy; otherwise retain and
+                    // offer both sets of files for explicit support recovery.
+                    return recoverAndOpen(reason: issue.details, existing: issue)
+                }
                 return temporary(issue)
             }
         } catch {
             return temporary(StoreRecoveryIssue(archivedPath: nil, details: "Could not check previous recovery: \(error.localizedDescription)"))
         }
         // A historical receipt is advisory. Damage to it must never disable a
-        // healthy current library; only the pending marker can block disk access.
-        let previousArchive = try? preservedArchive()
-        do {
-            let container = try open()
-            return StoreLoadResult(container: container, outcome: previousArchive.map { .recoveredFresh(archivedPath: $0) } ?? .normal)
-        } catch {
-            return recoverAndOpen(reason: "Library could not open: \(error.localizedDescription)")
-        }
-    }
-
-    private static func makeContainer(schema: Schema, inMemory: Bool) throws -> ModelContainer {
-        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+        // healthy current library; only a removing-phase marker can block disk access.
+        return openOrHold(reason: "Library could not open: ")
     }
 
     private static func makeInMemoryOrCrash(schema: Schema) -> ModelContainer {
@@ -127,8 +210,8 @@ enum PeakDataStore {
         try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
     }
 
-    /// Copying can resume because originals have not been removed. Removing
-    /// remains blocked, including legacy markers that recorded a complete copy.
+    /// Copying leaves originals intact, so the next launch can open them. A
+    /// complete archive in the removing phase is finished rather than re-copied.
     nonisolated static func pendingRecovery(in directory: URL) throws -> StoreRecoveryIssue? {
         let marker = directory.appendingPathComponent(recoveryMarkerName)
         guard FileManager.default.fileExists(atPath: marker.path) else { return nil }
@@ -172,34 +255,66 @@ enum PeakDataStore {
         return archive
     }
 
-    /// Cold App Intents must also avoid opening an interrupted recovery store.
+    /// Cold App Intents may open a copying-phase library (originals are intact)
+    /// but must not open a store whose originals may already have been removed.
     nonisolated static func canOpenStore(in directory: URL) -> Bool {
-        do { return try pendingRecovery(in: directory) == nil } catch { return false }
+        do {
+            guard let issue = try pendingRecovery(in: directory) else { return true }
+            return issue.phase == .copying
+        } catch {
+            return false
+        }
     }
 
     nonisolated static func canOpenDefaultStore() -> Bool {
-        do { return canOpenStore(in: try applicationSupport()) } catch { return false }
+        canOpenStore(in: ModelConfiguration().url.deletingLastPathComponent())
     }
 
     @discardableResult
     nonisolated static func archiveDefaultStore(now: Date = Date()) throws -> URL {
-        try relocateStoreFiles(in: applicationSupport(), storeName: storeFileName, now: now)
+        let store = ModelConfiguration().url
+        return try relocateStoreFiles(in: store.deletingLastPathComponent(), storeName: store.lastPathComponent,
+                                     mediaDirectory: SessionMediaStore.recoveryDirectoryURL(), now: now)
     }
 
     /// Copies every component before removing any original. If a copy, removal,
-    /// or marker operation fails, the error is propagated and disk reopening is
-    /// blocked. A complete archive survives even a partial removal or crash.
+    /// or marker operation fails, the error is propagated. A complete archive
+    /// survives even a partial removal or crash and is finished on the next launch.
     @discardableResult
     nonisolated static func relocateStoreFiles(
         in directory: URL,
         storeName: String = "default.store",
+        mediaDirectory: URL? = nil,
         now: Date = Date(),
         copyItem: (URL, URL) throws -> Void = { try FileManager.default.copyItem(at: $0, to: $1) },
-        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
+        removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) },
+        isProtectedDataAvailable: () -> Bool = { PeakDataStore.protectedDataAvailable() },
+        availableCapacity: (URL) -> Int64? = { PeakDataStore.volumeCapacity(for: $0) }
     ) throws -> URL {
         let fm = FileManager.default
         let marker = directory.appendingPathComponent(recoveryMarkerName)
+        guard isProtectedDataAvailable() else {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "Protected data is not available yet. Original files have not been changed.")
+        }
         if let issue = try pendingRecovery(in: directory) {
+            if issue.phase == .removing {
+                do {
+                    return try finishRemoval(
+                        issue: issue,
+                        in: directory,
+                        storeName: storeName,
+                        mediaDirectory: mediaDirectory,
+                        removeItem: removeItem
+                    )
+                } catch {
+                    throw StoreRecoveryIssue(
+                        archivedPath: archiveURL(for: issue, in: directory)?.path,
+                        details: error.localizedDescription,
+                        phase: .removing,
+                        archiveDirectory: issue.archiveDirectory
+                    )
+                }
+            }
             guard issue.phase == .copying else { throw issue }
             // The marker proves no source removal began. Discard only our own
             // incomplete archive so retries do not compound an out-of-space error.
@@ -209,13 +324,14 @@ enum PeakDataStore {
         }
         let stamp = ExportDateFormatter.fileSafeString(from: now)
         let archive = directory.appendingPathComponent("Archived Store \(stamp) \(UUID().uuidString)", isDirectory: true)
-        let baseName = (storeName as NSString).deletingPathExtension
-        let sources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT", "SessionMedia"]
-            .map { directory.appendingPathComponent($0) }
-            .filter { fm.fileExists(atPath: $0.path) }
+        let sources = existingLibrarySources(in: directory, storeName: storeName, mediaDirectory: mediaDirectory)
         // No source is not proof that a library was preserved.
         guard !sources.isEmpty else {
             throw StoreRecoveryIssue(archivedPath: nil, details: "No existing library files could be found to preserve.")
+        }
+        let needed = sources.reduce(Int64(0)) { $0 + allocatedSize(of: $1) } + 1_048_576
+        if let available = availableCapacity(directory), available < needed {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "Not enough free storage to preserve your library. Original files have not been changed.")
         }
         var completeArchive: String?
         do {
@@ -230,12 +346,130 @@ enum PeakDataStore {
             let preserved = StoreRecoveryIssue(archivedPath: nil, details: "A complete library copy was preserved, but preparing a fresh library did not finish.", phase: .removing, archiveDirectory: archive.lastPathComponent)
             try JSONEncoder().encode(preserved).write(to: marker, options: .atomic)
             try JSONEncoder().encode(preserved).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
-            for source in sources { try removeItem(source) }
+            try removeLiveSources(sources, in: directory, removeItem: removeItem)
             try removeItem(marker)
             return archive
         } catch {
             throw StoreRecoveryIssue(archivedPath: completeArchive, details: "\(error.localizedDescription) Recovery files: \(archive.path)", phase: completeArchive == nil ? .copying : .removing, archiveDirectory: archive.lastPathComponent)
         }
+    }
+
+    /// A copying-phase marker means originals are intact. Drop the marker and
+    /// any partial archive so the next launch is a normal open.
+    nonisolated static func abandonIncompleteCopy(in directory: URL) throws {
+        guard let issue = try pendingRecovery(in: directory), issue.phase == .copying else { return }
+        if let incomplete = archiveURL(for: issue, in: directory) {
+            try? FileManager.default.removeItem(at: incomplete)
+        }
+        let marker = directory.appendingPathComponent(recoveryMarkerName)
+        if FileManager.default.fileExists(atPath: marker.path) {
+            try FileManager.default.removeItem(at: marker)
+        }
+    }
+
+    /// Archive only genuine corruption or an incompatible model. Permission,
+    /// data-protection, low disk, SQLITE_BUSY and migration failures must not
+    /// retire a library that may still be healthy.
+    nonisolated static func isArchiveWorthy(_ error: Error) -> Bool {
+        var current: NSError? = error as NSError
+        var visited = Set<ObjectIdentifier>()
+        var worthy = false
+        while let ns = current {
+            guard visited.insert(ObjectIdentifier(ns)).inserted else { return false }
+            // A transient cause vetoes recovery even when a wrapper reports
+            // corruption or a model mismatch. Keep the original for retry.
+            if ns.domain == NSCocoaErrorDomain,
+               PersistentStoreFailure.transientCocoaCodes.contains(ns.code) { return false }
+            if ns.domain == NSPOSIXErrorDomain,
+               PersistentStoreFailure.transientPOSIXCodes.contains(ns.code) { return false }
+            let sqliteCode = ns.code & 0xff
+            if ns.domain == PersistentStoreFailure.sqliteDomain,
+               PersistentStoreFailure.transientSQLiteCodes.contains(sqliteCode) { return false }
+            if ns.domain == PersistentStoreFailure.sqliteDomain,
+               PersistentStoreFailure.sqliteCorruptionCodes.contains(sqliteCode) {
+                worthy = true
+            }
+            if ns.domain == NSCocoaErrorDomain {
+                if ns.code == CocoaError.fileReadCorruptFile.rawValue { worthy = true }
+                if PersistentStoreFailure.incompatibleModelCodes.contains(ns.code) { worthy = true }
+            }
+            current = ns.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return worthy
+    }
+
+    nonisolated static func protectedDataAvailable() -> Bool {
+        if Thread.isMainThread {
+            return MainActor.assumeIsolated { UIApplication.shared.isProtectedDataAvailable }
+        }
+        return DispatchQueue.main.sync { UIApplication.shared.isProtectedDataAvailable }
+    }
+
+    /// Read-only SQLite validation sees the WAL and respects database locks.
+    /// Busy, permission, I/O and other ambiguous failures are never corruption
+    /// evidence. Diagnostic text is neither displayed nor logged.
+    nonisolated static func sqliteStoreIsCorrupt(at url: URL) -> Bool {
+        var db: OpaquePointer?
+        let opened = sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nil)
+        defer { if let db { sqlite3_close(db) } }
+        func corrupt(_ code: Int32) -> Bool {
+            let primary = code & 0xff
+            return primary == SQLITE_CORRUPT || primary == SQLITE_NOTADB
+        }
+        guard opened == SQLITE_OK, let db else { return corrupt(opened) }
+        sqlite3_busy_timeout(db, 250)
+        var statement: OpaquePointer?
+        let prepared = sqlite3_prepare_v2(db, "PRAGMA integrity_check(1)", -1, &statement, nil)
+        defer { sqlite3_finalize(statement) }
+        guard prepared == SQLITE_OK, let statement else { return corrupt(prepared) }
+        var sawRow = false
+        var invalid = false
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let text = sqlite3_column_text(statement, 0) else { return false }
+            sawRow = true
+            invalid = invalid || String(cString: text) != "ok"
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { return corrupt(result) }
+        return sawRow && invalid
+    }
+
+    /// An explicit support export never retires, deletes or opens the original
+    /// library. It remains available even when the open failure is unclassified.
+    nonisolated static func originalFilesExport() throws -> URL {
+        try originalFilesExport(storeURL: ModelConfiguration().url,
+                                mediaDirectory: SessionMediaStore.recoveryDirectoryURL())
+    }
+
+    nonisolated static func originalFilesExport(
+        storeURL: URL,
+        mediaDirectory: URL?,
+        isProtectedDataAvailable: () -> Bool = { PeakDataStore.protectedDataAvailable() }
+    ) throws -> URL {
+        guard isProtectedDataAvailable() else {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "Unlock this device before exporting recovery files.")
+        }
+        let fm = FileManager.default
+        let directory = storeURL.deletingLastPathComponent()
+        let sources = existingLibrarySources(in: directory, storeName: storeURL.lastPathComponent, mediaDirectory: mediaDirectory)
+        guard sources.contains(where: { allocatedSize(of: $0) > 0 }) else {
+            throw StoreRecoveryIssue(archivedPath: nil, details: "No original library files could be found to export.")
+        }
+        let folder = fm.temporaryDirectory.appendingPathComponent("Peak Original Files \(UUID().uuidString)", isDirectory: true)
+        let needed = sources.reduce(Int64(0)) { $0 + allocatedSize(of: $1) } + 1_048_576
+        if let available = volumeCapacity(for: fm.temporaryDirectory), available < needed {
+            throw CocoaError(.fileWriteOutOfSpace)
+        }
+        defer { try? fm.removeItem(at: folder) }
+        try fm.createDirectory(at: folder, withIntermediateDirectories: false)
+        for source in sources { try fm.copyItem(at: source, to: folder.appendingPathComponent(source.lastPathComponent)) }
+        return try recoveryExport(archivedPath: folder.path)
+    }
+
+    nonisolated static func volumeCapacity(for url: URL) -> Int64? {
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     /// Produces a system-coordinated ZIP for Save to Files/support. The original
@@ -258,4 +492,113 @@ enum PeakDataStore {
         }
         return try exportResult.get()
     }
+
+    nonisolated private static func finishRemoval(
+        issue: StoreRecoveryIssue,
+        in directory: URL,
+        storeName: String,
+        mediaDirectory: URL?,
+        removeItem: (URL) throws -> Void
+    ) throws -> URL {
+        guard let archive = archiveURL(for: issue, in: directory) else { throw issue }
+        let leftovers = existingLibrarySources(in: directory, storeName: storeName, mediaDirectory: mediaDirectory)
+        let fm = FileManager.default
+        let storeCopy = archive.appendingPathComponent(storeName)
+        let livePath = directory.standardizedFileURL.path
+        let removable = leftovers.filter { $0.deletingLastPathComponent().standardizedFileURL.path == livePath }
+        guard (try? storeCopy.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+              removable.allSatisfy({ remainingSourceIsPreserved($0, in: archive) }) else {
+            throw StoreRecoveryIssue(archivedPath: archive.path,
+                                     details: "The preserved copy is incomplete or differs from remaining files. Original files have not been changed.",
+                                     phase: .removing, archiveDirectory: archive.lastPathComponent)
+        }
+        // The crash may have happened after the complete-copy marker but
+        // before its durable receipt. Keep the archive discoverable next launch.
+        let receipt = StoreRecoveryIssue(archivedPath: nil, details: issue.details,
+                                         phase: .removing, archiveDirectory: archive.lastPathComponent)
+        try JSONEncoder().encode(receipt).write(to: directory.appendingPathComponent(recoveryRecordName), options: .atomic)
+        try removeLiveSources(leftovers, in: directory, removeItem: removeItem)
+        let marker = directory.appendingPathComponent(recoveryMarkerName)
+        if fm.fileExists(atPath: marker.path) {
+            try removeItem(marker)
+        }
+        return archive
+    }
+
+    /// A partially removed directory is a subset of its preserved copy. Every
+    /// remaining leaf must still match before it can be removed.
+    nonisolated private static func remainingSourceIsPreserved(_ source: URL, in archive: URL) -> Bool {
+        let fm = FileManager.default
+        let copy = archive.appendingPathComponent(source.lastPathComponent)
+        guard let values = try? source.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              let copyValues = try? copy.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
+              values.isSymbolicLink != true, copyValues.isSymbolicLink != true else { return false }
+        guard values.isDirectory == true else {
+            return fm.contentsEqual(atPath: source.path, andPath: copy.path)
+        }
+        guard copyValues.isDirectory == true else { return false }
+        guard let children = try? fm.contentsOfDirectory(at: source,
+            includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: []) else { return false }
+        return children.allSatisfy { remainingSourceIsPreserved($0, in: copy) }
+    }
+
+    nonisolated private static func existingLibrarySources(
+        in directory: URL,
+        storeName: String,
+        mediaDirectory: URL?
+    ) -> [URL] {
+        let baseName = (storeName as NSString).deletingPathExtension
+        let storeSources = [storeName, "\(storeName)-wal", "\(storeName)-shm", ".\(baseName)_SUPPORT"]
+            .map { directory.appendingPathComponent($0) }
+        let media = mediaDirectory ?? directory.appendingPathComponent("SessionMedia", isDirectory: true)
+        return (storeSources + [media]).filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    nonisolated private static func removeLiveSources(
+        _ sources: [URL],
+        in directory: URL,
+        removeItem: (URL) throws -> Void
+    ) throws {
+        let livePath = directory.standardizedFileURL.path
+        for source in sources where source.deletingLastPathComponent().standardizedFileURL.path == livePath {
+            try removeItem(source)
+        }
+    }
+
+    nonisolated private static func allocatedSize(of url: URL) -> Int64 {
+        let fm = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return 0 }
+        if !isDirectory.boolValue {
+            return (try? fm.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0
+        }
+        guard let enumerator = fm.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsPackageDescendants]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let file as URL in enumerator {
+            let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+            guard values?.isRegularFile == true else { continue }
+            total += Int64(values?.fileSize ?? 0)
+        }
+        return total
+    }
+}
+
+private enum PersistentStoreFailure {
+    static let sqliteDomain = "NSSQLiteErrorDomain"
+    static let sqliteCorruptionCodes: Set<Int> = [11, 24, 26]
+    // 134020 is also used for permission/database-level errors; it alone is
+    // not proof of model incompatibility. 134100 is a version-hash mismatch.
+    static let incompatibleModelCodes: Set<Int> = [134100]
+    static let transientSQLiteCodes: Set<Int> = [3, 5, 6, 7, 8, 10, 13, 14, 23]
+    static let transientCocoaCodes: Set<Int> = [
+        CocoaError.fileReadNoPermission.rawValue, CocoaError.fileWriteNoPermission.rawValue,
+        CocoaError.fileWriteOutOfSpace.rawValue,
+        132000, 132010, 134090, // Context/coordinator locks and store timeout.
+        134110, 134111, 134120, 134130, 134140, 134150, 134160 // Migration failures.
+    ]
+    static let transientPOSIXCodes = Set([EACCES, EPERM, ENOSPC, EBUSY, EROFS, EAGAIN, ENFILE, EMFILE, ENOMEM].map { Int($0) })
 }

@@ -23,6 +23,29 @@ enum TodayWindowService {
     /// menu — and few enough that turning them all over is at most three requests.
     static let favouriteSpotLimit = 3
 
+    struct HistoryCoverage: Equatable {
+        let total: Int
+        let rated: Int
+        let ratedWithConditions: Int
+        var summary: String {
+            "\(ratedWithConditions) rated surfs with recorded conditions · \(rated) rated · \(total) logged here"
+        }
+    }
+
+    static func historyCoverage(sessions: [SurfSession], at spot: Spot) -> HistoryCoverage {
+        let local = sessions.filter { $0.spot?.persistentModelID == spot.persistentModelID }
+        let rated = local.filter { (1...5).contains($0.rating) }
+        let recorded = rated.filter { session in
+            let sample = conditionsSample(for: session)
+            return [sample.swellWaveHeightMeters, sample.swellWavePeriodSeconds,
+                    sample.swellWaveDirectionDegrees, sample.waveHeightMeters,
+                    sample.windSpeedKph, sample.windDirectionDegrees, sample.seaSurfaceTemperatureC,
+                    sample.seaLevelHeightMeters].contains { $0?.isFinite == true }
+                || sample.tideTrend != nil
+        }
+        return HistoryCoverage(total: local.count, rated: rated.count, ratedWithConditions: recorded.count)
+    }
+
     /// Hard ceiling on hours requested from the provider, matching
     /// `SurfConditionsService.fetchDayForecast`'s own cap. Reaching the end of
     /// tomorrow from just after midnight is the widest span the card ever needs,
@@ -170,13 +193,12 @@ enum TodayWindowService {
     /// history would defeat the entire premise, which is that the user's own
     /// results at this particular patch of water are the model of it.
     ///
-    /// Unrated sessions (rating 0) are kept rather than dropped: "I paddled out
-    /// and it was worth nothing" is real signal about these conditions, and the
-    /// rating spread it creates is exactly what the confidence term needs.
+    /// Rating zero means no rating was entered in Peak. Exclude it so an
+    /// unfinished rating cannot masquerade as a terrible surf.
     static func ratedHistory(sessions: [SurfSession], at spot: Spot) -> [RatedSession] {
         let spotID = spot.persistentModelID
         return sessions.compactMap { session in
-            guard session.spot?.persistentModelID == spotID else { return nil }
+            guard session.spot?.persistentModelID == spotID, (1...5).contains(session.rating) else { return nil }
             return RatedSession(
                 date: session.date,
                 rating: session.rating,

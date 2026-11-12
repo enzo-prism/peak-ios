@@ -14,6 +14,7 @@ import SwiftUI
 /// The identifier is on the ScrollView itself.
 struct MonthlyRecapCard: View {
     let recap: MonthlyRecap
+    var durationCoverage: String? = nil
 
     private var facts: MonthlyRecapFacts { recap.facts }
 
@@ -29,6 +30,9 @@ struct MonthlyRecapCard: View {
                     .foregroundStyle(Theme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                if let durationCoverage {
+                    Text(durationCoverage).font(.caption).foregroundStyle(Theme.textSecondary)
+                }
                 if let narrative = recap.narrative {
                     Text(narrative)
                         .font(.subheadline)
@@ -73,6 +77,7 @@ struct MonthlyRecapCard: View {
     /// of thing a screen-reader user should not have to take on trust.
     private var accessibilityValue: String {
         var parts = [facts.accessibilitySummary]
+        if let durationCoverage { parts.append(durationCoverage) }
         if let narrative = recap.narrative {
             parts.append(narrative)
         }

@@ -44,6 +44,7 @@ struct SessionEditorView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.scenePhase) private var scenePhase
 
     @Query(sort: \Spot.name) private var spots: [Spot]
@@ -175,7 +176,7 @@ struct SessionEditorView: View {
     }
 
     private var sheetDetents: Set<PresentationDetent> {
-        TestingDefaults.isUITest && !TestingDefaults.isAdCapture ? [.large] : [.medium, .large]
+        [.large]
     }
 
     /// Usage aggregations are O(sessions × relationships); compute them once when the editor
@@ -189,36 +190,32 @@ struct SessionEditorView: View {
     var body: some View {
         NavigationStack {
             editorScrollContainer
-                .navigationTitle(mode.title)
+                .navigationTitle(typeSize.isAccessibilitySize ? (isNewSession ? "Log" : "Edit") : mode.title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            cancelTapped()
-                        }
-                        // Anchored here so iPad shows the choice as a popover from Cancel.
-                        .confirmationDialog(
-                            isNewSession ? "Discard this session?" : "Discard your changes?",
-                            isPresented: $showDiscardConfirmation,
-                            titleVisibility: .visible
-                        ) {
-                            Button(isNewSession ? "Discard Session" : "Discard Changes", role: .destructive) {
-                                finishRecoveryDecision(keeping: false)
-                            }
-                            if isNewSession {
-                                Button("Keep Draft for Later") { finishRecoveryDecision(keeping: true) }
-                            }
-                            Button("Keep Editing", role: .cancel) {}
+                        if !typeSize.isAccessibilitySize { cancelButton }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        if #available(iOS 26.0, *) {
+                            Button("Speak your surf", systemImage: "mic") { showVoiceLog = true }
+                                .accessibilityIdentifier("session.editor.voice")
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            saveSession()
-                        }
-                        .disabled(!draft.isReadyToSave || isTransferringMedia)
-                        .accessibilityHint(draft.isReadyToSave ? "" : "Pick a spot to enable saving")
+                        if !typeSize.isAccessibilitySize { saveButton }
                     }
                 }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if typeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    saveButton.frame(maxWidth: .infinity, minHeight: 44).glassButtonStyle(prominent: true)
+                    cancelButton.frame(maxWidth: .infinity, minHeight: 44).glassButtonStyle()
+                }
+                .padding(12)
+                .background(.regularMaterial)
+            }
         }
         .disabled(recoveryActionLabel != nil)
         .overlay {
@@ -322,6 +319,33 @@ struct SessionEditorView: View {
         .onChange(of: scenePhase) { _, phase in if phase != .active { persistDraft(immediately: true) } }
     }
 
+    private var cancelButton: some View {
+        Button("Cancel") {
+            cancelTapped()
+        }
+        // Anchored here so iPad shows the choice as a popover from Cancel.
+        .confirmationDialog(
+            isNewSession ? "Discard this session?" : "Discard your changes?",
+            isPresented: $showDiscardConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(isNewSession ? "Discard Session" : "Discard Changes", role: .destructive) {
+                finishRecoveryDecision(keeping: false)
+            }
+            if isNewSession {
+                Button("Keep Draft for Later") { finishRecoveryDecision(keeping: true) }
+            }
+            Button("Keep Editing", role: .cancel) {}
+        }
+    }
+
+    private var saveButton: some View {
+        Button("Save") { saveSession() }
+            .font(.body)
+            .disabled(!canSaveSession || isTransferringMedia)
+            .accessibilityHint(canSaveSession ? "" : "Enter or pick a spot to enable saving")
+    }
+
     private var editorScrollContainer: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
@@ -373,7 +397,8 @@ struct SessionEditorView: View {
         // not clobber — the child field/slider identifiers.
         .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier("session.editor.scroll")
-        .keyboardSafeAreaInset()
+        // SwiftUI already reserves the keyboard's safe area. Adding its full
+        // height again leaves a tiny viewport and scrolls Notes under the bar.
         .onChange(of: focusedField) { _, newValue in
             // Grow the sheet to full height as soon as the user starts entering text so the
             // keyboard never covers the field being edited or the spot chips above it.
@@ -424,11 +449,6 @@ struct SessionEditorView: View {
     /// everything below the card stays in collapsed disclosures.
     private var primarySpotCard: some View {
         EditorSection("Session") {
-            if #available(iOS 26.0, *) {
-                Button("Speak your surf", systemImage: "mic") { showVoiceLog = true }
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("session.editor.voice")
-            }
             whenField
 
             spotField
@@ -440,7 +460,7 @@ struct SessionEditorView: View {
                 ratingBody
             }
 
-            if isNewSession, let lastSession = sessions.first, hasSetupToCopy(lastSession) {
+            if isNewSession, draft.selectedGear.isEmpty, let lastSession = sessions.first, hasSetupToCopy(lastSession) {
                 Button {
                     applySameSetup(from: lastSession)
                 } label: {
@@ -619,7 +639,7 @@ struct SessionEditorView: View {
             }
 
             if draft.selectedSpot == nil {
-                Text("Pick a spot to save this session.")
+                Text(canSaveSession ? "Save will add “\(draft.spotName.trimmingCharacters(in: .whitespacesAndNewlines))” to your spots. A location pin is optional." : "Enter or pick a spot to save this session.")
                     .font(.caption)
                     .foregroundStyle(Theme.textMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -651,20 +671,32 @@ struct SessionEditorView: View {
             Button {
                 reveal(.gear)
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: GearKind.board.systemImage)
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.textSecondary)
-                        .accessibilityHidden(true)
-                    Text(gearSummaryText)
-                        .font(.subheadline)
-                        .foregroundStyle(draft.selectedGear.isEmpty ? Theme.textMuted : Theme.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 8)
-                    Text(draft.selectedGear.isEmpty ? "Add" : "Change")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
+                Group {
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(gearSummaryText)
+                                .font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text(draft.selectedGear.isEmpty ? "Add gear" : "Change gear")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            Image(systemName: GearKind.board.systemImage)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textSecondary)
+                                .accessibilityHidden(true)
+                            Text(gearSummaryText)
+                                .font(.subheadline)
+                                .foregroundStyle(draft.selectedGear.isEmpty ? Theme.textMuted : Theme.textPrimary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 8)
+                            Text(draft.selectedGear.isEmpty ? "Add" : "Change")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.textPrimary)
+                        }
+                    }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -1215,8 +1247,8 @@ struct SessionEditorView: View {
 
     private func saveSession() {
         guard !didSave else { return }
-        guard let spot = draft.selectedSpot else {
-            spotAlertMessage = "Select a surf break to save this session."
+        guard canSaveSession else {
+            spotAlertMessage = "Enter or select a surf break to save this session."
             showSpotAlert = true
             return
         }
@@ -1228,7 +1260,7 @@ struct SessionEditorView: View {
         let editingSession: SurfSession?
         do {
             transaction = try SessionPersistence.stagingContext(from: modelContext)
-            transactionSpot = try SessionPersistence.resolve(spot, in: transaction)
+            transactionSpot = try SessionPersistence.spot(selection: draft.selectedSpot, name: draft.spotName, in: transaction)
             transactionGear = try draft.selectedGear.map { try SessionPersistence.resolve($0, in: transaction) }
             transactionBuddies = try draft.selectedBuddies.map { try SessionPersistence.resolve($0, in: transaction) }
             existingMedia = try Dictionary(uniqueKeysWithValues: draft.mediaItems.compactMap(\.existingMedia).map {
@@ -1454,6 +1486,10 @@ struct SessionEditorView: View {
             parts.append("last used \(lastUsed.formatted(.dateTime.month(.wide).day()))")
         }
         return parts.joined(separator: ", ")
+    }
+
+    private var canSaveSession: Bool {
+        draft.isReadyToSave || (draft.spotName.trimmedNonEmpty != nil && !isSpotLimitReached)
     }
 
     private var isSpotLimitReached: Bool {

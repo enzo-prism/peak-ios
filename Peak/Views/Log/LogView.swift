@@ -12,6 +12,7 @@ struct LogView: View {
     private var allSessions: [SurfSession]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     /// New-session presentation goes through the shared coordinator so the app
     /// has exactly one presenter (`ContentView`); a second local sheet here
     /// could race a system-initiated request (Live Activity / Control Center)
@@ -31,38 +32,14 @@ struct LogView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        heroCard
                         DraftRecoveryCard()
+                        heroCard
                         SurfPlanCard()
 
                         // Right under the hero: a surf the Watch already recorded
                         // is the fastest log Peak can offer, and it goes stale.
                         UnloggedWorkoutCard(sessions: allSessions)
                             .padding(.horizontal)
-
-                        // Above the memory layer: "when today?" is a question with
-                        // a deadline, and "on this day in 2023" is not.
-                        BestWindowTodayCard(sessions: allSessions)
-
-                        if let cachedMemory {
-                            NavigationLink {
-                                SessionDetailView(session: cachedMemory.session)
-                            } label: {
-                                OnThisDayCard(memory: cachedMemory)
-                            }
-                            .buttonStyle(PressFeedbackButtonStyle())
-                            .padding(.horizontal)
-                        }
-
-                        if let cachedRecapYear {
-                            NavigationLink {
-                                YearInReviewView(initialYear: cachedRecapYear)
-                            } label: {
-                                YearInReviewPromptCard(year: cachedRecapYear)
-                            }
-                            .buttonStyle(PressFeedbackButtonStyle())
-                            .padding(.horizontal)
-                        }
 
                         if sessions.isEmpty {
                             EmptyStateView(
@@ -91,6 +68,31 @@ struct LogView: View {
                             }
                             .padding(.horizontal)
                         }
+                        if let cachedMemory {
+                            NavigationLink {
+                                SessionDetailView(session: cachedMemory.session)
+                            } label: {
+                                OnThisDayCard(memory: cachedMemory)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .padding(.horizontal)
+                        }
+
+                        if let cachedRecapYear {
+                            NavigationLink {
+                                YearInReviewView(initialYear: cachedRecapYear)
+                            } label: {
+                                YearInReviewPromptCard(year: cachedRecapYear)
+                            }
+                            .buttonStyle(PressFeedbackButtonStyle())
+                            .padding(.horizontal)
+                        }
+
+                        // Planning stays available after recent logs and memories.
+                        BestWindowTodayCard(sessions: allSessions)
+
+                        HealthEntryCard()
+                        BackupProtectionCard(sessions: allSessions)
                     }
                     .padding(.vertical)
                     .readableContentWidth()
@@ -120,6 +122,9 @@ struct LogView: View {
             activeSession = ActiveSessionStore.loadActive()
             refreshMemories()
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { activeSession = ActiveSessionStore.loadActive() }
+        }
         .onChange(of: allSessions) { _, _ in
             refreshMemories()
         }
@@ -145,7 +150,8 @@ struct LogView: View {
     private var heroCard: some View {
         GlassContainer(spacing: 12) {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
+                if sessions.isEmpty {
+                  HStack(spacing: 12) {
                     logoBadge
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Peak")
@@ -162,22 +168,22 @@ struct LogView: View {
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
                     .accessibilityIdentifier("log.hero.subtitle")
+                }
 
                 Button {
                     quickLog.requestNewSession()
                 } label: {
-                    Label("Log Session", systemImage: "plus")
+                    Label("Log a finished surf", systemImage: "plus")
                         .font(.headline)
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity)
                 }
                 .glassButtonStyle(prominent: true)
                 .accessibilityIdentifier("log.hero.cta")
-                .peakTip(LogSessionTip())
 
                 sessionTimerControl
             }
-            .padding(Theme.Spacing.xl)
+            .padding(sessions.isEmpty ? Theme.Spacing.xl : Theme.Spacing.l)
             .glassCard(cornerRadius: Theme.Radius.section, tint: Theme.glassTint, isInteractive: true)
             .padding(.horizontal)
             .accessibilityIdentifier("log.hero.card")
@@ -208,7 +214,7 @@ struct LogView: View {
                 Button {
                     endSession()
                 } label: {
-                    Label("End Session", systemImage: "stop.fill")
+                    Label("End timer and review", systemImage: "stop.fill")
                         .font(.headline)
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity)
@@ -220,7 +226,7 @@ struct LogView: View {
             Button {
                 startSession()
             } label: {
-                Label("Start Session", systemImage: "play.fill")
+                Label("Start a timer", systemImage: "play.fill")
                     .font(.headline)
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)

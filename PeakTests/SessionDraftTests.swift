@@ -5,6 +5,172 @@ import XCTest
 @testable import Peak
 
 final class SessionDraftTests: XCTestCase {
+    func testNameOnlySpotSharesSessionTransactionAndPreservesDuplicatesAndLimit() throws {
+        let container = try TestModelContainer.make()
+        let library = container.mainContext
+        let stage = try SessionPersistence.stagingContext(from: library)
+        let pending = try SessionPersistence.spot(selection: nil, name: "  First reef  ", in: stage)
+        XCTAssertEqual(pending.name, "First reef")
+        XCTAssertEqual(try library.spotCount(), 0, "Typing and staging must not save an orphan spot")
+        stage.rollback()
+        XCTAssertEqual(try library.spotCount(), 0)
+        let committed = try SessionPersistence.stagingContext(from: library)
+        let spot = try SessionPersistence.spot(selection: nil, name: "First reef", in: committed)
+        let duplicate = try SessionPersistence.spot(selection: nil, name: "FIRST REEF", in: committed)
+        XCTAssertEqual(spot.persistentModelID, duplicate.persistentModelID)
+        committed.insert(SurfSession(date: Date(), spot: spot))
+        try committed.save()
+        XCTAssertEqual(try library.spotCount(), 1)
+        XCTAssertEqual(try library.fetchCount(FetchDescriptor<SurfSession>()), 1)
+        for index in 1..<Spot.maxCount { committed.insert(Spot(name: "Reef \(index)")) }
+        try committed.save()
+        XCTAssertEqual(try committed.spotCount(), Spot.maxCount)
+        XCTAssertNoThrow(try SessionPersistence.spot(selection: nil, name: "First reef", in: committed))
+        XCTAssertThrowsError(try SessionPersistence.spot(selection: nil, name: "One more reef", in: committed))
+        XCTAssertThrowsError(try SessionPersistence.spot(selection: nil, name: "  ", in: committed))
+    }
+
+    func testNameOnlySpotDoesNotOverwriteExistingCoordinates() throws {
+        let container = try TestModelContainer.make()
+        let library = container.mainContext
+        let pinned = Spot(name: "Pipeline", latitude: 21.664, longitude: -158.054)
+        library.insert(pinned)
+        try library.save()
+        let stage = try SessionPersistence.stagingContext(from: library)
+        let resolved = try SessionPersistence.spot(selection: nil, name: "  PIPELINE  ", in: stage)
+        XCTAssertEqual(resolved.latitude, 21.664)
+        XCTAssertEqual(resolved.longitude, -158.054)
+        let colliding = try library.createSpot(name: "Pipeline", locationName: nil, latitude: nil, longitude: nil)
+        XCTAssertEqual(colliding.latitude, 21.664)
+        XCTAssertEqual(colliding.longitude, -158.054)
+        try library.save()
+        let readback = try XCTUnwrap(library.existingSpot(named: "Pipeline"))
+        XCTAssertEqual(readback.latitude, 21.664)
+        XCTAssertEqual(readback.longitude, -158.054)
+    }
+
+    @MainActor
+    func testHealthRequestFailurePreservesPreferenceAndSuccessEnablesOnlyAfterRequest() async throws {
+        enum Failure: Error { case rejected }
+        var enabled = false
+        do {
+            try await HealthAccessFlow.enable(request: { throw Failure.rejected }, setEnabled: { enabled = $0 })
+            XCTFail("Failure must propagate")
+        } catch { XCTAssertFalse(enabled) }
+        try await HealthAccessFlow.enable(request: { XCTAssertFalse(enabled) }, setEnabled: { enabled = $0 })
+        XCTAssertTrue(enabled, "This is an integration preference, not a read authorization claim")
+        do {
+            try await HealthAccessFlow.enable(request: { throw Failure.rejected }, setEnabled: { enabled = $0 })
+        } catch { XCTAssertTrue(enabled, "Review failure must preserve the previous preference") }
+    }
+
+    func testQuiverDefaultUsesRecentSpotThenReadyComparison() {
+        let alphabetical = TestFixture.spot(name: "Alpha")
+        let recent = TestFixture.spot(name: "Recent")
+        let a = TestFixture.gear(name: "Fish")
+        let b = TestFixture.gear(name: "Egg")
+        let now = Date()
+        var sessions = [TestFixture.session(date: now, spot: recent, gear: [a], rating: 4)]
+        XCTAssertEqual(QuiverAdvisor.preferredSpot(spots: [alphabetical, recent], sessions: sessions)?.key, recent.key)
+        sessions += (0..<3).map { _ in TestFixture.session(date: now.addingTimeInterval(-100), spot: alphabetical, gear: [a], rating: 4) }
+        sessions += (0..<3).map { _ in TestFixture.session(date: now.addingTimeInterval(-100), spot: alphabetical, gear: [b], rating: 2) }
+        XCTAssertEqual(QuiverAdvisor.preferredSpot(spots: [alphabetical, recent], sessions: sessions)?.key, alphabetical.key)
+        b.isArchived = true
+        XCTAssertEqual(QuiverAdvisor.preferredSpot(spots: [alphabetical, recent], sessions: sessions)?.key, recent.key)
+    }
+
+    func testQuiverSparseCoverageKeepsMissingAndMixedBoardSourcesWithoutAveragingThem() {
+        let spot = TestFixture.spot()
+        let a = TestFixture.gear(name: "Fish")
+        let b = TestFixture.gear(name: "Egg")
+        let sessions = [TestFixture.session(spot: spot, gear: [a], rating: 4),
+                        TestFixture.session(spot: spot, gear: [a], rating: 0),
+                        TestFixture.session(spot: spot, gear: [a,b], rating: 5)]
+        let report = QuiverAdvisor.compare(spot: spot, height: nil, period: nil, gear: [a,b], sessions: sessions)
+        XCTAssertTrue(report.comparisons.isEmpty)
+        XCTAssertNil(report.suggestedBoard)
+        XCTAssertEqual(report.coverage.first { $0.id == a.key }?.qualifyingCount, 1)
+        XCTAssertEqual(report.coverage.first { $0.id == a.key }?.sessions.count, 3)
+        XCTAssertEqual(report.coverage.first { $0.id == b.key }?.qualifyingCount, 0)
+    }
+
+    func testExactRecentDatesAndTimeTotalsKeepCoverageAndRejectUnknownCriteria() {
+        let now = TestCalendar.makeDate(year: 2026, month: 3, day: 15)
+        let yesterday = TestCalendar.gmt.date(byAdding: .day, value: -1, to: now)!
+        let a = TestFixture.session(date: yesterday)
+        a.durationMinutes = 90
+        let b = TestFixture.session(date: yesterday)
+        let c = TestFixture.session(date: now)
+        c.durationMinutes = 60
+        let answer = LogbookQuery.answer("How many hours yesterday?", sessions: [a,b,c], now: now, calendar: TestCalendar.gmt)
+        XCTAssertEqual(answer.sessions.count, 2)
+        XCTAssertTrue(answer.explanation.contains("1 of 2"))
+        XCTAssertFalse(answer.needsFilters)
+        XCTAssertEqual(LogbookQuery.answer("Time in water yesterday", sessions: [a,b,c], now: now, calendar: TestCalendar.gmt).sessions.count, 2)
+        XCTAssertTrue(LogbookQuery.answer("How many hours with a broken board?", sessions: [a,b,c], now: now).needsFilters)
+        XCTAssertTrue(LogbookQuery.answer("Count sessions today and yesterday", sessions: [a,b,c], now: now).needsFilters)
+    }
+
+    func testLastWeekFilterHasExclusiveEndAndUsesCalendarWeek() {
+        let now = TestCalendar.makeDate(year: 2026, month: 3, day: 18)
+        let previous = TestCalendar.gmt.date(byAdding: .weekOfYear, value: -1, to: now)!
+        let interval = TestCalendar.gmt.dateInterval(of: .weekOfYear, for: previous)!
+        XCTAssertTrue(HistoryFilters.DateRange.lastWeek.contains(interval.start, now: now, calendar: TestCalendar.gmt))
+        XCTAssertTrue(HistoryFilters.DateRange.lastWeek.contains(interval.end.addingTimeInterval(-1), now: now, calendar: TestCalendar.gmt))
+        XCTAssertFalse(HistoryFilters.DateRange.lastWeek.contains(interval.end, now: now, calendar: TestCalendar.gmt))
+        let result = LogbookQuery.answer("Count sessions last week", sessions: [TestFixture.session(date: interval.start), TestFixture.session(date: interval.end)], now: now, calendar: TestCalendar.gmt)
+        XCTAssertEqual(result.sessions.count, 1)
+    }
+
+    func testUnsupportedQuerySuggestsOnlyKnownFilters() {
+        let spot = TestFixture.spot(name: "Mar")
+        let board = TestFixture.gear(name: "Fish")
+        let sessions = [TestFixture.session(spot: spot, gear: [board])]
+        let filters = LogbookQuery.suggestedFilters("Find fastest surf at Mar with Fish last week", sessions: sessions)
+        XCTAssertEqual(filters.spots, [spot])
+        XCTAssertEqual(filters.gear, [board])
+        XCTAssertEqual(filters.dateRange, .lastWeek)
+        XCTAssertTrue(LogbookQuery.suggestedFilters("at Mars", sessions: sessions).spots.isEmpty)
+    }
+
+    func testBackupProtectionCountsEditsByModificationDate() {
+        let backup = Date(timeIntervalSince1970: 1000)
+        XCTAssertEqual(BackupProtection.changedCount(dates: [backup.addingTimeInterval(-10), backup, backup.addingTimeInterval(1)], since: backup), 1)
+        XCTAssertEqual(BackupProtection.changedCount(dates: [backup, backup], since: nil), 2)
+        XCTAssertFalse(BackupProtection.shouldOffer(sessionCount: 0))
+        XCTAssertTrue(BackupProtection.shouldOffer(sessionCount: 5))
+    }
+
+    func testWindowCoverageExcludesUnratedAndOtherSpots() {
+        let spot = TestFixture.spot()
+        let rated = TestFixture.session(spot: spot, rating: 4)
+        rated.swellWaveHeightMeters = 1.5
+        let unrated = TestFixture.session(spot: spot, rating: 0)
+        unrated.swellWaveHeightMeters = 1.5
+        let missing = TestFixture.session(spot: spot, rating: 3)
+        let elsewhere = TestFixture.session(spot: TestFixture.spot(name: "Elsewhere"), rating: 5)
+        let coverage = TodayWindowService.historyCoverage(sessions: [rated,unrated,missing,elsewhere], at: spot)
+        XCTAssertEqual(coverage.total, 3)
+        XCTAssertEqual(coverage.rated, 2)
+        XCTAssertEqual(coverage.ratedWithConditions, 1)
+        XCTAssertEqual(TodayWindowService.ratedHistory(sessions: [rated,unrated,missing,elsewhere], at: spot).count, 2)
+    }
+
+    func testChronologicalWindowValidationCannotLearnFromSameTimeOrFutureSurfs() {
+        let base = Date(timeIntervalSince1970: 1000)
+        let conditions = ConditionsSample(swellWaveHeightMeters: 1.2, swellWavePeriodSeconds: 12, waveHeightMeters: 1.4, windSpeedKph: 5, windDirectionDegrees: 90)
+        let history = (0..<12).map { index in RatedSession(date: base.addingTimeInterval(Double(index) * 86400), rating: index % 2 == 0 ? 5 : 2, conditions: conditions) }
+        let report = WindowValidation.evaluate(history: history)
+        XCTAssertEqual(report.observations.count, 4)
+        XCTAssertEqual(report.observations.map(\.trainingCount), [8,9,10,11])
+        let future = RatedSession(date: base.addingTimeInterval(20 * 86400), rating: 1, conditions: conditions)
+        let withFuture = WindowValidation.evaluate(history: history + [future])
+        XCTAssertEqual(Array(withFuture.observations.prefix(4)), report.observations)
+        let simultaneous = WindowValidation.evaluate(history: Array(repeating: history[0], count: 10))
+        XCTAssertTrue(simultaneous.observations.isEmpty)
+        XCTAssertEqual(report.acceptedCount + report.abstainedCount, report.observations.count)
+    }
+
     func testNewMediaDraftItemDefaultsToFullFrameCrop() {
         let item = SessionMediaDraftItem.newPhoto(photoData: Data([0x01]), thumbnailData: nil)
         XCTAssertEqual(item.cropRect, CGRect(x: 0, y: 0, width: 1, height: 1))
@@ -572,7 +738,7 @@ final class PeakExperienceTests: XCTestCase {
         let sessions = [TestFixture.session()]
         XCTAssertTrue(LogbookQuery.answer("How many sessions at Unknown?", sessions: sessions).sessions.isEmpty)
         XCTAssertTrue(LogbookQuery.answer("How many waves?", sessions: sessions).sessions.isEmpty)
-        XCTAssertTrue(LogbookQuery.answer("How many sessions last week?", sessions: sessions).sessions.isEmpty)
+        XCTAssertFalse(LogbookQuery.answer("How many sessions last week?", sessions: sessions).needsFilters)
         XCTAssertTrue(LogbookQuery.answer("Find not clean sessions", sessions: sessions).sessions.isEmpty)
     }
 
@@ -580,7 +746,7 @@ final class PeakExperienceTests: XCTestCase {
         let spot = TestFixture.spot(name: "Mar")
         let fish = TestFixture.gear(name: "Fish")
         let sessions = [TestFixture.session(spot: spot, gear: [fish])]
-        for question in ["How many sessions today?", "Count five star sessions", "How many sessions with a broken board?",
+        for question in ["How many sessions last summer?", "Count five star sessions", "How many sessions with a broken board?",
                          "How many sessions at Mars?", "Find clean sessions last summer", "Which board performed best?"] {
             XCTAssertTrue(LogbookQuery.answer(question, sessions: sessions).sessions.isEmpty, question)
         }

@@ -38,14 +38,14 @@ final class PeakEcosystemUITests: XCTestCase {
         launchApp()
         tapTab(named: "Log")
 
-        let start = app.buttons["Start Session"]
+        let start = app.buttons["Start a timer"]
         XCTAssertTrue(start.waitForExistence(timeout: 5), "Missing Start Session control on the Log hero")
         start.tap()
 
         // The hero swaps to the running state.
-        let end = app.buttons["End Session"]
+        let end = app.buttons["End timer and review"]
         XCTAssertTrue(end.waitForExistence(timeout: 5), "Hero did not switch to the running-session state")
-        XCTAssertFalse(app.buttons["Start Session"].exists, "Start control should be replaced while a session runs")
+        XCTAssertFalse(app.buttons["Start a timer"].exists, "Start control should be replaced while a session runs")
         XCTAssertTrue(app.staticTexts["In progress"].exists, "Missing in-progress indicator")
 
         end.tap()
@@ -72,7 +72,7 @@ final class PeakEcosystemUITests: XCTestCase {
         saveButton.tap()
 
         // Back on the Log tab the timer is available again, not stuck running.
-        XCTAssertTrue(app.buttons["Start Session"].waitForExistence(timeout: 5), "Hero did not reset after saving")
+        XCTAssertTrue(app.buttons["Start a timer"].waitForExistence(timeout: 5), "Hero did not reset after saving")
     }
 
     /// Cancelling out of the prefilled editor must still clear the session —
@@ -81,11 +81,11 @@ final class PeakEcosystemUITests: XCTestCase {
         launchApp()
         tapTab(named: "Log")
 
-        let start = app.buttons["Start Session"]
+        let start = app.buttons["Start a timer"]
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         start.tap()
 
-        let end = app.buttons["End Session"]
+        let end = app.buttons["End timer and review"]
         XCTAssertTrue(end.waitForExistence(timeout: 5))
         end.tap()
 
@@ -93,7 +93,7 @@ final class PeakEcosystemUITests: XCTestCase {
         XCTAssertTrue(cancel.waitForExistence(timeout: 5), "Missing Cancel in the prefilled editor")
         cancel.tap()
 
-        XCTAssertTrue(app.buttons["Start Session"].waitForExistence(timeout: 5), "Session still running after dismissing the log")
+        XCTAssertTrue(app.buttons["Start a timer"].waitForExistence(timeout: 5), "Session still running after dismissing the log")
     }
 
     /// Tapping either widget opens Peak straight into a new session.
@@ -119,7 +119,7 @@ final class PeakEcosystemUITests: XCTestCase {
         launchApp()
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         XCTAssertTrue(cta.waitForExistence(timeout: 5))
         cta.tap()
 
@@ -155,7 +155,7 @@ final class PeakEcosystemUITests: XCTestCase {
         launchApp()
         tapTab(named: "Log")
 
-        let cta = app.buttons["Log Session"]
+        let cta = app.buttons["Log a finished surf"]
         XCTAssertTrue(cta.waitForExistence(timeout: 5))
         cta.tap()
 
@@ -195,7 +195,7 @@ final class PeakEcosystemUITests: XCTestCase {
     func testUnrelatedDeepLinkDoesNotOpenTheSheet() {
         launchApp(openURL: "peak://not-a-real-destination")
 
-        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 5), "App did not settle on the Log tab")
+        XCTAssertTrue(app.buttons["Log a finished surf"].waitForExistence(timeout: 5), "App did not settle on the Log tab")
         XCTAssertFalse(
             app.textFields["session.editor.spot"].exists,
             "An unknown deep link should not open the editor"
@@ -318,7 +318,7 @@ final class PeakProductionNavigationUITests: XCTestCase {
         // Be explicit even if the surrounding test runner supplies an override.
         app.launchEnvironment["UITESTS_CLASSIC_NAVIGATION"] = "0"
         app.launch()
-        XCTAssertTrue(app.buttons["Log Session"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Log a finished surf"].waitForExistence(timeout: 8))
     }
 
     func testCompactProductionNavigationKeepsFivePrimaryTabs() throws {
@@ -463,7 +463,7 @@ final class PeakRecoveryUITests: XCTestCase {
         XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Your previous library needs recovery."].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Log Session"].exists, "Recovery should suppress first-run onboarding")
+        XCTAssertTrue(app.buttons["Log a finished surf"].exists, "Recovery should suppress first-run onboarding")
         app.buttons["Details"].tap()
         XCTAssertTrue(alert.waitForExistence(timeout: 5), "Recovery instructions must remain accessible after dismissal")
     }
@@ -474,6 +474,7 @@ final class PeakRecoveryUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 8))
         XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "will be lost when Peak closes")).firstMatch.exists)
         XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
         app.buttons["Details"].tap()
@@ -486,11 +487,13 @@ final class PeakRecoveryUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 8))
         XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Existing library files have been left on this device")).firstMatch.exists)
         XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
         XCTAssertFalse(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "complete copy")).firstMatch.exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
         app.buttons["Details"].tap()
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
     }
 }

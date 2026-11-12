@@ -5,29 +5,39 @@ import SwiftUI
 /// streaks. Optional tiles (time, average length) drop out cleanly when there
 /// is no logged duration, so the grid stays tidy on a thin logbook.
 struct StatsMetricsRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let yearSummary: SurfYearSummary
     let timeSummary: SurfTimeSummary
     let longestStreak: Int
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 12), count: 2)
+    }
 
     var body: some View {
         GlassContainer(spacing: 12) {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(tiles) { tile in
-                    StatCardView(
-                        title: tile.title,
-                        value: tile.value,
-                        subtitle: tile.subtitle
-                    )
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(tile.accessibilityLabel)
+            if typeSize.isAccessibilitySize {
+                // Only four or six cards: eagerly lay out their complete text
+                // so offscreen metrics also adopt the current font metrics.
+                VStack(spacing: 12) {
+                    ForEach(tiles) { metricCard($0) }
+                }
+            } else {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(tiles) { metricCard($0) }
                 }
             }
         }
+    }
+
+    private func metricCard(_ tile: StatsMetric) -> some View {
+        StatCardView(
+            title: tile.title,
+            value: tile.value,
+            subtitle: tile.subtitle,
+            accessibilitySummary: tile.accessibilityLabel,
+            valueSystemImage: tile.valueSystemImage
+        )
     }
 
     private var tiles: [StatsMetric] {
@@ -69,9 +79,10 @@ struct StatsMetricsRow: View {
 
         result.append(StatsMetric(
             title: "Current streak",
-            value: yearSummary.currentWeekStreak > 0 ? "\(yearSummary.currentWeekStreak) 🔥" : "0",
+            value: "\(yearSummary.currentWeekStreak)",
             subtitle: "Weeks in a row",
-            accessibilityLabel: "Current streak, \(StatsFormat.spokenWeeks(yearSummary.currentWeekStreak))"
+            accessibilityLabel: "Current streak, \(StatsFormat.spokenWeeks(yearSummary.currentWeekStreak))",
+            valueSystemImage: yearSummary.currentWeekStreak > 0 ? "flame.fill" : nil
         ))
 
         result.append(StatsMetric(
@@ -90,6 +101,7 @@ private struct StatsMetric: Identifiable {
     let value: String
     let subtitle: String
     let accessibilityLabel: String
+    var valueSystemImage: String? = nil
 
     var id: String { title }
 }

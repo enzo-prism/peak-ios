@@ -1,12 +1,12 @@
 # Peak iOS release playbook
 
-## Verified App Store state, November 6, 2026
+## Verified App Store state, November 11, 2026
 
 - App `peak.surf`, bundle `com.designprism.peak`, ASC app `6757644027`, team `L49MKXGVM4`.
 - **3.5 is public** (`READY_FOR_DISTRIBUTION` in ASC). Earlier candidate/pending statements in historical receipts do not describe current store state.
-- **3.6 build 2** is the current implementation candidate; upload/distribution must be read back and recorded independently in `docs/releases/`.
+- **3.6 build 2** was waiting for review at the initial November 11 readback. **3.7 build 1** is the implementation candidate; preserve the old review until its tested replacement is ready, then replace it under the owner’s explicit authorization. Read back final lifecycle state and record it independently in `docs/releases/`.
 - **Watch remains pending** by the owner's explicit choice. Standalone validation source stays on `feature/peak-3.6-watch-validation`, outside main; the iPhone archive must have no embedded Watch app.
-- Git branches, simulator results and uploaded artifacts do not independently establish public availability. No 3.6 App Review submission or public release is authorized by the TestFlight request.
+- Git branches, simulator results and uploaded artifacts do not independently establish public availability. The owner explicitly authorized main, TestFlight and submission of the latest version to App Review on November 11. Public release remains manual.
 
 ## Source and build identity
 
@@ -32,7 +32,7 @@ asc status --app 6757644027
 ## Candidate acceptance before upload
 
 1. Record the source SHA and run one `xcodebuild` at a time. Use `./scripts/test-unit.sh` and relevant UI suites, including production iPad navigation when touched. Keep the actual result bundle/log and test count; historical counts do not prove current coverage.
-2. Run the populated-device upgrade, backup/restore and Health checks in [SURFER_VALIDATION.md](docs/SURFER_VALIDATION.md). Distinguish synthetic migration fixtures, simulator UI coverage and physical device evidence.
+2. Run the populated-device upgrade, backup/restore and Health checks in [SURFER_VALIDATION.md](docs/SURFER_VALIDATION.md). Distinguish synthetic migration fixtures, simulator UI coverage and physical device evidence. The owner's initial Simulator-only choice was superseded when the unlocked iPhone connected with Developer Mode enabled. Protected app/shared-container copies succeeded, the copied database passed its integrity check, and Peak 3.6 saved a verified full backup through Files. These establish backup access, not a completed 3.7 upgrade, restore or Health acceptance. Record those outcomes separately before claiming them.
 3. Reconcile README, architecture, changelog and release notes with the candidate's actual schema, user-facing behavior and test evidence. Never describe unrun device/ocean checks as passed.
 4. Verify distribution signing/profiles and App Group access for **both** app and widget extension. The App Group `group.com.designprism.peak` was registered July 29. Past archives used manual signing; re-read current profile validity and build settings before selecting export options. Do not assume the tracked automatic-signing plist matches installed manual profiles.
 5. Verify privacy/export-compliance answers against the actual binary. Current networking uses standard HTTPS; no telemetry SDK is added by Apple's analytics reporting request.
@@ -62,7 +62,7 @@ For a new App Store candidate: prepare metadata and user-facing What's New, atta
 ## Reviewer notes template
 
 - Offline-first surf log; no sign-in or demo credentials.
-- Main path: Log → Log Session → enter spot → Save Session → History and Stats.
+- Main path: Log → Log a finished surf → enter spot → Save → History and Stats.
 - Spot name is sufficient; location/pins are optional.
 - Apple Health is opt-in. Test unavailable/denied/no-route states without needing a Watch workout.
 - Conditions are fetched when requested, or through the explicit opt-in automatic refresh setting.
@@ -70,6 +70,8 @@ For a new App Store candidate: prepare metadata and user-facing What's New, atta
 - Explain any new navigation or migration behavior specific to the candidate; do not paste old version notes unchanged.
 
 ## Release record template
+
+The canonical [Peak research and release record](https://app.notion.com/p/4103429581eb81bc8b08c1e8f7dd6d77) holds final delivery and lifecycle readbacks. Keep private device copies and source/artifact receipts in ignored `.asc/artifacts/`; do not commit journal contents or device provisioning profiles. Preparation documents describe evidence available at preparation time, not a later release result.
 
 ```text
 Version/build:

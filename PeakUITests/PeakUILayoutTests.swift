@@ -25,11 +25,11 @@ final class PeakUILayoutTests: XCTestCase {
     func testLogLayoutFits() {
         tapTab(named: "Log")
 
-        let heroTitle = app.staticTexts["Peak"]
+        let heroTitle = app.navigationBars["Log"]
         assertExists(heroTitle)
         assertFits(heroTitle)
 
-        let heroCTA = app.buttons["Log Session"]
+        let heroCTA = app.buttons["Log a finished surf"]
         assertExists(heroCTA)
         assertFits(heroCTA)
 
@@ -307,11 +307,11 @@ final class PeakUILayoutTests: XCTestCase {
 
         tapTab(named: "Log")
 
-        let heroTitle = app.staticTexts["Peak"]
+        let heroTitle = app.navigationBars["Log"]
         assertExists(heroTitle)
         assertFits(heroTitle)
 
-        let heroCTA = app.buttons["Log Session"]
+        let heroCTA = app.buttons["Log a finished surf"]
         assertExists(heroCTA)
         assertFits(heroCTA)
 
@@ -495,8 +495,14 @@ final class PeakUILayoutTests: XCTestCase {
         scrollToVisible(notesField, in: scrollView)
         assertExists(notesField)
         notesField.tap()
-        app.typeText("Long notes to confirm the editor stays visible above the keyboard.")
+        let notes = "Long notes to confirm the editor stays visible above the keyboard."
+        notesField.typeText(notes)
+        XCTAssertTrue((notesField.value as? String)?.contains(notes) == true, "Typing must reach the session Notes field")
         assertNotCoveredByKeyboard(notesField)
+        let editorBar = app.navigationBars["Log Session"]
+        assertExists(editorBar)
+        XCTAssertGreaterThanOrEqual(notesField.frame.minY, editorBar.frame.maxY + 6,
+                                    "The whole Notes editor must remain below its navigation toolbar")
     }
 
     func testNewSessionBuddySectionUsableWhileTyping() {
@@ -544,7 +550,10 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(addGear)
         addGear.tap()
 
-        let scrollView = app.scrollViews.firstMatch
+        // A keyboard preview and the Quiver behind the sheet can also expose
+        // scroll views. Scroll the editor containing this field.
+        let scrollView = app.scrollViews.containing(.textField, identifier: "gear.editor.name").firstMatch
+        assertExists(scrollView)
 
         let nameField = app.textFields["gear.editor.name"]
         assertExists(nameField)
@@ -557,6 +566,8 @@ final class PeakUILayoutTests: XCTestCase {
         scrollToVisible(notesField, in: scrollView)
         notesField.tap()
         app.typeText("Adds glide and trims on shoulder-high days.")
+        XCTAssertTrue((notesField.value as? String)?.contains("Adds glide") == true, "Typing must reach Notes, not the previously focused Name")
+        XCTAssertEqual(nameField.value as? String, "Twin Pin")
         assertNotCoveredByKeyboard(notesField)
     }
 
@@ -892,24 +903,35 @@ private extension PeakUILayoutTests {
     func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !isComfortablyVisible(element) && attempts < maxSwipes {
-            if element.exists && element.frame.maxY < scrollView.frame.minY {
-                scrollView.swipeDown()
-            } else {
-                scrollView.swipeUp()
-            }
+        while !isComfortablyVisible(element, in: scrollView) && attempts < maxSwipes {
+            let viewport = visibleScrollFrame(in: scrollView)
+            guard viewport.height > 80 else { return }
+            let limit = viewport.height * 0.4
+            let delta = element.exists && !element.frame.isEmpty
+                ? min(limit, max(-limit, viewport.midY - element.frame.midY)) : -limit
+            guard abs(delta) > 1 else { return }
+            let startY = delta > 0 ? viewport.minY + viewport.height * 0.25 : viewport.maxY - viewport.height * 0.25
+            let window = app.windows.firstMatch
+            let origin = window.coordinate(withNormalizedOffset: .zero)
+            // Drag the gutter, so a TextEditor/slider cannot consume the drag.
+            let start = origin.withOffset(CGVector(dx: viewport.maxX - 6 - window.frame.minX, dy: startY - window.frame.minY))
+            let end = origin.withOffset(CGVector(dx: viewport.maxX - 6 - window.frame.minX, dy: startY + delta - window.frame.minY))
+            start.press(forDuration: 0.05, thenDragTo: end)
             attempts += 1
         }
     }
 
-    func isComfortablyVisible(_ element: XCUIElement) -> Bool {
-        guard element.exists, element.isHittable else { return false }
+    func visibleScrollFrame(in scrollView: XCUIElement) -> CGRect {
+        var visible = scrollView.frame.intersection(app.windows.firstMatch.frame.insetBy(dx: 0, dy: 88))
+        if let keyboard = onscreenKeyboard() {
+            visible.size.height = max(0, min(visible.maxY, keyboard.frame.minY - 12) - visible.minY)
+        }
+        return visible
+    }
 
-        let window = app.windows.firstMatch
-        guard window.exists else { return true }
-
-        let visibleFrame = window.frame.insetBy(dx: 0, dy: 88)
-        return visibleFrame.contains(element.frame)
+    func isComfortablyVisible(_ element: XCUIElement, in scrollView: XCUIElement) -> Bool {
+        guard element.exists, visibleScrollFrame(in: scrollView).contains(element.frame) else { return false }
+        return element.isHittable
     }
 
     func attachScreenshot(name: String) {
@@ -1011,25 +1033,23 @@ private extension PeakUILayoutTests {
     }
 
     func dismissKeyboard() {
-        let keyboard = app.keyboards.firstMatch
-        guard keyboard.exists else { return }
-
-        let doneButton = app.keyboards.buttons["Done"]
-        if doneButton.exists {
-            doneButton.tap()
-            _ = keyboard.waitForNonExistence(timeout: 2)
-            return
+        guard onscreenKeyboard() != nil else { return }
+        let hidden = NSPredicate { _, _ in self.onscreenKeyboard() == nil }
+        for label in ["Done", "return", "Hide keyboard"] {
+            let predicate = NSPredicate(format: "label ==[c] %@ OR identifier ==[c] %@", label, label)
+            if let button = app.keyboards.buttons.matching(predicate).allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && app.windows.firstMatch.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+            }) {
+                button.tap()
+                if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
+            }
         }
 
-        let returnButton = app.keyboards.buttons["return"]
-        if returnButton.exists {
-            returnButton.tap()
-            _ = keyboard.waitForNonExistence(timeout: 2)
-            return
-        }
-
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
-        _ = keyboard.waitForNonExistence(timeout: 2)
+        app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
+        app.scrollViews["session.editor.scroll"].swipeDown()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 3), .completed,
+                       "The onscreen keyboard must dismiss before navigating fields")
     }
 
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
@@ -1173,8 +1193,10 @@ private extension PeakUILayoutTests {
     }
 
     func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 2), "Keyboard not visible", file: file, line: line)
+        let shown = NSPredicate { _, _ in self.onscreenKeyboard() != nil }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: nil)], timeout: 8), .completed,
+                       "Show the software keyboard; an offscreen hardware-keyboard preview is not keyboard-avoidance coverage", file: file, line: line)
+        guard let keyboard = onscreenKeyboard() else { return }
 
         let elementFrame = element.frame
         let keyboardFrame = keyboard.frame
@@ -1187,5 +1209,13 @@ private extension PeakUILayoutTests {
             file: file,
             line: line
         )
+        attachScreenshot(name: "Keyboard \(element.identifier)")
+    }
+
+    func onscreenKeyboard() -> XCUIElement? {
+        let bounds = app.windows.firstMatch.frame
+        return app.keyboards.allElementsBoundByIndex.first {
+            $0.exists && $0.frame.intersection(bounds).height > 100
+        }
     }
 }

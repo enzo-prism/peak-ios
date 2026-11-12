@@ -3,6 +3,8 @@ import SwiftData
 
 struct HistoryFilterSheetView: View {
     @Binding var filters: HistoryFilters
+    var onConfirm: (() -> Void)? = nil
+    var showsCancel: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     @Query(sort: \Spot.name) private var spots: [Spot]
@@ -75,8 +77,16 @@ struct HistoryFilterSheetView: View {
             }
             .navigationTitle("Filters")
             .toolbar {
+                if showsCancel {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            dismiss()
+                        }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        onConfirm?()
                         dismiss()
                     }
                 }
