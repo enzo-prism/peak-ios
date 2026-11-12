@@ -53,6 +53,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - A normal (non-automation) launch on the small-phone Simulator exposed the legacy Log TipKit popover above the new welcome, obscuring its hero. The duplicate Log tip and its unused parameter were removed; contextual auto-fill guidance still waits until a session is saved. Automation intentionally disables tips, so normal-launch visual verification remains required in addition to the suites.
 
+- Final-source CI #146 passed all 674 Xcode 27 and 673 Xcode 26.6 unit cases; downloaded clean receipts use merge checkout `1851530`, whose tree matches `e4d1034`. The only inventory difference is the SDK 27 observer probe. The iPad UI run then exposed a sidebar detector that required all four accessibility-sized destinations inside the viewport; its seven other polish cases passed before the run was superseded. Reviewed follow-up `124c062` accepts overflow rows; the detector still requires two row centres on-screen and a column within the window's left half. No accessibility audit issue filter or case skip is added. New final-source UI qualification remains required.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

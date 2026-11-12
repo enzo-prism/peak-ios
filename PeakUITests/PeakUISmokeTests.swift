@@ -120,14 +120,20 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                     let predicate = NSPredicate(format: "label == %@", title)
                     for query in [app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
                         if let item = query.allElementsBoundByIndex.first(where: {
-                            $0.exists && !$0.frame.isEmpty && $0.frame.maxX < app.frame.midX
+                            $0.exists && !$0.frame.isEmpty
+                                && $0.frame.minX >= app.frame.minX && $0.frame.maxX < app.frame.midX
                         }) { return item.frame }
                     }
                     return nil
                 }.sorted { $0.minY < $1.minY }
                 // Top tabs may also occupy the left half. A sidebar is a
                 // vertical destination column, not labels on one row.
-                guard frames.count >= 2 else { return false }
+                // Overflow is valid; a hidden/offscreen column is not. Keep
+                // two actual row centres inside the window before accepting it.
+                let visibleRows = frames.filter {
+                    app.frame.contains(CGPoint(x: $0.midX, y: $0.midY))
+                }
+                guard visibleRows.count >= 2 else { return false }
                 return zip(frames, frames.dropFirst()).allSatisfy { previous, next in
                     next.minY - previous.minY > 20
                 }
