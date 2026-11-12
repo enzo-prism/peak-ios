@@ -586,7 +586,8 @@ final class ExportImportTests: XCTestCase {
         }, fallback: { XCTFail("A healthy original must not fall back to memory"); return memory })
         XCTAssertEqual(result.outcome, .normal)
         XCTAssertEqual(opens, 1)
-        try assertRecoveryBytes(in: shared)
+        try assertRecoveryBytes(in: shared, includeMedia: false)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shared.appendingPathComponent("SessionMedia").path))
         try assertRecoveryBytes(in: app)
         XCTAssertFalse(FileManager.default.fileExists(atPath: incomplete.path), "A successful open must delete the partial archive")
         XCTAssertNil(try PeakDataStore.pendingRecovery(in: shared))
@@ -1232,7 +1233,13 @@ final class ExportImportTests: XCTestCase {
         }, fallback: { memory }, isProtectedDataAvailable: { true })
         guard case .recoveredFresh(let path) = result.outcome else { return XCTFail("Confirmed corruption must preserve files and open a fresh library") }
         XCTAssertEqual(opens, 2)
-        try assertRecoveryBytes(in: URL(fileURLWithPath: path))
+        let archive = URL(fileURLWithPath: path)
+        // Core Data's failed open may rebuild SHM before returning its opaque
+        // error. SHM is a disposable cache; DB, WAL and owned media are data.
+        for name in ["default.store", "default.store-wal", ".default_SUPPORT/blob.bin", "SessionMedia/session-video.mov"] {
+            XCTAssertEqual(try Data(contentsOf: archive.appendingPathComponent(name)), Data(name.utf8))
+        }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: archive.appendingPathComponent("default.store-shm").path))
         XCTAssertTrue(try ModelContext(result.container).fetch(FetchDescriptor<SurfSession>()).isEmpty)
     }
 
@@ -1316,8 +1323,10 @@ final class ExportImportTests: XCTestCase {
         return root
     }
 
-    private func assertRecoveryBytes(in directory: URL, file: StaticString = #filePath, line: UInt = #line) throws {
-        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin", "SessionMedia/session-video.mov"] {
+    private func assertRecoveryBytes(in directory: URL, includeMedia: Bool = true, file: StaticString = #filePath, line: UInt = #line) throws {
+        let names = ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin"]
+            + (includeMedia ? ["SessionMedia/session-video.mov"] : [])
+        for name in names {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(name)), Data(name.utf8), file: file, line: line)
         }
     }

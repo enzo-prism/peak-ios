@@ -47,6 +47,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - A separate checkout’s 3ec UI run found that the gear test could tap Notes below the software keyboard and continue typing in Name. Its keyboard-aware scroll now stays within the unobscured viewport and asserts the actual edited field. Ask Peak also provides a parent-controlled Close action, including regular-width iPad navigation where the system did not expose a back button. These observations motivate the next clean-source run; they do not replace it.
 
+- Clean `673bf25` unit gate discovered 674 cases: 672 passed, two fixture assertions failed, no runtime warnings. One assertion incorrectly expected private video under the deliberately emptied shared directory; the other treated Core Data's rebuilt SHM cache as immutable data. The corrected assertions retain exact DB/WAL/media checks and require a fresh full run.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.
