@@ -99,6 +99,7 @@ private struct RootView: View {
     @State private var isRecoverySharePresented = false
     @State private var isPreparingRecoveryCopy = false
     @State private var isExportErrorPresented = false
+    @AppStorage("peak.recovery.acknowledgedArchive") private var acknowledgedRecoveryArchive = ""
 
     init(outcome: StoreLoadOutcome, container: ModelContainer) {
         self.outcome = outcome
@@ -187,7 +188,7 @@ private struct RootView: View {
                 guard !didEvaluateOutcome else { return }
                 didEvaluateOutcome = true
                 isWelcomePresented = outcome == .normal && WelcomeExperience.shouldPresent(hasSeenWelcome: hasSeenWelcome)
-                if outcome != .normal {
+                if shouldAutoPresentRecoveryAlert {
                     isRecoveryAlertPresented = true
                 }
             }
@@ -195,7 +196,7 @@ private struct RootView: View {
                 if archivedPath != nil {
                     Button("Export Recovery Copy", action: prepareRecoveryExport)
                 }
-                Button("Close", role: .cancel) {}
+                Button("Close", role: .cancel) { acknowledgeRecoveryIfNeeded() }
             } message: {
                 Text(recoveryMessage)
             }
@@ -224,6 +225,24 @@ private struct RootView: View {
         QuickLogCoordinator.shared.showNewSession = false
         libraryGeneration = UUID()
         return true
+    }
+
+    private var shouldAutoPresentRecoveryAlert: Bool {
+        switch outcome {
+        case .normal:
+            return false
+        case .inMemoryFallback:
+            return true
+        case .recoveredFresh(let path):
+            if TestingDefaults.isUITest { return true }
+            return acknowledgedRecoveryArchive != path
+        }
+    }
+
+    private func acknowledgeRecoveryIfNeeded() {
+        if case .recoveredFresh(let path) = outcome {
+            acknowledgedRecoveryArchive = path
+        }
     }
 
     private var archivedPath: String? {
