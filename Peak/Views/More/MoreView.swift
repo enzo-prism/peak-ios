@@ -109,7 +109,7 @@ struct MoreView: View {
                 }
             }
             .navigationDestination(isPresented: $isAskPeakPresented) {
-                AskPeakView()
+                AskPeakView(onClose: { isAskPeakPresented = false })
             }
         }
         .tint(Theme.textPrimary)

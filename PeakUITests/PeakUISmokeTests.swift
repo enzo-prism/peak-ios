@@ -311,7 +311,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             XCTAssertTrue(filters.waitForNonExistence(timeout: 8), "Swipe dismissal must close only the review sheet")
             let ask = app.navigationBars["Ask Peak"]
             XCTAssertTrue(ask.exists)
-            ask.buttons.firstMatch.tap()
+            let close = app.buttons["ask.close"]
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+            close.tap()
             if entry == "More" { tapTab("History", in: app) }
             XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 8))
             XCTAssertFalse(app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Last week")).firstMatch.exists,

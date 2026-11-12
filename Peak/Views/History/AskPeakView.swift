@@ -9,7 +9,12 @@ struct AskPeakView: View {
     @State private var showFilters = false
     @State private var confirmedFilterReview = false
 
-    init(initialQuestion: String = "") { _question = State(initialValue: initialQuestion) }
+    private let onClose: (() -> Void)?
+
+    init(initialQuestion: String = "", onClose: (() -> Void)? = nil) {
+        _question = State(initialValue: initialQuestion)
+        self.onClose = onClose
+    }
 
     @State private var answer: LogbookQuery.Answer?
     @State private var limit = 30
@@ -81,6 +86,14 @@ struct AskPeakView: View {
             }
         }
         .navigationTitle("Ask Peak")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Close") {
+                    if let onClose { onClose() } else { dismiss() }
+                }
+                .accessibilityIdentifier("ask.close")
+            }
+        }
         .sheet(isPresented: $showFilters, onDismiss: {
             guard confirmedFilterReview else { return }
             confirmedFilterReview = false

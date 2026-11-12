@@ -45,6 +45,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - Opaque SwiftData load failures now require read-only SQLite corruption evidence before preservation. Healthy, missing, locked or ambiguous stores remain untouched; SQLite may update its shared-memory cache while checking a WAL. Temporary libraries offer an explicit original-files support ZIP, including separate private media, without retiring originals. A failed removal resume stays blocked because leftover live files may already lack their WAL. The added four cases raise the required floor to 674 unit cases on Xcode 27 / 673 on Xcode 26.6; UI remains 83 per device. These counts require passing final-source receipts.
 
+- A separate checkout’s 3ec UI run found that the gear test could tap Notes below the software keyboard and continue typing in Name. Its keyboard-aware scroll now stays within the unobscured viewport and asserts the actual edited field. Ask Peak also provides a parent-controlled Close action, including regular-width iPad navigation where the system did not expose a back button. These observations motivate the next clean-source run; they do not replace it.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

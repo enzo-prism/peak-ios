@@ -176,7 +176,7 @@ struct HistoryView: View {
                     sessionDetail(for: ref)
                 }
                 .navigationDestination(isPresented: $isAskPeakPresented) {
-                    AskPeakView()
+                    AskPeakView(onClose: { isAskPeakPresented = false })
                 }
         }
     }
@@ -193,7 +193,7 @@ struct HistoryView: View {
                 )
                 .searchMinimizeBehavior(!isDedicatedSearchTab)
                 .navigationDestination(isPresented: $isAskPeakPresented) {
-                    AskPeakView()
+                    AskPeakView(onClose: { isAskPeakPresented = false })
                 }
         } detail: {
             if let ref = openedSession, let session = sessionMatching(ref) {

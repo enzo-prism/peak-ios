@@ -560,6 +560,8 @@ final class PeakUILayoutTests: XCTestCase {
         scrollToVisible(notesField, in: scrollView)
         notesField.tap()
         app.typeText("Adds glide and trims on shoulder-high days.")
+        XCTAssertTrue((notesField.value as? String)?.contains("Adds glide") == true, "Typing must reach Notes, not the previously focused Name")
+        XCTAssertEqual(nameField.value as? String, "Twin Pin")
         assertNotCoveredByKeyboard(notesField)
     }
 
@@ -895,24 +897,31 @@ private extension PeakUILayoutTests {
     func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, maxSwipes: Int = 8) {
         guard scrollView.exists else { return }
         var attempts = 0
-        while !isComfortablyVisible(element) && attempts < maxSwipes {
-            if element.exists && element.frame.maxY < scrollView.frame.minY {
-                scrollView.swipeDown()
-            } else {
-                scrollView.swipeUp()
-            }
+        while !isComfortablyVisible(element, in: scrollView) && attempts < maxSwipes {
+            let viewport = visibleScrollFrame(in: scrollView)
+            guard viewport.height > 80 else { return }
+            let movingDown = element.exists && element.frame.minY < viewport.minY
+            let startY = movingDown ? viewport.minY + viewport.height * 0.3 : viewport.maxY - viewport.height * 0.3
+            let endY = movingDown ? viewport.maxY - viewport.height * 0.3 : viewport.minY + viewport.height * 0.3
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let start = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: startY - app.frame.minY))
+            let end = origin.withOffset(CGVector(dx: viewport.midX - app.frame.minX, dy: endY - app.frame.minY))
+            start.press(forDuration: 0.05, thenDragTo: end)
             attempts += 1
         }
     }
 
-    func isComfortablyVisible(_ element: XCUIElement) -> Bool {
-        guard element.exists, element.isHittable else { return false }
+    func visibleScrollFrame(in scrollView: XCUIElement) -> CGRect {
+        var visible = scrollView.frame.intersection(app.windows.firstMatch.frame.insetBy(dx: 0, dy: 88))
+        if let keyboard = onscreenKeyboard() {
+            visible.size.height = max(0, min(visible.maxY, keyboard.frame.minY - 12) - visible.minY)
+        }
+        return visible
+    }
 
-        let window = app.windows.firstMatch
-        guard window.exists else { return true }
-
-        let visibleFrame = window.frame.insetBy(dx: 0, dy: 88)
-        return visibleFrame.contains(element.frame)
+    func isComfortablyVisible(_ element: XCUIElement, in scrollView: XCUIElement) -> Bool {
+        guard element.exists, visibleScrollFrame(in: scrollView).contains(element.frame) else { return false }
+        return element.isHittable
     }
 
     func attachScreenshot(name: String) {
