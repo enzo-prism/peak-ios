@@ -116,7 +116,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                     let predicate = NSPredicate(format: "label == %@", title)
                     for query in [app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
                         if let item = query.allElementsBoundByIndex.first(where: {
-                            isInsideViewport($0, in: app) && $0.frame.maxX < app.frame.midX
+                            self.isInsideViewport($0, in: app) && $0.frame.maxX < app.frame.midX
                         }) { return item.frame }
                     }
                     return nil
@@ -172,7 +172,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         var destination: XCUIElement?
         let reachable = NSPredicate { _, _ in
             for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
-                if let element = query.allElementsBoundByIndex.first(where: { isInsideViewport($0, in: app) && $0.isHittable }) {
+                if let element = query.allElementsBoundByIndex.first(where: { self.isInsideViewport($0, in: app) && $0.isHittable }) {
                     destination = element
                     return true
                 }
