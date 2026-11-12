@@ -397,7 +397,8 @@ struct SessionEditorView: View {
         // not clobber — the child field/slider identifiers.
         .scrollDismissesKeyboard(.interactively)
         .accessibilityIdentifier("session.editor.scroll")
-        .keyboardSafeAreaInset()
+        // SwiftUI already reserves the keyboard's safe area. Adding its full
+        // height again leaves a tiny viewport and scrolls Notes under the bar.
         .onChange(of: focusedField) { _, newValue in
             // Grow the sheet to full height as soon as the user starts entering text so the
             // keyboard never covers the field being edited or the spot chips above it.

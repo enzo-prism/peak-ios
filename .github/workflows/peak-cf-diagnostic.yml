@@ -36,7 +36,7 @@ jobs:
           python3 - <<'PYCODE'
           import hashlib,json,plistlib,subprocess
           from pathlib import Path
-          reference='cf26dc7f26aea718017f58f10ce82f79bea6b4ae'
+          reference='ffa47803d73339ea03810c33217588b3e78f6f9f'
           head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           changed=subprocess.check_output(['git','diff','--name-only',reference,head],text=True).splitlines()
           assert changed==['.github/workflows/peak-cf-diagnostic.yml']
