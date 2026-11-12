@@ -30,6 +30,25 @@ final class SessionDraftTests: XCTestCase {
         XCTAssertThrowsError(try SessionPersistence.spot(selection: nil, name: "  ", in: committed))
     }
 
+    func testNameOnlySpotDoesNotOverwriteExistingCoordinates() throws {
+        let container = try TestModelContainer.make()
+        let library = container.mainContext
+        let pinned = Spot(name: "Pipeline", latitude: 21.664, longitude: -158.054)
+        library.insert(pinned)
+        try library.save()
+        let stage = try SessionPersistence.stagingContext(from: library)
+        let resolved = try SessionPersistence.spot(selection: nil, name: "  PIPELINE  ", in: stage)
+        XCTAssertEqual(resolved.latitude, 21.664)
+        XCTAssertEqual(resolved.longitude, -158.054)
+        let colliding = try library.createSpot(name: "Pipeline", locationName: nil, latitude: nil, longitude: nil)
+        XCTAssertEqual(colliding.latitude, 21.664)
+        XCTAssertEqual(colliding.longitude, -158.054)
+        try library.save()
+        let readback = try XCTUnwrap(library.existingSpot(named: "Pipeline"))
+        XCTAssertEqual(readback.latitude, 21.664)
+        XCTAssertEqual(readback.longitude, -158.054)
+    }
+
     @MainActor
     func testHealthRequestFailurePreservesPreferenceAndSuccessEnablesOnlyAfterRequest() async throws {
         enum Failure: Error { case rejected }

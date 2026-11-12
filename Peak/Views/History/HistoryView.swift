@@ -35,6 +35,7 @@ struct HistoryView: View {
     @State private var sessionPendingDelete: SurfSession?
     @State private var deletionCount = 0
     @State private var showDeleteError = false
+    @State private var isAskPeakPresented = false
     /// Store-free selection survives a context replacement after an edit.
     /// Media relationships fault only for rows entering the lazy list.
     private var openedSession: PeakEntityRef? {
@@ -152,6 +153,10 @@ struct HistoryView: View {
         .onChange(of: navigation.selectedTab) { _, _ in
             consumePendingNavigation()
         }
+        .onChange(of: navigation.dismissAskPeakRequest) { _, request in
+            guard request != nil else { return }
+            isAskPeakPresented = false
+        }
     }
 
     // MARK: - Layout
@@ -170,6 +175,9 @@ struct HistoryView: View {
                 .navigationDestination(item: sessionSelection) { ref in
                     sessionDetail(for: ref)
                 }
+                .navigationDestination(isPresented: $isAskPeakPresented) {
+                    AskPeakView()
+                }
         }
     }
 
@@ -184,6 +192,9 @@ struct HistoryView: View {
                     prompt: "Spots, notes, gear, buddies"
                 )
                 .searchMinimizeBehavior(!isDedicatedSearchTab)
+                .navigationDestination(isPresented: $isAskPeakPresented) {
+                    AskPeakView()
+                }
         } detail: {
             if let ref = openedSession, let session = sessionMatching(ref) {
                 SessionDetailView(session: session)
@@ -250,7 +261,9 @@ struct HistoryView: View {
     @ToolbarContentBuilder
     private var historyToolbar: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
-            NavigationLink { AskPeakView() } label: {
+            Button {
+                isAskPeakPresented = true
+            } label: {
                 Label("Ask Peak", systemImage: "text.bubble")
             }
             .accessibilityIdentifier("history.askPeak")

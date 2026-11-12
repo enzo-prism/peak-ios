@@ -41,16 +41,14 @@ struct AskPeakView: View {
                     Text(answer.explanation).font(.subheadline)
                     if answer.needsFilters {
                         Button("Review History filters") {
-                            reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
-                            showFilters = true
+                            presentFilterReview()
                         }
                         .frame(minHeight: 44)
                         Text("Recognized dates, spots and gear are prefilled. Review them before viewing History; other words have not been applied.")
                             .font(.caption).foregroundStyle(.secondary)
                     } else {
                         Button("View these criteria in History") {
-                            reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
-                            showFilters = true
+                            presentFilterReview()
                         }
                         Text("Review the filters: note concepts and time-of-day words are only applied in this answer.")
                             .font(.caption).foregroundStyle(.secondary)
@@ -82,13 +80,26 @@ struct AskPeakView: View {
             }
         }
         .navigationTitle("Ask Peak")
-        .sheet(isPresented: $showFilters, onDismiss: {
-            dismiss()
-            PeakNavigationCoordinator.shared.showHistory(filters: reviewFilters)
-        }) { HistoryFilterSheetView(filters: $reviewFilters) }
+        .sheet(isPresented: $showFilters) {
+            HistoryFilterSheetView(
+                filters: $reviewFilters,
+                onConfirm: confirmHistoryHandoff,
+                showsCancel: true
+            )
+        }
         .onAppear { if !question.isEmpty && answer == nil { ask() } }
         .onDisappear { searchGeneration += 1; searchTask?.cancel(); isSearching = false }
         .onChange(of: SessionQueryStamp.make(sessions)) { _, _ in if answer != nil { ask() } }
+    }
+
+    private func presentFilterReview() {
+        reviewFilters = LogbookQuery.suggestedFilters(question, sessions: sessions)
+        showFilters = true
+    }
+
+    private func confirmHistoryHandoff() {
+        PeakNavigationCoordinator.shared.showHistory(filters: reviewFilters)
+        dismiss()
     }
 
     private func ask() {

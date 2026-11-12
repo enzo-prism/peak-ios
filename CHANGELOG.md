@@ -20,10 +20,16 @@ Status at a glance (App Store Connect read back November 11, 2026):
 - Recent/useful default spots in Compare Boards, per-board progress, mixed-condition labeling and source-session actions before enough evidence exists.
 - Best Window history coverage, exclusion of unrated sessions and a chronological evaluation tool with no future/same-time leakage.
 - Exact recent-date/time queries with missing-duration coverage; visible Ask Peak entry and reviewable History-filter handoff.
-- Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage. Recovery follows SwiftData’s actual configured store, includes separately stored videos, retains external media originals and keeps legacy recovery copies discoverable.
+- Logbook protection summary with verified Files-backup time and current-session edit counts; recap duration coverage. Recovery follows SwiftData’s actual configured store, includes separately stored videos, retains external media originals and keeps legacy recovery copies discoverable. Only genuine corruption or an incompatible model archives the library; permission, locked-device, low-disk and busy errors keep the original files and retry next launch.
 - Empty-library, large-text, sparse-data, permission-failure and validation-leakage regressions. SDK-specific cross-process intent checks are isolated from the normal runner.
 - Stats metrics grow vertically with text and expose one spoken summary per card. Accessibility-size metrics render eagerly; the streak decoration is a system symbol separate from its number. Large-text acceptance scrolls each metric fully into view and restores minimized tabs before navigation.
 - History and Quiver use a full-pane stack at accessibility sizes on iPad, preserving readable rows beside the native app sidebar.
+
+### Fixed
+
+- Store recovery no longer archives a healthy App Group library on permission, data-protection, SQLITE_BUSY, low-disk or migration errors. A partial-copy marker tries the original store first and is cleared if it opens. A crash after a complete archive finishes that archive instead of leaving an in-memory library forever. The recovery alert is shown once per archived library.
+- A name-only spot save no longer overwrites coordinates already stored for that break.
+- Ask Peak’s filter sheet Cancel and swipe-down stay on Ask Peak. Confirming filters closes Ask Peak on iPad as well as iPhone.
 
 ### Release boundaries
 

@@ -78,6 +78,17 @@ extension ModelContext {
         longitude: Double?,
         createdAt: Date = Date()
     ) throws -> Spot {
+        let key = Spot.makeKey(from: name)
+        var existingDescriptor = FetchDescriptor<Spot>(predicate: #Predicate { $0.key == key })
+        existingDescriptor.fetchLimit = 1
+        if let existing = try fetch(existingDescriptor).first {
+            // A unique-key insert can merge over the saved row. Never wipe a pin
+            // another save wrote during the lookup-then-save window.
+            if existing.locationName == nil { existing.locationName = locationName }
+            if existing.latitude == nil { existing.latitude = latitude }
+            if existing.longitude == nil { existing.longitude = longitude }
+            return existing
+        }
         let count = try spotCount()
         guard count < Spot.maxCount else {
             throw SpotLimitError.limitReached(max: Spot.maxCount)

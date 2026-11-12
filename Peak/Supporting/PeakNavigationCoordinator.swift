@@ -78,6 +78,9 @@ final class PeakNavigationCoordinator {
     var pendingSpotID: String?
     var pendingGearID: String?
     var pendingSearchQuery: String?
+    /// Parents observe this to close Ask Peak. `dismiss()` is a no-op in some
+    /// iPad split-view presentations, so the presenter must pop its own destination.
+    var dismissAskPeakRequest: UUID?
 
     private init() {}
 
@@ -87,6 +90,7 @@ final class PeakNavigationCoordinator {
         historySelection = nil
         selectedTab = .history
         historyFilterRequest = UUID()
+        dismissAskPeak()
     }
 
     func clearLibraryNavigation() {
@@ -103,6 +107,11 @@ final class PeakNavigationCoordinator {
         pendingSpotID = nil
         pendingGearID = nil
         pendingSearchQuery = nil
+        dismissAskPeak()
+    }
+
+    func dismissAskPeak() {
+        dismissAskPeakRequest = UUID()
     }
 
     func handle(_ destination: PeakDeepLink.Destination) {
