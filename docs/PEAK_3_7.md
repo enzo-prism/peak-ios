@@ -51,6 +51,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - Clean `0173b54` passed all 674 unit cases with no runtime warnings. Its phone UI run then found two Ask Peak acceptance failures from More: the row's empty middle did not receive the button action. A screenshot confirmed More remained visible after the tap. The row now declares a full-width content shape; the interrupted UI run is not acceptance and requires a new final-source run.
 
+- A normal (non-automation) launch on the small-phone Simulator exposed the legacy Log TipKit popover above the new welcome, obscuring its hero. The duplicate Log tip and its unused parameter were removed; contextual auto-fill guidance still waits until a session is saved. Automation intentionally disables tips, so normal-launch visual verification remains required in addition to the suites.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

@@ -180,7 +180,6 @@ struct LogView: View {
                 }
                 .glassButtonStyle(prominent: true)
                 .accessibilityIdentifier("log.hero.cta")
-                .peakTip(LogSessionTip())
 
                 sessionTimerControl
             }

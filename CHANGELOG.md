@@ -15,7 +15,7 @@ Status at a glance (App Store Connect read back November 11, 2026):
 
 ### Improved
 
-- Compact returning-user logging and a single optional welcome; explicit elapsed-time timer labels, contextual Health entry, and full-height editing. A new spot name can be saved atomically with the first surf.
+- Compact returning-user logging and a single optional welcome without a competing Log tip; explicit elapsed-time timer labels, contextual Health entry, and full-height editing. A new spot name can be saved atomically with the first surf.
 - Honest Health preference/request/write-access states, surfaced authorization failures and clearer empty imports. Read authorization is never inferred.
 - Recent/useful default spots in Compare Boards, per-board progress, mixed-condition labeling and source-session actions before enough evidence exists.
 - Best Window history coverage, exclusion of unrated sessions and a chronological evaluation tool with no future/same-time leakage.
