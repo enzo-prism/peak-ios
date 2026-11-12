@@ -65,18 +65,28 @@ struct HealthEntryCard: View {
     @State private var showHealth = false
     var body: some View {
         if HealthKitService.isHealthDataAvailable {
-            Button("Import a Watch surf", systemImage: "applewatch") { showHealth = true }
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .accessibilityIdentifier("log.healthImport")
-                .sheet(isPresented: $showHealth) {
-                    NavigationStack {
-                        List { Section { HealthAccessControl() } }
-                            .navigationTitle("Apple Health")
-                            .toolbar { ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { showHealth = false }
-                            } }
-                    }
+            Button {
+                showHealth = true
+            } label: {
+                Label("Import a Watch surf", systemImage: "applewatch")
+                    .font(.headline)
+                    .foregroundStyle(Theme.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(Theme.Spacing.l)
+                    .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal)
+            .accessibilityIdentifier("log.healthImport")
+            .sheet(isPresented: $showHealth) {
+                NavigationStack {
+                    List { Section { HealthAccessControl() } }
+                        .navigationTitle("Apple Health")
+                        .toolbar { ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showHealth = false }
+                        } }
                 }
+            }
         }
     }
 }

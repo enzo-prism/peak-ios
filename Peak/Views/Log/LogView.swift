@@ -95,6 +95,10 @@ struct LogView: View {
                         BackupProtectionCard(sessions: allSessions)
                     }
                     .padding(.vertical)
+                    // iOS 26's tab bar stays expanded when animations are off and
+                    // can sit on the last cards. Extra inset keeps Health and
+                    // backup fully above it without relying on minimize-on-scroll.
+                    .padding(.bottom, Theme.Spacing.xl * 2)
                     .readableContentWidth()
                     .opacity(showContent || reduceMotion ? 1 : 0)
                     .offset(y: showContent || reduceMotion ? 0 : 12)
