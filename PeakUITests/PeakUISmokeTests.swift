@@ -114,9 +114,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                 // title: a visible sidebar can still say "Toggle Sidebar".
                 let frames = ["Log", "History", "Stats", "Quiver"].compactMap { title -> CGRect? in
                     let predicate = NSPredicate(format: "label == %@", title)
-                    for query in [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
+                    for query in [app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
                         if let item = query.allElementsBoundByIndex.first(where: {
-                            $0.exists && $0.isHittable && $0.frame.maxX < app.frame.midX
+                            isInsideViewport($0, in: app) && $0.frame.maxX < app.frame.midX
                         }) { return item.frame }
                     }
                     return nil
@@ -171,8 +171,8 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         let predicate = NSPredicate(format: "label == %@", name)
         var destination: XCUIElement?
         let reachable = NSPredicate { _, _ in
-            for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
-                if let element = query.allElementsBoundByIndex.first(where: { $0.exists && $0.isHittable }) {
+            for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
+                if let element = query.allElementsBoundByIndex.first(where: { isInsideViewport($0, in: app) && $0.isHittable }) {
                     destination = element
                     return true
                 }
@@ -192,6 +192,14 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             }
         }
         XCTFail("Missing navigation destination: \(name)", file: file, line: line)
+    }
+
+    private func isInsideViewport(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists else { return false }
+        let frame = element.frame
+        // XCTest can raise a failure, rather than return false for isHittable,
+        // when an adaptive sidebar cell has no usable activation point.
+        return !frame.isEmpty && app.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {
