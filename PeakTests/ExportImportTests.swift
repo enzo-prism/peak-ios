@@ -1217,6 +1217,95 @@ final class ExportImportTests: XCTestCase {
         try assertRecoveryBytes(in: root)
     }
 
+    func testOpaqueSwiftDataFailureRecoversOnlyAfterSQLiteProvesCorruption() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let schema = Schema(versionedSchema: PeakSchemaV12.self)
+        let configuration = ModelConfiguration(schema: schema, url: root.appendingPathComponent("default.store"))
+        let memory = try makeContainer()
+        var opens = 0
+        let result = PeakDataStore.loadPersistent(configuration: configuration, mediaDirectory: {
+            root.appendingPathComponent("SessionMedia")
+        }, open: {
+            opens += 1
+            return try ModelContainer(for: schema, migrationPlan: PeakMigrationPlan.self, configurations: [configuration])
+        }, fallback: { memory }, isProtectedDataAvailable: { true })
+        guard case .recoveredFresh(let path) = result.outcome else { return XCTFail("Confirmed corruption must preserve files and open a fresh library") }
+        XCTAssertEqual(opens, 2)
+        try assertRecoveryBytes(in: URL(fileURLWithPath: path))
+        XCTAssertTrue(try ModelContext(result.container).fetch(FetchDescriptor<SurfSession>()).isEmpty)
+    }
+
+    func testOpaqueSwiftDataFailureKeepsHealthySQLiteLibraryAndRecords() throws {
+        let container = try makeDiskImportContainer()
+        let configuration = try XCTUnwrap(container.configurations.first)
+        let context = ModelContext(container)
+        let session = SurfSession(date: Date(), spot: nil, notes: "Retain this record")
+        context.insert(session)
+        try context.save()
+        let root = configuration.url.deletingLastPathComponent()
+        let originalDB = try Data(contentsOf: configuration.url)
+        let wal = URL(fileURLWithPath: configuration.url.path + "-wal")
+        let originalWAL = try? Data(contentsOf: wal)
+        let memory = try makeContainer()
+        let result = PeakDataStore.loadPersistent(configuration: configuration, mediaDirectory: {
+            XCTFail("Healthy SQLite must not be archived")
+            return root.appendingPathComponent("SessionMedia")
+        }, open: { throw SwiftDataError.loadIssueModelContainer }, fallback: { memory }, isProtectedDataAvailable: { true })
+        guard case .inMemoryFallback(let issue) = result.outcome else { return XCTFail("Unknown open failure must remain temporary") }
+        XCTAssertNil(issue.archivedPath)
+        XCTAssertNil(try PeakDataStore.pendingRecovery(in: root))
+        XCTAssertNil(try PeakDataStore.preservedArchive(in: root))
+        XCTAssertEqual(try Data(contentsOf: configuration.url), originalDB)
+        XCTAssertEqual(try? Data(contentsOf: wal), originalWAL)
+        XCTAssertEqual(try ModelContext(container).fetch(FetchDescriptor<SurfSession>()).map(\.notes), ["Retain this record"])
+    }
+
+    func testOpaqueSwiftDataFailureDoesNotInferCorruptionWhenLockedOrMissing() throws {
+        for locked in [true, false] {
+            let root = try makeRecoveryFixture()
+            defer { try? FileManager.default.removeItem(at: root) }
+            let store = root.appendingPathComponent("default.store")
+            if !locked { try FileManager.default.removeItem(at: store) }
+            let memory = try makeContainer()
+            let result = PeakDataStore.loadPersistent(configuration: ModelConfiguration(url: store), mediaDirectory: {
+                XCTFail("Locked or missing storage must not start recovery")
+                return root.appendingPathComponent("SessionMedia")
+            }, open: { throw SwiftDataError.loadIssueModelContainer }, fallback: { memory }, isProtectedDataAvailable: { !locked })
+            guard case .inMemoryFallback(let issue) = result.outcome else { return XCTFail("Expected temporary library") }
+            XCTAssertNil(issue.archivedPath)
+            XCTAssertNil(try PeakDataStore.pendingRecovery(in: root))
+            XCTAssertNil(try PeakDataStore.preservedArchive(in: root))
+            if locked { try assertRecoveryBytes(in: root) }
+            else { XCTAssertFalse(FileManager.default.fileExists(atPath: store.path), "Read-only probing must not create a database") }
+        }
+    }
+
+    func testOriginalFilesSupportExportPreservesSharedStorePrivateMediaAndMarker() throws {
+        let root = try makeRecoveryFixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let privateRoot = root.appendingPathComponent("Private")
+        try FileManager.default.createDirectory(at: privateRoot, withIntermediateDirectories: true)
+        let media = privateRoot.appendingPathComponent("SessionMedia")
+        try FileManager.default.moveItem(at: root.appendingPathComponent("SessionMedia"), to: media)
+        let marker = root.appendingPathComponent(PeakDataStore.recoveryMarkerName)
+        let markerBytes = Data("untouched recovery state".utf8)
+        try markerBytes.write(to: marker)
+        let store = root.appendingPathComponent("default.store")
+        XCTAssertThrowsError(try PeakDataStore.originalFilesExport(storeURL: store, mediaDirectory: media, isProtectedDataAvailable: { false }))
+        let exported = try PeakDataStore.originalFilesExport(storeURL: store, mediaDirectory: media, isProtectedDataAvailable: { true })
+        defer { try? FileManager.default.removeItem(at: exported) }
+        let bytes = try Data(contentsOf: exported)
+        XCTAssertEqual(Array(bytes.prefix(2)), [0x50, 0x4b])
+        for name in ["default.store", "default.store-wal", "default.store-shm", ".default_SUPPORT/blob.bin", "SessionMedia/session-video.mov"] {
+            XCTAssertNotNil(bytes.range(of: Data(name.utf8)))
+            let source = name.hasPrefix("SessionMedia/") ? privateRoot.appendingPathComponent(name) : root.appendingPathComponent(name)
+            XCTAssertEqual(try Data(contentsOf: source), Data(name.utf8))
+        }
+        XCTAssertEqual(try Data(contentsOf: marker), markerBytes)
+        XCTAssertNil(try PeakDataStore.preservedArchive(in: root))
+    }
+
     private func makeRecoveryFixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("PeakRecovery-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root.appendingPathComponent(".default_SUPPORT"), withIntermediateDirectories: true)

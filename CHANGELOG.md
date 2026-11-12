@@ -29,6 +29,7 @@ Status at a glance (App Store Connect read back November 11, 2026):
 
 - Store recovery no longer archives a healthy App Group library on permission, data-protection, SQLITE_BUSY, low-disk or migration errors. A partial-copy marker tries the original store first and is cleared if it opens. A crash after a complete archive finishes that archive instead of leaving an in-memory library forever. The recovery alert is shown once per archived library.
 - Interrupted removal validates remaining files against the preserved copy and repairs the recovery receipt before deleting originals. Transient underlying failures override corruption wrappers; database-level errors alone do not prove corruption.
+- Opaque SwiftData load failures require independent SQLite corruption evidence before archiving. Temporary libraries offer a nondestructive original-files support export; ambiguous recovery state retains both available file sets.
 - A name-only spot save no longer overwrites coordinates already stored for that break.
 - Ask Peak’s filter sheet Cancel and swipe-down stay on Ask Peak. Confirming filters closes Ask Peak on iPad as well as iPhone.
 

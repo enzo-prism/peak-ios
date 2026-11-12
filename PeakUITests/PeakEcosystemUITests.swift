@@ -474,6 +474,7 @@ final class PeakRecoveryUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 8))
         XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "will be lost when Peak closes")).firstMatch.exists)
         XCTAssertTrue(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
         app.buttons["Details"].tap()
@@ -486,11 +487,13 @@ final class PeakRecoveryUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 8))
         XCTAssertTrue(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Existing library files have been left on this device")).firstMatch.exists)
         XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
         XCTAssertFalse(alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "complete copy")).firstMatch.exists)
         alert.buttons["Close"].tap()
         XCTAssertTrue(app.staticTexts["Temporary library. Changes will not be saved."].waitForExistence(timeout: 5))
         app.buttons["Details"].tap()
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         XCTAssertFalse(alert.buttons["Export Recovery Copy"].exists)
+        XCTAssertTrue(alert.buttons["Export Original Files"].exists)
     }
 }

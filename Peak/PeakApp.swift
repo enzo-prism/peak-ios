@@ -196,6 +196,9 @@ private struct RootView: View {
                 if archivedPath != nil {
                     Button("Export Recovery Copy", action: prepareRecoveryExport)
                 }
+                if case .inMemoryFallback = outcome {
+                    Button("Export Original Files", action: prepareOriginalFilesExport)
+                }
                 Button("Close", role: .cancel) { acknowledgeRecoveryIfNeeded() }
             } message: {
                 Text(recoveryMessage)
@@ -205,10 +208,10 @@ private struct RootView: View {
                     ShareSheet(items: [recoveryExportURL])
                 }
             }
-            .alert("Recovery copy could not be exported", isPresented: $isExportErrorPresented) {
+            .alert("Recovery files could not be exported", isPresented: $isExportErrorPresented) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your recovery files are still on this device. Free up device storage and try again. Do not delete Peak while your library needs recovery.")
+                Text("Available recovery files remain on this device. Unlock the device, check available storage and try again. Do not delete Peak while your library needs recovery.")
             }
     }
 
@@ -282,6 +285,20 @@ private struct RootView: View {
         recoveryExportURL = nil
     }
 
+    private func prepareOriginalFilesExport() {
+        guard !isPreparingRecoveryCopy else { return }
+        isPreparingRecoveryCopy = true
+        Task {
+            do {
+                recoveryExportURL = try await Task.detached { try PeakDataStore.originalFilesExport() }.value
+                isRecoverySharePresented = true
+            } catch {
+                isExportErrorPresented = true
+            }
+            isPreparingRecoveryCopy = false
+        }
+    }
+
     private func finishWelcome() {
         hasSeenWelcome = true
         isWelcomePresented = false
@@ -310,14 +327,17 @@ private struct RootView: View {
             return ""
         case .recoveredFresh:
             return "Peak could not open your previous library. A complete copy of its files was preserved, and your current library is separate from that copy. Export the recovery copy to Files for safekeeping or to share with support. It is a recovery archive, not an importable Peak backup. Do not delete Peak before saving a copy."
-        case .inMemoryFallback:
+        case .inMemoryFallback(let issue):
+            if issue.phase == .removing {
+                return "Recovery could not finish safely. Remaining original files and any preserved copy have been left on this device. Changes in this temporary library will be lost when Peak closes. Export available copies to Files for safekeeping or to share with support. These recovery files are not importable Peak backups. Close and reopen Peak to retry. Do not delete Peak."
+            }
             if archivedPath != nil {
                 return "Peak could not open a saved library. Changes in this temporary library will be lost when Peak closes. A complete copy of your previous library is preserved. Export it to Files for safekeeping or to share with support. It is a recovery archive, not an importable Peak backup. Do not delete Peak before saving a copy."
             }
-            if case .inMemoryFallback(let issue) = outcome, issue.phase == .copying {
-                return "Peak could not finish preserving your library. Your original files have not been removed. Free up device storage, then close and reopen Peak to retry. Changes in this temporary library will be lost when Peak closes. Do not delete Peak."
+            if issue.phase == .copying {
+                return "Peak could not open or finish preserving your library. Your original files have not been removed. Close and reopen Peak to retry. Changes in this temporary library will be lost when Peak closes. You can export original files for support; they are not an importable Peak backup. Do not delete Peak."
             }
-            return "Peak could not safely prepare your saved library. Changes in this temporary library will be lost when Peak closes. Existing library files have been left on this device. Do not delete Peak. Contact Peak support for help recovering your library."
+            return "Peak could not safely prepare your saved library. Changes in this temporary library will be lost when Peak closes. Existing library files have been left on this device. Export original files for safekeeping or support, then close and reopen Peak to retry. These recovery files are not an importable Peak backup. Do not delete Peak."
         }
     }
 }
