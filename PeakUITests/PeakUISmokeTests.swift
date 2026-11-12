@@ -112,12 +112,19 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             func sidebarIsVisible() -> Bool {
                 // Inspect the destination column, not the toggle's localized
                 // title: a visible sidebar can still say "Toggle Sidebar".
-                ["Log", "History", "Stats", "Quiver"].allSatisfy { title in
+                let frames = ["Log", "History", "Stats", "Quiver"].compactMap { title -> CGRect? in
                     let predicate = NSPredicate(format: "label == %@", title)
-                    return [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)]
-                        .contains { query in query.allElementsBoundByIndex.contains {
+                    for query in [app.buttons.matching(predicate), app.cells.matching(predicate), app.staticTexts.matching(predicate)] {
+                        if let item = query.allElementsBoundByIndex.first(where: {
                             $0.exists && $0.isHittable && $0.frame.maxX < app.frame.midX
-                        } }
+                        }) { return item.frame }
+                    }
+                    return nil
+                }
+                // Top tabs may also occupy the left half. A sidebar is a
+                // vertical destination column, not four labels on one row.
+                return frames.count == 4 && zip(frames, frames.dropFirst()).allSatisfy { previous, next in
+                    next.midY - previous.midY > 20
                 }
             }
             let visible = NSPredicate { _, _ in sidebarIsVisible() }

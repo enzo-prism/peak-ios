@@ -544,7 +544,10 @@ final class PeakUILayoutTests: XCTestCase {
         assertExists(addGear)
         addGear.tap()
 
-        let scrollView = app.scrollViews.firstMatch
+        // A keyboard preview and the Quiver behind the sheet can also expose
+        // scroll views. Scroll the editor containing this field.
+        let scrollView = app.scrollViews.containing(.textField, identifier: "gear.editor.name").firstMatch
+        assertExists(scrollView)
 
         let nameField = app.textFields["gear.editor.name"]
         assertExists(nameField)
@@ -1011,25 +1014,23 @@ private extension PeakUILayoutTests {
     }
 
     func dismissKeyboard() {
-        let keyboard = app.keyboards.firstMatch
-        guard keyboard.exists else { return }
-
-        let doneButton = app.keyboards.buttons["Done"]
-        if doneButton.exists {
-            doneButton.tap()
-            _ = keyboard.waitForNonExistence(timeout: 2)
-            return
-        }
-
-        let returnButton = app.keyboards.buttons["return"]
-        if returnButton.exists {
-            returnButton.tap()
-            _ = keyboard.waitForNonExistence(timeout: 2)
-            return
+        guard onscreenKeyboard() != nil else { return }
+        let hidden = NSPredicate { _, _ in self.onscreenKeyboard() == nil }
+        for label in ["Done", "return", "Hide keyboard"] {
+            let predicate = NSPredicate(format: "label ==[c] %@ OR identifier ==[c] %@", label, label)
+            if let button = app.keyboards.buttons.matching(predicate).allElementsBoundByIndex.first(where: {
+                $0.exists && $0.isHittable && app.frame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
+            }) {
+                button.tap()
+                if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
+            }
         }
 
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
-        _ = keyboard.waitForNonExistence(timeout: 2)
+        if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 2) == .completed { return }
+        app.scrollViews["session.editor.scroll"].swipeDown()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: hidden, object: nil)], timeout: 3), .completed,
+                       "The onscreen keyboard must dismiss before navigating fields")
     }
 
     func firstHittable(in query: XCUIElementQuery) -> XCUIElement? {
@@ -1173,8 +1174,10 @@ private extension PeakUILayoutTests {
     }
 
     func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
-        let keyboard = app.keyboards.firstMatch
-        XCTAssertTrue(keyboard.waitForExistence(timeout: 2), "Keyboard not visible", file: file, line: line)
+        let shown = NSPredicate { _, _ in self.onscreenKeyboard() != nil }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: nil)], timeout: 3), .completed,
+                       "Show the software keyboard; an offscreen hardware-keyboard preview is not keyboard-avoidance coverage", file: file, line: line)
+        guard let keyboard = onscreenKeyboard() else { return }
 
         let elementFrame = element.frame
         let keyboardFrame = keyboard.frame
@@ -1187,5 +1190,12 @@ private extension PeakUILayoutTests {
             file: file,
             line: line
         )
+        attachScreenshot(name: "Keyboard \(element.identifier)")
+    }
+
+    func onscreenKeyboard() -> XCUIElement? {
+        app.keyboards.allElementsBoundByIndex.first {
+            $0.exists && $0.frame.intersection(app.frame).height > 100
+        }
     }
 }
