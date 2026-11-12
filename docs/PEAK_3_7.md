@@ -55,6 +55,8 @@ The iOS 17 minimum, V12 schema, identifiers, local storage, explicit networking 
 
 - Final-source CI #146 passed all 674 Xcode 27 and 673 Xcode 26.6 unit cases; downloaded clean receipts use merge checkout `1851530`, whose tree matches `e4d1034`. The only inventory difference is the SDK 27 observer probe. The iPad UI run then exposed a sidebar detector that required all four accessibility-sized destinations inside the viewport; its seven other polish cases passed before the run was superseded. Reviewed follow-up `124c062` accepts overflow rows; the detector still requires two row centres on-screen and a column within the window's left half. No accessibility audit issue filter or case skip is added. New final-source UI qualification remains required.
 
+- CI #148 passed 674/673 unit cases on Xcode 27/26.6 with matching source trees. iPhone discovered all 83 UI cases: 77 passed, one failed and five opt-in cases skipped; the only failure was XCTest's invalid activation-point lookup on the visibly present Quiver tab before navigation. The helper now taps a finite on-screen centre and requires the destination navigation bar to appear. The iPad job aborted in CoreSimulator boot before building or executing tests. Neither failed UI job qualifies the candidate; both full suites must pass on the revised source. Accessibility audits and test counts remain unchanged.
+
 ## Remaining physical/longitudinal evidence
 
 Real-surfer timing, microphone quality in wind, on-device model relevance, ocean detection, physical backup-provider behavior and representative-device performance are distinct from synthetic or Simulator tests. Report only observations actually obtained. Never treat TestFlight upload or an App Review submission as proof of these results.

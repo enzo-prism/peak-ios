@@ -178,13 +178,14 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     private func tapTab(_ name: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-        // iPadOS can expose its top tab strip as ordinary buttons even in the
-        // compact navigation test lane. Match the shipped tab before tapping.
+        // Native tab/sidebar controls can have a visible frame while XCTest's
+        // activation-point lookup throws instead of returning isHittable=false.
+        // Tap their measured on-screen centre and verify actual navigation.
         let predicate = NSPredicate(format: "label == %@", name)
         var destination: XCUIElement?
         let reachable = NSPredicate { _, _ in
             for query in [app.tabBars.buttons.matching(predicate), app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
-                if let element = query.allElementsBoundByIndex.first(where: { self.isInsideViewport($0, in: app) && $0.isHittable }) {
+                if let element = query.allElementsBoundByIndex.first(where: { self.isInsideViewport($0, in: app) }) {
                     destination = element
                     return true
                 }
@@ -194,16 +195,18 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         for attempt in 0..<2 {
             if XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: reachable, object: nil)], timeout: 5) == .completed,
                let destination {
-                destination.tap()
-                return
+                let frame = destination.frame
+                app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: frame.midX - app.frame.minX, dy: frame.midY - app.frame.minY)).tap()
+                if app.navigationBars[name].waitForExistence(timeout: 8) { return }
             }
             if attempt == 0, UIDevice.current.userInterfaceIdiom == .phone {
                 // The native minimized tab strip can finish collapsing after
-                // the preceding audit. Restore it and wait for hittability.
+                // the preceding audit. Restore it before finding its frame.
                 app.scrollViews.firstMatch.swipeDown()
             }
         }
-        XCTFail("Missing navigation destination: \(name)", file: file, line: line)
+        XCTFail("Navigation did not reach destination: \(name)", file: file, line: line)
     }
 
     private func isInsideViewport(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
@@ -211,7 +214,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         let frame = element.frame
         // XCTest can raise a failure, rather than return false for isHittable,
         // when an adaptive sidebar cell has no usable activation point.
-        return !frame.isEmpty && app.frame.contains(CGPoint(x: frame.midX, y: frame.midY))
+        return !frame.isEmpty && !frame.isInfinite && !frame.isNull
+            && frame.midX.isFinite && frame.midY.isFinite
+            && app.frame.insetBy(dx: 2, dy: 2).contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {
