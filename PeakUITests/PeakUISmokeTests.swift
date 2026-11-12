@@ -112,19 +112,24 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             func sidebarIsVisible() -> Bool {
                 // Inspect the destination column, not the toggle's localized
                 // title: a visible sidebar can still say "Toggle Sidebar".
+                // Accessibility XXXL rows do not all fit; later destinations
+                // stay in the left column below the fold, so requiring every
+                // title on-screen treats an open sidebar as hidden and then
+                // demands a Show control that is "Hide Sidebar" instead.
                 let frames = ["Log", "History", "Stats", "Quiver"].compactMap { title -> CGRect? in
                     let predicate = NSPredicate(format: "label == %@", title)
                     for query in [app.buttons.matching(predicate), app.staticTexts.matching(predicate), app.cells.matching(predicate)] {
                         if let item = query.allElementsBoundByIndex.first(where: {
-                            self.isInsideViewport($0, in: app) && $0.frame.maxX < app.frame.midX
+                            $0.exists && !$0.frame.isEmpty && $0.frame.maxX < app.frame.midX
                         }) { return item.frame }
                     }
                     return nil
-                }
+                }.sorted { $0.minY < $1.minY }
                 // Top tabs may also occupy the left half. A sidebar is a
-                // vertical destination column, not four labels on one row.
-                return frames.count == 4 && zip(frames, frames.dropFirst()).allSatisfy { previous, next in
-                    next.midY - previous.midY > 20
+                // vertical destination column, not labels on one row.
+                guard frames.count >= 2 else { return false }
+                return zip(frames, frames.dropFirst()).allSatisfy { previous, next in
+                    next.minY - previous.minY > 20
                 }
             }
             let visible = NSPredicate { _, _ in sidebarIsVisible() }
@@ -132,8 +137,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                 let showSidebar = app.buttons.matching(NSPredicate(format:
                     "(label CONTAINS[c] 'sidebar' OR identifier CONTAINS[c] 'sidebar') AND NOT label CONTAINS[c] 'hide'"
                 )).firstMatch
-                XCTAssertTrue(showSidebar.waitForExistence(timeout: 3) && showSidebar.isHittable)
-                if showSidebar.exists && showSidebar.isHittable { showSidebar.tap() }
+                if showSidebar.waitForExistence(timeout: 3), isInsideViewport(showSidebar, in: app) {
+                    showSidebar.tap()
+                }
             }
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: visible, object: nil)], timeout: 5), .completed,
                            "The shipping sidebar must show its destination column")
