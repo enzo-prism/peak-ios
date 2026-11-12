@@ -499,6 +499,10 @@ final class PeakUILayoutTests: XCTestCase {
         notesField.typeText(notes)
         XCTAssertTrue((notesField.value as? String)?.contains(notes) == true, "Typing must reach the session Notes field")
         assertNotCoveredByKeyboard(notesField)
+        let editorBar = app.navigationBars["Log Session"]
+        assertExists(editorBar)
+        XCTAssertGreaterThanOrEqual(notesField.frame.minY, editorBar.frame.maxY + 6,
+                                    "The whole Notes editor must remain below its navigation toolbar")
     }
 
     func testNewSessionBuddySectionUsableWhileTyping() {
