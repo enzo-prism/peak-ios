@@ -1,0 +1,56 @@
+name: Peak CF Notes diagnostic
+on:
+  push:
+    branches: [diagnostic/peak-cf-window-20261112]
+permissions:
+  contents: read
+jobs:
+  notes:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '27.0'
+      - name: Check Notes with visible software keyboard
+        env:
+          SCHEME: Peak
+          DESTINATION_OS: latest
+          DESTINATION_NAME: iPhone 18 Pro
+          STRICT_DESTINATION: '1'
+          UI_TEST_TARGET: PeakUITests/PeakUILayoutTests/testSessionEditorKeyboardAvoidsFields
+          RESULT_BUNDLE: .build/SessionKeyboardDiagnostic.xcresult
+        run: ./scripts/test-ui.sh
+      - name: Verify one complete case
+        run: python3 scripts/check-test-results.py .build/SessionKeyboardDiagnostic.xcresult 1
+      - name: Preserve simulator product and observed source
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,plistlib,subprocess
+          from pathlib import Path
+          reference='cf26dc7f26aea718017f58f10ce82f79bea6b4ae'
+          head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          changed=subprocess.check_output(['git','diff','--name-only',reference,head],text=True).splitlines()
+          assert changed==['.github/workflows/peak-cf-diagnostic.yml']
+          assert not subprocess.check_output(['git','status','--porcelain','--untracked-files=all'],text=True).strip()
+          app=Path('.derivedData/Build/Products/Debug-iphonesimulator/Peak.app')
+          if app.is_dir():
+              info=plistlib.loads((app/'Info.plist').read_bytes())
+              assert (info['CFBundleShortVersionString'],info['CFBundleVersion'])==('3.7','1')
+              subprocess.run(['ditto','-c','-k','--keepParent',str(app),'.build/Peak-simulator.zip'],check=True)
+              record={'compiledSourceCommit':head,'releaseSourceCommit':reference,'workflowOnlyDelta':changed,'trackedChanges':False,'binarySHA256':hashlib.sha256((app/info['CFBundleExecutable']).read_bytes()).hexdigest(),'zipSHA256':hashlib.sha256(Path('.build/Peak-simulator.zip').read_bytes()).hexdigest(),'scope':'Observed simulator build source; all repository content except this diagnostic workflow equals the release candidate. No source stamp or physical upgrade claim.'}
+              Path('.build/diagnostic-product.json').write_text(json.dumps(record,indent=2)+'\n')
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: peak-cf-session-diagnostic
+          include-hidden-files: true
+          path: |
+            .build/SessionKeyboardDiagnostic.xcresult
+            .build/SessionKeyboardDiagnostic.receipt.json
+            .build/Peak-simulator.zip
+            .build/diagnostic-product.json
