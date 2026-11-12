@@ -39,6 +39,7 @@ struct MoreView: View {
                                 .padding(12)
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
+                                .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                             }
                             .buttonStyle(PressFeedbackButtonStyle())
                             .accessibilityIdentifier("more.askPeak")
