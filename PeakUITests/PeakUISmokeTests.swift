@@ -233,9 +233,11 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         return app.scrollViews.firstMatch
     }
 
-    /// Pan the Log XCUIElement with measured slow drags. Full swipes can jump
-    /// more than a phone viewport and park the card above the fold; trailing
-    /// window gutters land in Best Window's chip scroller.
+    /// Pan the Log XCUIElement with measured slow drags. Full swipes overshoot a
+    /// phone viewport; a slow drag through card mid can land on Health/backup
+    /// or Best Window chips and never move the root. Always pan a bounded
+    /// slice of the viewport from the leading padding, and reverse if the
+    /// card is above the fold.
     private func scrollLogCardToVisible(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 15) {
         let scrollView = logScroll(in: app)
         XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
@@ -246,13 +248,15 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             let limit = visible.height * 0.4
             let delta: CGFloat
             if element.exists, !element.frame.isEmpty {
-                let aimed = min(limit, max(-limit, visible.midY - element.frame.midY))
-                delta = abs(aimed) > 1 ? aimed : -limit
+                let gap = visible.midY - element.frame.midY
+                delta = (gap > 1 ? 1 : -1) * limit
             } else {
                 delta = -limit
             }
             let origin = scrollView.coordinate(withNormalizedOffset: .zero)
-            let x = visible.midX - scrollView.frame.minX
+            // Cards and the chip scroller are inset by `.padding(.horizontal)`;
+            // the leading ~12pt is empty Log padding, not a control.
+            let x = max(10, visible.minX - scrollView.frame.minX + 4)
             let startY = visible.midY - delta / 2 - scrollView.frame.minY
             let start = origin.withOffset(CGVector(dx: x, dy: startY))
             let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
