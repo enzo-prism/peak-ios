@@ -233,29 +233,30 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         return app.scrollViews.firstMatch
     }
 
-    /// Pan the Log XCUIElement itself. Window trailing-gutter drags on compact
-    /// iPhone land in Best Window's full-width chip scroller and never move
-    /// Health/backup above the tab bar, so the cards exist but stay unhittable.
+    /// Pan the Log XCUIElement with measured slow drags. Full swipes can jump
+    /// more than a phone viewport and park the card above the fold; trailing
+    /// window gutters land in Best Window's chip scroller.
     private func scrollLogCardToVisible(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 15) {
         let scrollView = logScroll(in: app)
         XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
         var attempts = 0
         while (!element.exists || !isVisible(element, in: scrollView, app: app)) && attempts < maxSwipes {
             let visible = visibleContentFrame(in: scrollView, app: app)
-            if element.exists, element.frame.height > 0, visible.height > 80 {
-                let delta = visible.midY - element.frame.midY
-                if delta < -1 {
-                    scrollView.swipeUp()
-                } else if delta > 1 {
-                    scrollView.swipeDown()
-                } else if !element.isHittable {
-                    scrollView.swipeUp()
-                } else {
-                    break
-                }
+            guard visible.height > 80 else { break }
+            let limit = visible.height * 0.4
+            let delta: CGFloat
+            if element.exists, !element.frame.isEmpty {
+                let aimed = min(limit, max(-limit, visible.midY - element.frame.midY))
+                delta = abs(aimed) > 1 ? aimed : -limit
             } else {
-                scrollView.swipeUp()
+                delta = -limit
             }
+            let origin = scrollView.coordinate(withNormalizedOffset: .zero)
+            let x = visible.midX - scrollView.frame.minX
+            let startY = visible.midY - delta / 2 - scrollView.frame.minY
+            let start = origin.withOffset(CGVector(dx: x, dy: startY))
+            let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
             attempts += 1
         }
     }
