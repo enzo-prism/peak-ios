@@ -1195,7 +1195,7 @@ private extension PeakUILayoutTests {
     func assertNotCoveredByKeyboard(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         let shown = NSPredicate { _, _ in self.onscreenKeyboard() != nil }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: shown, object: nil)], timeout: 8), .completed,
-                       "Show the software keyboard; an offscreen hardware-keyboard preview is not keyboard-avoidance coverage", file: file, line: line)
+                       "Show the software keyboard; an offscreen hardware-keyboard preview is not keyboard-avoidance coverage. Boot via scripts/boot-sim.sh so Connect Hardware Keyboard is off.", file: file, line: line)
         guard let keyboard = onscreenKeyboard() else { return }
 
         let elementFrame = element.frame

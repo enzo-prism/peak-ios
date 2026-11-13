@@ -88,11 +88,12 @@ struct LogView: View {
                             .padding(.horizontal)
                         }
 
-                        // Planning stays available after recent logs and memories.
-                        BestWindowTodayCard(sessions: allSessions)
-
+                        // Health and backup sit with recents so compact iPhone
+                        // can reach them without panning through Best Window's
+                        // full-width chip scroller. Planning stays below.
                         HealthEntryCard()
                         BackupProtectionCard(sessions: allSessions)
+                        BestWindowTodayCard(sessions: allSessions)
                     }
                     .padding(.vertical)
                     .readableContentWidth()
@@ -100,6 +101,7 @@ struct LogView: View {
                     .offset(y: showContent || reduceMotion ? 0 : 12)
                     .animation(reduceMotion ? nil : .easeOut(duration: 0.6), value: showContent)
                 }
+                .accessibilityIdentifier("log.scroll")
             }
             .navigationTitle("Log")
             .toolbar {

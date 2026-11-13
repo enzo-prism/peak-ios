@@ -11,6 +11,67 @@ if [[ -z "${DESTINATION_UDID:-}" || -z "${DESTINATION_NAME:-}" ]]; then
 fi
 
 echo "Using simulator: ${DESTINATION_NAME} (${DESTINATION_UDID})"
+
+# A Mac with a hardware keyboard leaves Simulator's "Connect Hardware Keyboard"
+# on. The software keyboard then never appears; XCTest still exposes an
+# offscreen preview, and keyboard-avoidance tests fail without covering the
+# real overlap. Disconnect it for this UDID before Simulator.app reads prefs.
+prefer_software_keyboard() {
+  python3 - "${DESTINATION_UDID}" <<'PY'
+import plistlib
+import subprocess
+import sys
+
+udid = sys.argv[1]
+domain = "com.apple.iphonesimulator"
+try:
+    exported = subprocess.check_output(["defaults", "export", domain, "-"], stderr=subprocess.DEVNULL)
+    data = plistlib.loads(exported)
+except (subprocess.CalledProcessError, plistlib.InvalidFileException, ValueError):
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+data["ConnectHardwareKeyboard"] = False
+prefs = data.get("DevicePreferences")
+if not isinstance(prefs, dict):
+    prefs = {}
+device = prefs.get(udid)
+if not isinstance(device, dict):
+    device = {}
+device["ConnectHardwareKeyboard"] = False
+prefs[udid] = device
+data["DevicePreferences"] = prefs
+subprocess.run(
+    ["defaults", "import", domain, "-"],
+    input=plistlib.dumps(data, fmt=plistlib.FMT_XML),
+    check=True,
+)
+PY
+}
+
+# Simulator.app caches ConnectHardwareKeyboard at launch. Quit the GUI so the
+# next open picks up the preference; CoreSimulator devices stay booted.
+quit_simulator_app() {
+  local pids
+  pids="$(pgrep -x Simulator || true)"
+  if [[ -z "${pids}" ]]; then
+    return 0
+  fi
+  # Specific Simulator.app PIDs only — not a pattern kill of other processes.
+  # shellcheck disable=SC2086
+  kill ${pids} >/dev/null 2>&1 || true
+  local _i
+  for _i in 1 2 3 4 5 6 7 8 9 10; do
+    pgrep -xq Simulator || return 0
+    sleep 0.2
+  done
+}
+
+quit_simulator_app
+if ! prefer_software_keyboard; then
+  echo "warning: could not disconnect the Simulator hardware keyboard; software-keyboard UI tests may fail." >&2
+fi
+
 xcrun simctl boot "${DESTINATION_UDID}" >/dev/null 2>&1 || true
 xcrun simctl bootstatus "${DESTINATION_UDID}" -b
 

@@ -66,8 +66,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
         let protection = app.buttons["log.backupProtection"]
-        scrollToVisible(protection, in: app.scrollViews.firstMatch, app: app)
-        XCTAssertTrue(protection.exists && protection.isHittable)
+        scrollLogCardToVisible(protection, in: app)
+        XCTAssertTrue(protection.waitForExistence(timeout: 8), "A fifth session must surface logbook protection")
+        XCTAssertTrue(protection.isHittable)
         protection.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 8))
         let backup = app.buttons["Back Up Everything"]
@@ -78,8 +79,11 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testHealthEntryExplainsPreferenceWithoutClaimingConnection() {
         let app = launch()
         let entry = app.buttons["log.healthImport"]
-        scrollToVisible(entry, in: app.scrollViews.firstMatch, app: app)
-        XCTAssertTrue(entry.exists)
+        // Off-screen SwiftUI buttons are often absent from the AX tree until
+        // the Log root actually pans. Scroll first, then require the card.
+        scrollLogCardToVisible(entry, in: app)
+        XCTAssertTrue(entry.waitForExistence(timeout: 8))
+        XCTAssertTrue(entry.isHittable)
         entry.tap()
         XCTAssertTrue(app.switches["health.integration.toggle"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.staticTexts["Apple Health connected"].exists)
@@ -214,25 +218,80 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             && app.windows.firstMatch.frame.insetBy(dx: 2, dy: 2).contains(CGPoint(x: frame.midX, y: frame.midY))
     }
 
+    /// The Log root is the tall vertical scroller that contains the hero CTA.
+    /// `log.scroll` can also match a nested Best Window chip scroller.
+    private func logScroll(in app: XCUIApplication) -> XCUIElement {
+        let byHero = app.scrollViews.containing(NSPredicate(
+            format: "identifier == %@ OR label == %@", "log.hero.cta", "Log a finished surf"
+        )).firstMatch
+        if byHero.exists, byHero.frame.height > 200 { return byHero }
+        if let tall = app.scrollViews.matching(identifier: "log.scroll").allElementsBoundByIndex.first(where: {
+            $0.exists && $0.frame.height > 200
+        }) {
+            return tall
+        }
+        return app.scrollViews.firstMatch
+    }
+
+    /// Pan the Log XCUIElement with measured slow drags. Full swipes overshoot a
+    /// phone viewport; a slow drag through card mid can land on Health/backup
+    /// or Best Window chips and never move the root. Always pan a bounded
+    /// slice of the viewport from the leading padding, and reverse if the
+    /// card is above the fold.
+    private func scrollLogCardToVisible(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 15) {
+        let scrollView = logScroll(in: app)
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
+        var attempts = 0
+        while (!element.exists || !isVisible(element, in: scrollView, app: app)) && attempts < maxSwipes {
+            let visible = visibleContentFrame(in: scrollView, app: app)
+            guard visible.height > 80 else { break }
+            let limit = visible.height * 0.4
+            let delta: CGFloat
+            if element.exists, !element.frame.isEmpty {
+                let gap = visible.midY - element.frame.midY
+                delta = (gap > 1 ? 1 : -1) * limit
+            } else {
+                delta = -limit
+            }
+            let origin = scrollView.coordinate(withNormalizedOffset: .zero)
+            // Cards and the chip scroller are inset by `.padding(.horizontal)`;
+            // the leading ~12pt is empty Log padding, not a control.
+            let x = max(10, visible.minX - scrollView.frame.minX + 4)
+            let startY = visible.midY - delta / 2 - scrollView.frame.minY
+            let start = origin.withOffset(CGVector(dx: x, dy: startY))
+            let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+            attempts += 1
+        }
+    }
+
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {
         guard scrollView.exists else { return }
         var attempts = 0
         while !isVisible(element, in: scrollView, app: app, fullyVisible: fullyVisible) && attempts < maxSwipes {
-            if element.exists, element.frame.height > 0 {
-                let visible = visibleContentFrame(in: scrollView, app: app)
+            let visible = visibleContentFrame(in: scrollView, app: app)
+            if visible.height <= 80 {
+                scrollView.swipeUp()
+            } else if element.exists, element.frame.height > 0 {
                 // Full swipes can alternate above/below a short iPad sheet
                 // forever. Once AX has a frame, move toward the visible centre
                 // by a measured distance and release without flick momentum.
                 let limit = visible.height * 0.45
                 let delta = min(limit, max(-limit, visible.midY - element.frame.midY))
-                guard abs(delta) > 1 else { break }
-                let origin = scrollView.coordinate(withNormalizedOffset: .zero)
-                // Trailing scroll padding avoids dragging an editable slider.
-                let x = visible.maxX - scrollView.frame.minX - 4
-                let startY = visible.midY - delta / 2 - scrollView.frame.minY
-                let start = origin.withOffset(CGVector(dx: x, dy: startY))
-                let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
-                start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+                if abs(delta) > 1 {
+                    let window = app.windows.firstMatch
+                    let origin = window.coordinate(withNormalizedOffset: .zero)
+                    // Drag the gutter so a nested chip scroller cannot eat the pan.
+                    let x = visible.maxX - 6 - window.frame.minX
+                    let startY = visible.midY - delta / 2 - window.frame.minY
+                    let start = origin.withOffset(CGVector(dx: x, dy: startY))
+                    let end = origin.withOffset(CGVector(dx: x, dy: startY + delta))
+                    start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+                } else {
+                    // Stale AX frames can look centred while the control is still
+                    // under the tab bar. Keep walking toward later content.
+                    scrollView.swipeUp()
+                }
             } else {
                 scrollView.swipeUp()
             }
@@ -249,7 +308,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     }
 
     private func visibleContentFrame(in scrollView: XCUIElement, app: XCUIApplication) -> CGRect {
-        var visible = scrollView.frame.intersection(app.frame)
+        var visible = scrollView.frame.intersection(app.windows.firstMatch.frame)
         // A sheet's ScrollView extends behind its navigation bar on iPad.
         // AX can call a partly covered button hittable even when its centre is
         // under Cancel/Save. Exclude that chrome for BOTH visibility and scroll
@@ -262,11 +321,8 @@ final class PeakPolishAcceptanceTests: XCTestCase {
                 visible.size.height = bottom - frame.maxY
             }
         }
-        for bar in app.tabBars.allElementsBoundByIndex where bar.exists {
-            let frame = bar.frame
-            if frame.intersects(visible), frame.minY > visible.minY {
-                visible.size.height = frame.minY - visible.minY
-            }
+        if let chrome = bottomChromeFrame(in: app), chrome.intersects(visible), chrome.minY > visible.minY {
+            visible.size.height = chrome.minY - visible.minY
         }
         let save = app.buttons["Save"]
         if save.exists && save.frame.minY > visible.midY && save.frame.minY < visible.maxY {
@@ -274,6 +330,25 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         }
         // A centre resting exactly on an edge is not reliably tappable.
         return visible.insetBy(dx: 8, dy: 8)
+    }
+
+    /// iOS 18+ tab destinations may be ordinary buttons rather than a tabBars
+    /// container. Reserve the bottom chrome so Log cards are not treated as
+    /// visible while sitting under it.
+    private func bottomChromeFrame(in app: XCUIApplication) -> CGRect? {
+        if let bar = app.tabBars.allElementsBoundByIndex.first(where: { $0.exists && $0.frame.height > 20 }) {
+            return bar.frame
+        }
+        let window = app.windows.firstMatch.frame
+        guard !window.isEmpty else { return nil }
+        let frames = ["Log", "History", "Stats", "Quiver", "More"].compactMap { title -> CGRect? in
+            let predicate = NSPredicate(format: "label == %@", title)
+            return app.buttons.matching(predicate).allElementsBoundByIndex.first(where: {
+                $0.exists && !$0.frame.isEmpty && $0.frame.midY > window.midY
+            })?.frame
+        }
+        guard frames.count >= 3 else { return nil }
+        return frames.reduce(CGRect.null) { $0.union($1) }
     }
 
     func testUnsupportedQuestionHandsKnownDateToHistoryFilters() {

@@ -186,6 +186,12 @@ that "did nothing". A freshly created or erased simulator is exactly what CI get
 simulator behaves like a warm one. **Keep that.** Do not remove it, and boot
 through the script rather than `simctl boot` directly.
 
+A Mac with a hardware keyboard also leaves Simulator's **Connect Hardware
+Keyboard** on. The software keyboard then never appears, and keyboard-avoidance
+tests fail looking for an onscreen keyboard they will never get. `boot-sim.sh`
+disconnects the hardware keyboard for the destination simulator and relaunches
+Simulator.app so that preference is actually read. Keep that too.
+
 ### Commands
 
 Prefer **XcodeBuildMCP** tools when you need to build/test, boot/run simulators,
