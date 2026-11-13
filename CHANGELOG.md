@@ -33,7 +33,7 @@ Status at a glance (App Store Connect read back November 11, 2026):
 - A name-only spot save no longer overwrites coordinates already stored for that break.
 - Ask Peak has an explicit Close action in both phone and iPad navigation, and its More row responds across its full width.
 - Ask Peak’s filter sheet Cancel and swipe-down stay on Ask Peak. Confirming filters closes Ask Peak on iPad as well as iPhone.
-- Simulator UI runs disconnect the hardware keyboard so keyboard-avoidance coverage uses the onscreen keyboard. Log’s Health and backup cards sit above the expanded tab bar on compact iPhone and share the same card treatment.
+- Simulator UI runs disconnect the hardware keyboard so keyboard-avoidance coverage uses the onscreen keyboard. Log’s Health and backup cards sit with recents (above Best Window) on compact iPhone so they remain tappable, and share the same padded card treatment.
 
 ### Release boundaries
 

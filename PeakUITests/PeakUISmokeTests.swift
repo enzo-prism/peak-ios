@@ -66,9 +66,7 @@ final class PeakPolishAcceptanceTests: XCTestCase {
         app.buttons["Save"].tap()
         XCTAssertTrue(spot.waitForNonExistence(timeout: 8))
         let protection = app.buttons["log.backupProtection"]
-        let log = logScroll(in: app)
-        XCTAssertTrue(log.waitForExistence(timeout: 8))
-        scrollToVisible(protection, in: log, app: app)
+        scrollLogCardToVisible(protection, in: app)
         XCTAssertTrue(protection.waitForExistence(timeout: 8), "A fifth session must surface logbook protection")
         XCTAssertTrue(protection.isHittable)
         protection.tap()
@@ -81,11 +79,9 @@ final class PeakPolishAcceptanceTests: XCTestCase {
     func testHealthEntryExplainsPreferenceWithoutClaimingConnection() {
         let app = launch()
         let entry = app.buttons["log.healthImport"]
-        let log = logScroll(in: app)
-        XCTAssertTrue(log.waitForExistence(timeout: 8))
         // Off-screen SwiftUI buttons are often absent from the AX tree until
         // the Log root actually pans. Scroll first, then require the card.
-        scrollToVisible(entry, in: log, app: app)
+        scrollLogCardToVisible(entry, in: app)
         XCTAssertTrue(entry.waitForExistence(timeout: 8))
         XCTAssertTrue(entry.isHittable)
         entry.tap()
@@ -235,6 +231,33 @@ final class PeakPolishAcceptanceTests: XCTestCase {
             return tall
         }
         return app.scrollViews.firstMatch
+    }
+
+    /// Pan the Log XCUIElement itself. Window trailing-gutter drags on compact
+    /// iPhone land in Best Window's full-width chip scroller and never move
+    /// Health/backup above the tab bar, so the cards exist but stay unhittable.
+    private func scrollLogCardToVisible(_ element: XCUIElement, in app: XCUIApplication, maxSwipes: Int = 15) {
+        let scrollView = logScroll(in: app)
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 8))
+        var attempts = 0
+        while (!element.exists || !isVisible(element, in: scrollView, app: app)) && attempts < maxSwipes {
+            let visible = visibleContentFrame(in: scrollView, app: app)
+            if element.exists, element.frame.height > 0, visible.height > 80 {
+                let delta = visible.midY - element.frame.midY
+                if delta < -1 {
+                    scrollView.swipeUp()
+                } else if delta > 1 {
+                    scrollView.swipeDown()
+                } else if !element.isHittable {
+                    scrollView.swipeUp()
+                } else {
+                    break
+                }
+            } else {
+                scrollView.swipeUp()
+            }
+            attempts += 1
+        }
     }
 
     private func scrollToVisible(_ element: XCUIElement, in scrollView: XCUIElement, app: XCUIApplication, maxSwipes: Int = 15, fullyVisible: Bool = false) {

@@ -88,17 +88,14 @@ struct LogView: View {
                             .padding(.horizontal)
                         }
 
-                        // Planning stays available after recent logs and memories.
-                        BestWindowTodayCard(sessions: allSessions)
-
+                        // Health and backup sit with recents so compact iPhone
+                        // can reach them without panning through Best Window's
+                        // full-width chip scroller. Planning stays below.
                         HealthEntryCard()
                         BackupProtectionCard(sessions: allSessions)
+                        BestWindowTodayCard(sessions: allSessions)
                     }
                     .padding(.vertical)
-                    // iOS 26's tab bar stays expanded when animations are off and
-                    // can sit on the last cards. Extra inset keeps Health and
-                    // backup fully above it without relying on minimize-on-scroll.
-                    .padding(.bottom, Theme.Spacing.xl * 2)
                     .readableContentWidth()
                     .opacity(showContent || reduceMotion ? 1 : 0)
                     .offset(y: showContent || reduceMotion ? 0 : 12)

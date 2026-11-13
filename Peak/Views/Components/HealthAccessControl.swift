@@ -73,6 +73,7 @@ struct HealthEntryCard: View {
                     .foregroundStyle(Theme.textPrimary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     .padding(Theme.Spacing.l)
+                    .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                     .glassCard(cornerRadius: Theme.Radius.card, tint: Theme.glassDimTint)
             }
             .buttonStyle(.plain)
